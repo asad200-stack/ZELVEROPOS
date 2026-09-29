@@ -40,5 +40,5 @@ functions/lib/
 coverage/
 *.tsbuildinfo
 
-# Python caches
+# Python / tool caches
 __pycache__/

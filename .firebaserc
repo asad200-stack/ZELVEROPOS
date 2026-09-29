@@ -1,18 +1,5 @@
 {
   "projects": {
-    "default": "pos-catch"
-  },
-  "targets": {
-    "pos-catch": {
-      "hosting": {
-        "prod": [
-          "pos-catch"
-        ],
-        "test": [
-          "pos-catch-test"
-        ]
-      }
-    }
-  },
-  "etags": {}
+    "default": "zelvero-pos-REPLACE-ME"
+  }
 }

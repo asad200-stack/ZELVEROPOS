@@ -1,0 +1,12 @@
+{
+  "$comment": "Single source of truth for Firebase isolation. Anything listed under 'blocked' belongs to the OLD CATCH POS production environment and must never be used by ZELVERO POS. Checked by vite.config.ts (dev/build), src/firebase/config.ts (runtime), scripts/firebase-guard.mjs (CLI/deploy) and functions/src/guard.ts (Cloud Functions cold start). API keys and app ids are stored as SHA-256 hashes.",
+  "blocked": {
+    "projectIds": ["pos-catch", "pos-catch-test"],
+    "projectNumbers": ["891436013106"],
+    "hostingSites": ["pos-catch", "pos-catch-test", "pos-catch--test"],
+    "apiKeySha256": ["546f3d79a857a288ec1b4e64dc41a7d37da08d0170739988acd1c2133c7f7021"],
+    "appIdSha256": ["92f783dbb0e234298208b015a53467eb6b1f52250f3444a961672aceb8daa333"]
+  },
+  "placeholderProjectIds": ["", "your-new-project-id", "zelvero-pos-REPLACE-ME"],
+  "emulatorProjectPrefix": "demo-"
+}
