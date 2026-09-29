@@ -1,0 +1,81 @@
+import type { Product, Sale } from '@/types/models';
+
+export function product(over: Partial<Product> = {}): Product {
+  return {
+    id: 'p1',
+    name: 'Phone case',
+    category: '',
+    barcode: '',
+    prices: {
+      retail: { usdCents: 500, lbp: null },
+      wholesale: { usdCents: 400, lbp: null },
+      vip: { usdCents: 0, lbp: 300_000 },
+    },
+    costUsdCents: 200,
+    stock: 10,
+    minStock: null,
+    supplierId: null,
+    supplierName: '',
+    expiryDate: null,
+    imageUrl: null,
+    imagePath: null,
+    imeiTracking: false,
+    imeis: [],
+    lastMovementId: null,
+    createdAt: null,
+    updatedAt: null,
+    ...over,
+  };
+}
+
+export function sale(over: Partial<Sale> = {}): Sale {
+  return {
+    id: 's1',
+    invoiceNumber: 'INV-001',
+    kind: 'cash',
+    currency: 'USD',
+    exchangeRate: 100_000,
+    items: [
+      {
+        productId: 'p1',
+        name: 'Phone case',
+        quantity: 2,
+        tier: 'retail',
+        unitUsdCents: 500,
+        unitLbp: 500_000,
+        originalUnitUsdCents: 500,
+        discountUsdCents: 0,
+        costUsdCents: 200,
+        imei: null,
+        returnedQty: 0,
+      },
+    ],
+    totalUsdCents: 1_000,
+    totalLbp: 1_000_000,
+    discountUsdCents: 0,
+    costUsdCents: 400,
+    customerId: null,
+    customerName: '',
+    payment: {
+      receivedUsdCents: 1_000,
+      receivedLbp: 0,
+      previousDebtUsdCents: 0,
+      settledPreviousUsdCents: 0,
+      unpaidUsdCents: 0,
+      debtAddedUsdCents: 0,
+      debtAfterUsdCents: null,
+    },
+    returnedUsdCents: 0,
+    returnedDebtUsdCents: 0,
+    refundedUsdCents: 0,
+    refundedLbp: 0,
+    returnStatus: 'none',
+    lastReturnId: null,
+    offline: false,
+    localDate: '2026-09-29',
+    createdAt: null,
+    createdBy: 'u1',
+    createdByName: 'Cashier',
+    ...over,
+  };
+}
