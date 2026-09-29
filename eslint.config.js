@@ -5,7 +5,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'legacy', 'functions/lib', 'node_modules', 'coverage', 'scripts/*.cjs'] },
+  { ignores: ['dist', 'legacy', 'functions/lib', 'functions/node_modules', 'node_modules', 'coverage', 'scripts/*.cjs'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts', '*.ts'],
@@ -20,7 +20,16 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs'],
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    files: ['functions/src/**/*.ts'],
+    languageOptions: { ecmaVersion: 2023, globals: globals.node },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs', 'functions/scripts/**/*.mjs'],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
   },

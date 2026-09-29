@@ -38,6 +38,7 @@ Thumbs.db
 dist/
 build/
 functions/lib/
+functions/isolation.json
 coverage/
 *.tsbuildinfo
 

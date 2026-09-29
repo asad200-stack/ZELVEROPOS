@@ -1,0 +1,10 @@
+import { setGlobalOptions } from 'firebase-functions/v2';
+import { REGION } from './config.js';
+
+setGlobalOptions({ region: REGION, maxInstances: 20 });
+
+export { checkSignupAvailability, completeSignup, refreshMyClaims } from './account.js';
+export { createSubUser, updateSubUser, deleteSubUser } from './subUsers.js';
+export { bootstrapSuperAdmin, adminListAccounts, adminSetSubscription, adminDeleteAccount } from './superAdmin.js';
+export { clearTenantData } from './tenantData.js';
+export { testTelegram, onSaleCreated, onReturnCreated, onCashTransactionCreated, onProductStockChanged } from './telegram/index.js';
