@@ -1,0 +1,54 @@
+{
+  "name": "zelvero-pos",
+  "version": "2.0.0",
+  "private": true,
+  "description": "ZELVERO POS — React + TypeScript + Firebase point of sale",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix-encoding": "node scripts/fix-encoding.cjs",
+    "predev": "node scripts/fix-encoding.cjs",
+    "dev": "vite",
+    "dev:emulators": "vite --mode emulator",
+    "prebuild": "node scripts/fix-encoding.cjs",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "firebase:verify": "node scripts/firebase-guard.mjs",
+    "emulators": "node scripts/firebase-guard.mjs --emulator --project=demo-zelvero && npx firebase-tools emulators:start --project demo-zelvero",
+    "test:rules": "node scripts/firebase-guard.mjs --emulator --project=demo-zelvero && npx firebase-tools emulators:exec --only firestore,storage --project demo-zelvero \"vitest run --config vitest.rules.config.ts\"",
+    "deploy": "node scripts/deploy.mjs all",
+    "deploy:hosting": "node scripts/deploy.mjs hosting",
+    "deploy:functions": "node scripts/deploy.mjs functions",
+    "deploy:rules": "node scripts/deploy.mjs rules"
+  },
+  "dependencies": {
+    "firebase": "^12.19.0",
+    "jsbarcode": "^3.12.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router": "^8.4.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.12.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  }
+}

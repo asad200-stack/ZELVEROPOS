@@ -1,0 +1,344 @@
+/* App shell: sidebar, topbar, content area, auth screens. */
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-w);
+  height: 100vh;
+  flex-shrink: 0;
+  background: var(--c-surface);
+  border-inline-end: 1px solid var(--c-border);
+  z-index: 50;
+}
+
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--topbar-h);
+  padding: 0 18px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.sidebar__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--c-primary), #7c3aed);
+  color: #fff;
+  font-weight: 800;
+}
+
+.sidebar__title {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sidebar__nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.sidebar__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border-top: 1px solid var(--c-border);
+}
+
+.sidebar__user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  color: var(--c-text-muted);
+  overflow: hidden;
+}
+
+.sidebar__user span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--c-text);
+  font-weight: 500;
+  text-align: start;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  background: var(--c-surface-2);
+  text-decoration: none;
+}
+
+.nav-link .icon {
+  color: var(--c-text-muted);
+}
+
+.nav-link--active {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-weight: 650;
+}
+
+.nav-link--active .icon {
+  color: var(--c-primary);
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--topbar-h);
+  padding: 0 20px;
+  background: color-mix(in srgb, var(--c-surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.topbar__menu {
+  display: none;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+
+.topbar__title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbar__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.topbar__chip--warning {
+  background: var(--c-warning-soft);
+  border-color: transparent;
+  color: var(--c-warning);
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  min-width: 0;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.page-header__subtitle {
+  margin-top: 2px;
+  color: var(--c-text-muted);
+  font-size: 0.9rem;
+}
+
+.page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 960px) {
+  .sidebar {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease-out;
+    box-shadow: var(--shadow-lg);
+  }
+
+  [dir='rtl'] .sidebar {
+    transform: translateX(100%);
+  }
+
+  .app--menu-open .sidebar {
+    transform: none;
+  }
+
+  .app--menu-open .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: var(--c-overlay);
+  }
+
+  .topbar__menu {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 720px) {
+  .content {
+    padding: 12px;
+  }
+
+  .topbar {
+    padding: 0 12px;
+  }
+
+  .topbar__chip {
+    padding: 0 7px;
+  }
+}
+
+/* Auth & full-screen states */
+.auth {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px;
+  background:
+    radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--c-primary) 16%, transparent), transparent 45%),
+    radial-gradient(circle at 85% 90%, color-mix(in srgb, #7c3aed 14%, transparent), transparent 45%),
+    var(--c-bg);
+}
+
+.auth__tools {
+  position: fixed;
+  top: 12px;
+  inset-inline-end: 12px;
+  display: flex;
+  gap: 4px;
+}
+
+.auth__card {
+  width: 100%;
+  max-width: 460px;
+  padding: 28px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
+}
+
+.auth__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.auth__name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.auth__title {
+  font-size: 1.25rem;
+}
+
+.auth__links {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.88rem;
+}
+
+.center-screen {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.center-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 480px;
+  padding: 32px 28px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}

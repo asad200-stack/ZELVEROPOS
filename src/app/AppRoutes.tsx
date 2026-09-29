@@ -1,0 +1,94 @@
+import { lazy, Suspense, useEffect, useRef, type ComponentType, type LazyExoticComponent } from 'react';
+import { Navigate, Route, Routes } from 'react-router';
+import { PageLoader } from '@/components/ui/Spinner';
+import { useSession } from '@/contexts/session';
+import { resetTenantStore } from '@/stores/tenantStore';
+import { AppLayout } from '@/layouts/AppLayout';
+import { AuthLayout } from '@/layouts/AuthLayout';
+import { NAV_ITEMS } from './navigation';
+import { PublicOnly, RequirePermission, RequireSuperAdmin, RequireTenant } from './guards';
+
+const page = (loader: () => Promise<{ default: ComponentType }>) => lazy(loader);
+
+const LoginPage = page(() => import('@/features/auth/LoginPage'));
+const SignupPage = page(() => import('@/features/auth/SignupPage'));
+const ForgotPasswordPage = page(() => import('@/features/auth/ForgotPasswordPage'));
+const VerifyEmailPage = page(() => import('@/features/auth/VerifyEmailPage'));
+const SetupPage = page(() => import('@/features/auth/SetupPage'));
+const SuperAdminPage = page(() => import('@/features/admin/SuperAdminPage'));
+const NotFoundPage = page(() => import('@/pages/NotFoundPage'));
+
+const SCREENS: Record<string, LazyExoticComponent<ComponentType>> = {
+  '/dashboard': page(() => import('@/features/dashboard/DashboardPage')),
+  '/pos': page(() => import('@/features/pos/PosPage')),
+  '/cashbox': page(() => import('@/features/cashbox/CashboxPage')),
+  '/products': page(() => import('@/features/products/ProductsPage')),
+  '/expiry': page(() => import('@/features/products/ExpiryPage')),
+  '/sales': page(() => import('@/features/sales/SalesPage')),
+  '/customers': page(() => import('@/features/customers/CustomersPage')),
+  '/suppliers': page(() => import('@/features/suppliers/SuppliersPage')),
+  '/purchases': page(() => import('@/features/purchases/PurchasesPage')),
+  '/reports': page(() => import('@/features/reports/ReportsPage')),
+  '/users': page(() => import('@/features/users/UsersPage')),
+  '/settings': page(() => import('@/features/settings/SettingsPage')),
+};
+
+/** Stops tenant listeners when the signed-in user or tenant changes. */
+function useTenantReset() {
+  const { user, tenantId } = useSession();
+  const key = `${user?.uid ?? ''}/${tenantId ?? ''}`;
+  const previous = useRef(key);
+  useEffect(() => {
+    if (previous.current !== key) {
+      resetTenantStore();
+      previous.current = key;
+    }
+  }, [key]);
+}
+
+export function AppRoutes() {
+  useTenantReset();
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route element={<AuthLayout />}>
+          <Route element={<PublicOnly />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          </Route>
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/setup" element={<SetupPage />} />
+        </Route>
+
+        <Route element={<RequireSuperAdmin />}>
+          <Route element={<AppLayout adminOnly />}>
+            <Route path="/admin" element={<SuperAdminPage />} />
+          </Route>
+        </Route>
+
+        <Route element={<RequireTenant />}>
+          <Route element={<AppLayout />}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            {NAV_ITEMS.map((item) => {
+              const Screen = SCREENS[item.path];
+              return (
+                <Route
+                  key={item.path}
+                  path={item.path}
+                  element={
+                    <RequirePermission permission={item.permission} ownerOnly={item.ownerOnly}>
+                      <Screen />
+                    </RequirePermission>
+                  }
+                />
+              );
+            })}
+          </Route>
+        </Route>
+
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </Suspense>
+  );
+}
