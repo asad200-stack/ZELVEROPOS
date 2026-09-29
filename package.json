@@ -1,0 +1,18 @@
+{
+  "name": "pos-catch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CATCH POS System - deployment and tooling",
+  "scripts": {
+    "deploy": "node scripts/deploy.js test",
+    "deploy:test": "node scripts/deploy.js test",
+    "deploy:prod": "node scripts/deploy.js prod",
+    "deploy:backend": "firebase deploy --only functions,firestore:rules,firestore:indexes,storage"
+  },
+  "devDependencies": {
+    "firebase-tools": "latest"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

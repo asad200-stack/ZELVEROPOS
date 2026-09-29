@@ -1,0 +1,86 @@
+{
+  "hosting": [
+    {
+      "target": "prod",
+      "public": "public",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "/build-manifest.json",
+          "headers": [
+            {"key": "Access-Control-Allow-Origin", "value": "*"},
+            {"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}
+          ]
+        },
+        {
+          "source": "**/*.@(js|css)",
+          "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]
+        },
+        {
+          "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|ico)",
+          "headers": [{"key": "Cache-Control", "value": "max-age=31536000"}]
+        },
+        {
+          "source": "/sw.js",
+          "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]
+        },
+        {
+          "source": "**/*.html",
+          "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]
+        }
+      ]
+    },
+    {
+      "target": "test",
+      "public": "public",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "/build-manifest.json",
+          "headers": [
+            {"key": "Access-Control-Allow-Origin", "value": "*"},
+            {"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}
+          ]
+        },
+        {
+          "source": "**/*.@(js|css)",
+          "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]
+        },
+        {
+          "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|ico)",
+          "headers": [{"key": "Cache-Control", "value": "max-age=31536000"}]
+        },
+        {
+          "source": "/sw.js",
+          "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]
+        },
+        {
+          "source": "**/*.html",
+          "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]
+        }
+      ]
+    }
+  ],
+  "firestore": {
+    "rules": "public/firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": {
+    "source": "functions"
+  }
+}

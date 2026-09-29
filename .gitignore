@@ -1,0 +1,44 @@
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+storage-debug.log
+emulator-data/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment / secrets (never commit real credentials)
+.env
+.env.*
+!.env.example
+*.pem
+service-account*.json
+**/.vercel/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
+functions/lib/
+coverage/
+*.tsbuildinfo
+
+# Python caches
+__pycache__/

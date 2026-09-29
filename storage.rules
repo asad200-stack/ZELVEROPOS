@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Sub-user may upload to the parent admin's catalog path.
+    function isSubUserOf(ownerId) {
+      return isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        (
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.parentAdminId == ownerId ||
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.parentAdminID == ownerId ||
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.parentId == ownerId ||
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.parent == ownerId ||
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.parentUid == ownerId ||
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.parentUserId == ownerId
+        );
+    }
+    
+    // Products images: users can only upload/read/delete their own images
+    match /products/{userId}/{fileName} {
+      // Allow read only to the owner, their sub-users, or authenticated super admin via Firestore-backed relationship.
+      allow read: if isAuthenticated() && (isOwner(userId) || isSubUserOf(userId));
+      
+      // Allow write (create/update) if user owns the path
+      allow write: if isAuthenticated() && (isOwner(userId) || isSubUserOf(userId))
+        && request.resource.size < 10 * 1024 * 1024 // Max 10MB
+        && request.resource.contentType.matches('image/.*'); // Only images
+      
+      // Allow delete if user owns the file
+      allow delete: if isAuthenticated() && (isOwner(userId) || isSubUserOf(userId));
+    }
+    
+    // Deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

@@ -1,0 +1,472 @@
+rules_version = '2';
+// Firestore Security Rules - CATCH POS (deploy id)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Security: all access is authenticated and scoped by userId/ownerId where applicable.
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Caller profile map (single get; avoids `let x = get(...)` analyzer false-positives)
+    function authUserDataMap() {
+      let d = isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+      return d;
+    }
+
+    // Helper function to check if user is super admin
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+             (
+               request.auth.token.super_admin == true ||
+               request.auth.token.superAdmin == true
+             );
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getCallerTenantId() {
+      let d = authUserDataMap();
+      return d == null
+        ? null
+        : (
+            d.keys().hasAny(['tenantId']) && d.tenantId != null
+              ? d.tenantId
+              : (
+                  d.keys().hasAny(['tenantID']) && d.tenantID != null
+                    ? d.tenantID
+                    : (
+                        d.keys().hasAny(['tenant']) && d.tenant != null
+                          ? d.tenant
+                          : null
+                      )
+                )
+          );
+    }
+
+    function isSameTenant(tenantId) {
+      return isAuthenticated() &&
+        (
+          isSuperAdmin() ||
+          (getCallerTenantId() != null && getCallerTenantId() == tenantId) ||
+          // Legacy fallback: before tenantId rollout, tenant scope equals effective owner scope.
+          isOwner(tenantId) ||
+          isSubUserOf(tenantId)
+        );
+    }
+    
+    // Helper: sub-user can access parent admin's data
+    function isSubUserOf(ownerId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.parentAdminId == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.parentAdminID == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.parentId == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.parent == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.parentUid == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.parentUserId == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.mainAdminId == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.mainAdminUID == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminId == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ownerId == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ownerUid == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ownerID == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.storeOwnerId == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.storeId == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.createdBy == ownerId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.createdByUid == ownerId ||
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.storeId != null &&
+            exists(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.storeId)) &&
+            get(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.storeId)).data.ownerId == ownerId
+          ) ||
+          // Final fallback for legacy sub-users:
+          // same store/subdomain + caller is subUser + target owner is not subUser.
+          (
+            exists(/databases/$(database)/documents/users/$(ownerId)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'subUser' &&
+            get(/databases/$(database)/documents/users/$(ownerId)).data.role != 'subUser' &&
+            (
+              (
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subdomain != null &&
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subdomain ==
+                  get(/databases/$(database)/documents/users/$(ownerId)).data.subdomain
+              ) ||
+              (
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.storeId != null &&
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.storeId ==
+                  get(/databases/$(database)/documents/users/$(ownerId)).data.storeId
+              ) ||
+              (
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.storeOwnerId != null &&
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.storeOwnerId == ownerId
+              ) ||
+              (
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.createdByUid != null &&
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.createdByUid == ownerId
+              )
+            )
+          )
+        );
+    }
+
+    // V2 userData subcollections: owner, super-admin, or any account linked to that owner via isSubUserOf.
+    // Fine-grained POS permissions stay in the app UI; Firestore only gates "this store vs not".
+    // (Avoids brittle permission-map evaluation that can deny entire batches → Sync Paused.)
+    function canReadScopedDoc(ownerId, docPath) {
+      return (isOwner(ownerId) || isSuperAdmin()) || isSubUserOf(ownerId);
+    }
+
+    function subUserPermission(ownerId, field) {
+      return isSubUserOf(ownerId) &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          !('permissions' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data)
+            ? false
+            : (
+                field == 'canSell'
+                  ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.canSell == true
+                  : (
+                      field == 'canViewProducts'
+                        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.canViewProducts == true
+                        : (
+                            field == 'canViewCustomers'
+                              ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.canViewCustomers == true
+                              : (
+                                  field == 'canViewSuppliers'
+                                    ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.canViewSuppliers == true
+                                    : (
+                                        field == 'canManageCashDrawer'
+                                          ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.canManageCashDrawer == true
+                                          : false
+                                      )
+                                )
+                          )
+                    )
+              )
+        );
+    }
+
+    function canWriteScopedDoc(ownerId, docPath, operation) {
+      // Firestore rules language doesn't support imperative if/return in functions,
+      // so we keep this as one boolean expression.
+      return (isOwner(ownerId) || isSuperAdmin()) ||
+        (
+          isSubUserOf(ownerId) &&
+          operation != "delete" &&
+          (
+            (docPath.matches('^sales/[^/]+$') && subUserPermission(ownerId, 'canSell')) ||
+            (docPath.matches('^products/[^/]+$') && (subUserPermission(ownerId, 'canSell') || subUserPermission(ownerId, 'canViewProducts'))) ||
+            (docPath.matches('^customers/[^/]+$') && subUserPermission(ownerId, 'canViewCustomers')) ||
+            (docPath.matches('^suppliers/[^/]+$') && subUserPermission(ownerId, 'canViewSuppliers')) ||
+            (docPath.matches('^supplierPayments/[^/]+$') && subUserPermission(ownerId, 'canViewSuppliers')) ||
+            (docPath.matches('^supplierLedger/[^/]+$') && subUserPermission(ownerId, 'canViewSuppliers')) ||
+            (docPath.matches('^purchases/[^/]+$') && subUserPermission(ownerId, 'canViewSuppliers')) ||
+            (docPath.matches('^purchaseReturns/[^/]+$') && subUserPermission(ownerId, 'canViewSuppliers')) ||
+            (docPath.matches('^cashDrawerTx/[^/]+$') && subUserPermission(ownerId, 'canManageCashDrawer'))
+          )
+        );
+    }
+    
+    // Helper function to check if user is active
+    function isUserActive() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true;
+    }
+
+    // Caller is a store owner (not linked as someone else's sub-user). Missing parentAdminId counts as owner.
+    function isStoreOwnerUser() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          !('parentAdminId' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.parentAdminId == null
+        );
+    }
+
+    function immutableUserSecurityFieldsUnchanged() {
+      return resource == null ||
+        (
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.isActive == resource.data.isActive &&
+          request.resource.data.parentAdminId == resource.data.parentAdminId
+        );
+    }
+
+    // ============ USERS COLLECTION ============
+    match /users/{userId} {
+      // Allow users to read their own data (must come first to avoid circular dependency)
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      // Allow parent admin to read their sub-users
+      allow read: if isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && isStoreOwnerUser()
+        && resource != null && resource.data.parentAdminId == request.auth.uid;
+      // Allow super admin to read any user
+      allow read: if isSuperAdmin();
+      
+      // Allow users to create only a safe self profile during signup.
+      // Privileged fields are controlled by Admin SDK / Cloud Functions only.
+      allow create: if isAuthenticated() && request.auth.uid == userId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role == 'user'
+        && request.resource.data.isActive == true
+        && (!('parentAdminId' in request.resource.data) || request.resource.data.parentAdminId == null);
+      
+      // Allow users to update their own non-privileged profile fields only.
+      allow update: if isAuthenticated() && request.auth.uid == userId
+        && immutableUserSecurityFieldsUnchanged();
+      
+      // Parent admin can update their sub-users (permissions, isActive, etc.)
+      allow update: if isAuthenticated() && resource != null && resource.data.parentAdminId == request.auth.uid;
+      
+      // Super admin can update any user
+      allow update: if isSuperAdmin();
+      
+      // Only super admin can delete users
+      allow delete: if isSuperAdmin();
+      // IMPORTANT: do not add a standalone `allow list` here. A list-only rule would block
+      // non–super-admin queries (e.g. getSubUsers: where parentAdminId == owner) even when
+      // each matched document satisfies `allow read` above. List uses the same read rules.
+    }
+
+    // ============ STORES COLLECTION ============
+    match /stores/{storeId} {
+      // Public lookup is limited to single-result list/get to support subdomain checks.
+      // This avoids exposing unrestricted list reads while keeping signup/login flows working.
+      allow get: if resource != null && resource.data.isActive == true;
+      allow list: if request.query.limit != null && request.query.limit <= 1;
+      allow read: if isSuperAdmin();
+      allow read: if isAuthenticated() && resource != null && resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.subdomain is string
+        && exists(/databases/$(database)/documents/storeSubdomains/$(request.resource.data.subdomain))
+        && get(/databases/$(database)/documents/storeSubdomains/$(request.resource.data.subdomain)).data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid
+        && (!('isActive' in request.resource.data) || request.resource.data.isActive == resource.data.isActive);
+      allow update: if isSuperAdmin(); // Super admin can update isActive
+      allow delete: if isSuperAdmin();
+    }
+
+    match /storeSubdomains/{subdomain} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isAuthenticated()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.subdomain == subdomain
+        && !exists(/databases/$(database)/documents/storeSubdomains/$(subdomain));
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin() || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+    }
+
+    // ============ PRODUCTS COLLECTION ============
+    match /products/{productId} {
+      allow read: if isAuthenticated() &&
+        resource.data.storeId != null &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      allow read: if isSuperAdmin();
+      allow create: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(request.resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      allow delete: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      allow write: if isSuperAdmin();
+    }
+
+    // ============ ORDERS COLLECTION ============
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      allow read: if isSuperAdmin();
+      allow create: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(request.resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      allow delete: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      allow write: if isSuperAdmin();
+    }
+
+    // ============ SERVER TIME (unify day calculation across all devices) ============
+    // Doc id is often the subscription/billing owner uid; sub-users must ping/read parent doc too.
+    match /_serverTime/{userId} {
+      allow read, write: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isSubUserOf(userId)
+      );
+    }
+
+    // ============ SUBSCRIPTIONS COLLECTION ============
+    match /subscriptions/{userId} {
+      // Users can read their own subscription; sub-users can read parent's subscription; super admin can read any
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.parentAdminId == userId) ||
+        isSuperAdmin());
+      
+      // Subscription state is sensitive; writes are server-side only (Admin SDK bypasses rules).
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin();
+      
+      // Only super admin can delete subscriptions
+      allow delete: if isSuperAdmin();
+      
+      // Allow super admin to list all subscriptions
+      allow list: if isSuperAdmin();
+    }
+
+    // ============ USER DATA COLLECTIONS (Isolated by userId) ============
+    match /sales/{saleId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    match /customers/{customerId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    match /inventory/{inventoryId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    // ============ EMAIL VERIFICATIONS COLLECTION ============
+    // Store email verification codes
+    match /emailVerifications/{userId} {
+      // Users can only read their own verification data
+      allow read: if isAuthenticated() && (isOwner(userId) || isSuperAdmin());
+      
+      // Users can create their own verification document
+      allow create: if isAuthenticated() && isOwner(userId);
+      
+      // Users can update their own verification (to mark as verified)
+      allow update: if isAuthenticated() && isOwner(userId);
+      
+      // Super admin can read all verifications
+      allow read: if isSuperAdmin();
+      
+      // Only super admin can delete verifications
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============ USER DATA COLLECTION ============
+    // Store all user-specific data (products, customers, sales, etc.)
+    match /userData/{userId} {
+      // Users can only read and write their own data; sub-users can access parent admin's data
+      allow read: if isAuthenticated() && (isOwner(userId) || isSubUserOf(userId) || isSuperAdmin());
+      // Root userData document contains schema/meta fields and legacy payloads.
+      // Only owner/super-admin can mutate this root doc to reduce blast radius.
+      allow write: if isAuthenticated() && (isOwner(userId) || isSuperAdmin());
+      // Super admin can read and delete any user's data (for store data deletion)
+      allow read: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // Subcollections under userData (V2 scalable schema)
+    match /userData/{userId}/{docPath=**} {
+      allow read: if isAuthenticated() && canReadScopedDoc(userId, docPath);
+      allow create: if isAuthenticated() && canWriteScopedDoc(userId, docPath, "create");
+      allow update: if isAuthenticated() && canWriteScopedDoc(userId, docPath, "update");
+      allow delete: if isAuthenticated() && canWriteScopedDoc(userId, docPath, "delete");
+    }
+
+    // ============ SYSTEM ERRORS COLLECTION ============
+    // Client-side error telemetry written by authenticated users.
+    // Super admin can review logs centrally from the admin dashboard.
+    match /systemErrors/{errorId} {
+      allow create: if isAuthenticated()
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 4000;
+      allow read, list, delete: if isSuperAdmin();
+      allow update: if false;
+    }
+
+    // ============ ADMIN AUDIT LOGS ============
+    // Created only by Cloud Functions (Admin SDK bypasses rules).
+    match /adminAuditLogs/{logId} {
+      allow read, list: if isSuperAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // ============ OUTBOUND MAIL (for Firestore "Send Email" extension) ============
+    // This collection is intended to be processed by a server-side email sender.
+    // Clients can ONLY create emails to themselves (anti-spam / anti-abuse).
+    // Server-side (e.g. Cloud Functions) use Admin SDK and bypass these rules.
+    match /mail/{docId} {
+      allow create: if isAuthenticated()
+        && (request.resource.data.to is list)
+        && (request.auth.token.email in request.resource.data.to);
+      allow read, update, delete: if false;
+    }
+
+    // ============ APP UPDATE CONTROL ============
+    // Single control document used by clients to know released/pending version.
+    match /appControl/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // ============ DATABASE USAGE STATS ============
+    // Lightweight per-owner usage metrics written by active clients and viewed by super admin.
+    match /usageStats/{ownerId} {
+      allow read: if isAuthenticated() && (isOwner(ownerId) || isSubUserOf(ownerId) || isSuperAdmin());
+      allow create, update: if isAuthenticated() && (isOwner(ownerId) || isSubUserOf(ownerId) || isSuperAdmin());
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============ TENANT CASHBOX (shared across all users in same tenant) ============
+    match /cashbox/{tenantId} {
+      allow read: if isSameTenant(tenantId);
+      allow create, update: if isSameTenant(tenantId)
+        && request.resource.data.tenantId == tenantId;
+      allow delete: if isSuperAdmin();
+    }
+
+    match /cashbox/{tenantId}/transactions/{txId} {
+      allow read: if isSameTenant(tenantId);
+      allow create, update: if isSameTenant(tenantId)
+        && request.resource.data.tenantId == tenantId;
+      allow delete: if isSuperAdmin();
+    }
+  }
+}

@@ -1,0 +1,216 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to get user role
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    // Helper function to check if user is super admin
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserRole() == 'superAdmin';
+    }
+    
+    // Helper function to check if user is admin or super admin
+    function isAdmin() {
+      return isAuthenticated() && (getUserRole() == 'admin' || getUserRole() == 'superAdmin');
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Helper function to check if user is active
+    function isUserActive() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true;
+    }
+
+    // ============ USERS COLLECTION ============
+    match /users/{userId} {
+      // Allow users to read their own data
+      allow read: if isAuthenticated() && (isOwner(userId) || isSuperAdmin());
+      
+      // Allow users to create their own document during signup
+      allow create: if isAuthenticated() && isOwner(userId);
+      
+      // Allow users to update their own data (except role and isActive)
+      allow update: if isAuthenticated() && isOwner(userId) 
+        && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)
+        && (!('isActive' in request.resource.data) || request.resource.data.isActive == resource.data.isActive);
+      
+      // Only super admin can update role and isActive
+      allow update: if isSuperAdmin();
+      
+      // Only super admin can delete users
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============ STORES COLLECTION ============
+    match /stores/{storeId} {
+      // Allow checking subdomain availability (unauthenticated reads for queries)
+      // This must be first to allow subdomain checks before authentication
+      allow read: if true;
+      
+      // Allow public read for active stores (for subdomain lookup)
+      allow read: if resource != null && resource.data.isActive == true;
+      
+      // Allow super admin to read all stores
+      allow read: if isSuperAdmin();
+      
+      // Allow store owner to read their store
+      allow read: if isAuthenticated() && resource != null && isOwner(resource.data.ownerId);
+      
+      // Allow users to create their own store during signup
+      allow create: if isAuthenticated() && isOwner(request.resource.data.ownerId);
+      
+      // Allow store owner to update their store (except isActive)
+      allow update: if isAuthenticated() && isOwner(resource.data.ownerId)
+        && (!('isActive' in request.resource.data) || request.resource.data.isActive == resource.data.isActive);
+      
+      // Only super admin can update isActive
+      allow update: if isSuperAdmin();
+      
+      // Only super admin can delete stores
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============ PRODUCTS COLLECTION ============
+    match /products/{productId} {
+      // Allow public read for products of active stores
+      allow read: if resource.data.storeId != null 
+        && exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.isActive == true;
+      
+      // Allow store owner to read their products
+      allow read: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      
+      // Allow super admin to read all products
+      allow read: if isSuperAdmin();
+      
+      // Allow store owner to create products for their store
+      allow create: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(request.resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.ownerId == request.auth.uid;
+      
+      // Allow store owner to update their products
+      allow update: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      
+      // Allow store owner to delete their products
+      allow delete: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      
+      // Allow super admin to perform all operations
+      allow write: if isSuperAdmin();
+    }
+
+    // ============ ORDERS COLLECTION ============
+    match /orders/{orderId} {
+      // Allow store owner to read their orders
+      allow read: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      
+      // Allow super admin to read all orders
+      allow read: if isSuperAdmin();
+      
+      // Allow store owner to create orders for their store
+      allow create: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(request.resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.ownerId == request.auth.uid;
+      
+      // Allow store owner to update their orders
+      allow update: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      
+      // Allow store owner to delete their orders
+      allow delete: if isAuthenticated() && isUserActive() &&
+        exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
+        && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+      
+      // Allow super admin to perform all operations
+      allow write: if isSuperAdmin();
+    }
+
+    // ============ SUBSCRIPTIONS COLLECTION ============
+    // Each user has their subscription data linked to their UID
+    match /subscriptions/{userId} {
+      // Users can only read their own subscription
+      // Allow read if user owns the document OR is super admin
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+      
+      // Users can create their own subscription during activation/sync
+      // userId in document path must match authenticated user's UID
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Users can update their own subscription for syncing from localStorage
+      // Note: Actual subscription extension is handled by Super Admin only in the code
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Super admin can update any subscription (for extending days, etc.)
+      allow update: if isSuperAdmin();
+      
+      // Only super admin can delete subscriptions
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============ USER DATA COLLECTIONS (Isolated by userId) ============
+    // All user-specific data collections follow the same pattern:
+    // - Data is isolated by userId field
+    // - Users can only access their own data
+    // - Super admin can access all data
+    
+    // Sales collection - isolated by userId
+    match /sales/{saleId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    // Purchases collection - isolated by userId
+    match /purchases/{purchaseId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    // Customers collection - isolated by userId
+    match /customers/{customerId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    // Suppliers collection - isolated by userId
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    // Inventory collection - isolated by userId
+    match /inventory/{inventoryId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow write: if isAuthenticated() && isUserActive() &&
+        (request.resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+  }
+}
+
