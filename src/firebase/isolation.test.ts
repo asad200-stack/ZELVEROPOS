@@ -5,6 +5,8 @@ const complete = {
   VITE_FIREBASE_API_KEY: 'key',
   VITE_FIREBASE_AUTH_DOMAIN: 'zelvero-pos-prod.firebaseapp.com',
   VITE_FIREBASE_PROJECT_ID: 'zelvero-pos-prod',
+  VITE_FIREBASE_STORAGE_BUCKET: 'zelvero-pos-prod.firebasestorage.app',
+  VITE_FIREBASE_MESSAGING_SENDER_ID: '123456789012',
   VITE_FIREBASE_APP_ID: '1:1:web:1',
   VITE_EXPECTED_FIREBASE_PROJECT_ID: 'zelvero-pos-prod',
 };
@@ -45,5 +47,10 @@ describe('firebase isolation guard', () => {
   it('missing values are fatal only for builds', () => {
     expect(fatal({}, false)).toEqual([]);
     expect(fatal({}, true)).not.toEqual([]);
+  });
+
+  it('a real project build needs an explicit storage bucket', () => {
+    const { VITE_FIREBASE_STORAGE_BUCKET: _bucket, ...noBucket } = complete;
+    expect(fatal(noBucket)).not.toEqual([]);
   });
 });

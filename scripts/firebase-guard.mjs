@@ -43,6 +43,42 @@ export function loadIsolationConfig() {
 
 const sha256 = (value) => createHash('sha256').update(String(value)).digest('hex');
 
+function functionsRegion() {
+  const file = join(ROOT, 'functions', 'src', 'config.ts');
+  if (!existsSync(file)) return '';
+  return readFileSync(file, 'utf8').match(/export const REGION = '([a-z0-9-]+)'/)?.[1] ?? '';
+}
+
+const WEB_CONFIG_KEYS = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID',
+];
+
+/** The web config must be complete, free of placeholders and describe one single project. */
+function webConfigProblems(env, projectId) {
+  const problems = [];
+  const missing = WEB_CONFIG_KEYS.filter((k) => !env[k]);
+  if (missing.length) problems.push(`Missing production web config: ${missing.join(', ')}.`);
+  for (const k of WEB_CONFIG_KEYS) {
+    if (/^demo-|REPLACE|your-|^0+$|:0+:web:/i.test(env[k] || '')) problems.push(`${k} looks like a placeholder or emulator value.`);
+  }
+  const sender = env.VITE_FIREBASE_MESSAGING_SENDER_ID || '';
+  if (sender && !/^\d{6,}$/.test(sender)) problems.push('VITE_FIREBASE_MESSAGING_SENDER_ID must be the numeric project number.');
+  if (env.VITE_FIREBASE_APP_ID && sender && !env.VITE_FIREBASE_APP_ID.startsWith(`1:${sender}:web:`)) {
+    problems.push('VITE_FIREBASE_APP_ID does not belong to the project number in VITE_FIREBASE_MESSAGING_SENDER_ID.');
+  }
+  const bucket = (env.VITE_FIREBASE_STORAGE_BUCKET || '').toLowerCase();
+  if (bucket && !bucket.startsWith(`${projectId.toLowerCase()}.`)) {
+    problems.push(`VITE_FIREBASE_STORAGE_BUCKET "${bucket}" is not a bucket of project "${projectId}".`);
+  }
+  if (env.VITE_USE_FIREBASE_EMULATORS === 'true') problems.push('VITE_USE_FIREBASE_EMULATORS is true in the production environment.');
+  return problems;
+}
+
 /** Returns a list of human readable problems; empty list = safe. */
 export function checkFirebaseTargets({ projectFromCli, hook = false, emulator = false } = {}) {
   const iso = loadIsolationConfig();
@@ -103,6 +139,16 @@ export function checkFirebaseTargets({ projectFromCli, hook = false, emulator = 
     problems.push(`VITE_FIREBASE_PROJECT_ID "${envProject}" does not match VITE_EXPECTED_FIREBASE_PROJECT_ID "${expected}".`);
   }
 
+  // Callables are reached in the region the frontend is built with; it must be where they are deployed.
+  const fnRegion = functionsRegion();
+  const envFiles = emulator ? { '.env.emulator': parseDotEnv(join(ROOT, '.env.emulator')) } : { 'production env': env };
+  for (const [name, values] of Object.entries(envFiles)) {
+    if (!fnRegion) problems.push('Could not read REGION from functions/src/config.ts.');
+    else if (values.VITE_FIREBASE_FUNCTIONS_REGION !== fnRegion) {
+      problems.push(`VITE_FIREBASE_FUNCTIONS_REGION in ${name} is "${values.VITE_FIREBASE_FUNCTIONS_REGION || ''}" but Cloud Functions deploy to "${fnRegion}".`);
+    }
+  }
+
   // 3) The project the CLI is actually about to touch
   const active = projectFromCli || (hook ? process.env.GCLOUD_PROJECT : '') || rcDefault;
   if (!active) {
@@ -123,6 +169,7 @@ export function checkFirebaseTargets({ projectFromCli, hook = false, emulator = 
         problems.push(`Target project "${active}" differs from the frontend VITE_FIREBASE_PROJECT_ID "${envProject}".`);
       }
       if (!expected) problems.push('VITE_EXPECTED_FIREBASE_PROJECT_ID is not set in .env.production / .env.local.');
+      problems.push(...webConfigProblems(env, active));
     }
   }
   return { problems, active };

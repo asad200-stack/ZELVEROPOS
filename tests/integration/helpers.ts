@@ -90,7 +90,7 @@ export interface CallError {
 }
 
 export async function call<R = Record<string, unknown>>(token: string, name: string, data: unknown): Promise<{ result?: R; error?: CallError }> {
-  const res = await fetch(`${FUNCTIONS}/${PROJECT_ID}/us-central1/${name}`, {
+  const res = await fetch(`${FUNCTIONS}/${PROJECT_ID}/europe-west1/${name}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ data }),

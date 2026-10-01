@@ -25,7 +25,7 @@ const DEBUG_PORT = 9333;
 const APP = 'http://localhost:4173';
 const FS = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
 const AUTH = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1';
-const FUNCTIONS = `http://127.0.0.1:5001/${PROJECT}/us-central1`;
+const FUNCTIONS = `http://127.0.0.1:5001/${PROJECT}/europe-west1`;
 const PASSWORD = 'demo-pass-1';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

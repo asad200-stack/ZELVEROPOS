@@ -1,7 +1,4 @@
-import { setGlobalOptions } from 'firebase-functions/v2';
-import { REGION } from './config.js';
-
-setGlobalOptions({ region: REGION, maxInstances: 20 });
+import './globalOptions.js';
 
 export { checkSignupAvailability, completeSignup, refreshMyClaims } from './account.js';
 export { createSubUser, updateSubUser, deleteSubUser } from './subUsers.js';

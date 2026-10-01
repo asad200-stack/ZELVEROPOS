@@ -1,6 +1,10 @@
 import { defineInt, defineString } from 'firebase-functions/params';
 
-export const REGION = 'us-central1';
+/** Must stay compatible with the Firestore location (eur3) for the Firestore triggers. */
+export const REGION = 'europe-west1';
+
+/** Dedicated least-privilege runtime identity; "name@" is expanded to name@<project>.iam.gserviceaccount.com. */
+export const RUNTIME_SERVICE_ACCOUNT = 'zelvero-functions-runtime@';
 
 /** Comma-separated e-mails allowed to become platform super admins (via bootstrapSuperAdmin). */
 export const SUPER_ADMIN_EMAILS = defineString('SUPER_ADMIN_EMAILS', {

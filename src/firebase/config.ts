@@ -37,13 +37,13 @@ export function resolveFirebaseConfig(): ResolvedFirebaseConfig {
   return {
     projectId,
     useEmulators,
-    functionsRegion: env.VITE_FIREBASE_FUNCTIONS_REGION || 'us-central1',
+    functionsRegion: env.VITE_FIREBASE_FUNCTIONS_REGION || 'europe-west1',
     appCheckSiteKey: env.VITE_FIREBASE_APPCHECK_SITE_KEY || '',
     options: {
       apiKey: env.VITE_FIREBASE_API_KEY || 'demo-api-key',
       authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`,
       projectId,
-      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`,
+      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || (useEmulators ? `${projectId}.appspot.com` : undefined),
       messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || undefined,
       appId: env.VITE_FIREBASE_APP_ID || undefined,
     },
