@@ -10,7 +10,7 @@ import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useCategories, useProducts, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { DEFAULTS } from '@/constants/app';
-import { deleteProduct } from '@/services/productService';
+import { deleteProductPermanently, setProductStatus } from '@/services/productService';
 import { retryResource } from '@/stores/tenantStore';
 import type { Product } from '@/types/models';
 import { downloadCsv } from '@/utils/csv';
@@ -19,7 +19,7 @@ import { ProductFormModal } from './ProductFormModal';
 import { CategoriesModal, ImportProductsModal, LabelsModal, MovementsModal } from './ProductTools';
 import { StockAdjustModal } from './StockAdjustModal';
 
-type Filter = 'all' | 'low' | 'out';
+type Filter = 'all' | 'low' | 'out' | 'archived';
 type Dialog =
   | { type: 'form'; product: Product | null }
   | { type: 'adjust'; product: Product }
@@ -33,7 +33,7 @@ const PAGE = 100;
 
 export default function ProductsPage() {
   const { t, lang } = useI18n();
-  const { tenantId, actor, can } = useTenant();
+  const { tenantId, can } = useTenant();
   const { confirm, notify } = useFeedback();
   const state = useProducts();
   const categories = useCategories();
@@ -47,9 +47,13 @@ export default function ProductsPage() {
   const del = useAsyncAction('product-delete');
   const canSeeCost = can('canViewCosts');
 
+  const active = useMemo(() => state.data.filter((p) => p.status === 'active'), [state.data]);
+  const archivedCount = state.data.length - active.length;
+
   const filtered = useMemo(() => {
     const q = normalizeSearch(deferred);
     return state.data.filter((p) => {
+      if ((filter === 'archived') !== (p.status === 'archived')) return false;
       if (category && p.category !== category) return false;
       if (filter === 'low' && !(p.stock > 0 && isLowStock(p, settings.lowStockThreshold))) return false;
       if (filter === 'out' && p.stock > 0) return false;
@@ -78,10 +82,24 @@ export default function ProductsPage() {
       ]),
     );
 
-  const remove = async (p: Product) => {
-    if (!(await confirm({ title: t('products.deleteConfirm', { name: p.name }), message: t('products.deleteHint'), danger: true, confirmLabel: t('common.delete') }))) return;
+  const archive = async (p: Product) => {
+    if (!(await confirm({ title: t('products.archiveConfirm', { name: p.name }), message: t('products.archiveHint'), confirmLabel: t('products.archive') }))) return;
     void del.run(async () => {
-      await deleteProduct(actor, p);
+      await setProductStatus(p.id, 'archived');
+      notify('success', t('products.archived'));
+    });
+  };
+
+  const restore = (p: Product) =>
+    void del.run(async () => {
+      await setProductStatus(p.id, 'active');
+      notify('success', t('products.restored'));
+    });
+
+  const removeForever = async (p: Product) => {
+    if (!(await confirm({ title: t('products.deleteConfirm', { name: p.name }), message: t('products.deleteHint'), danger: true, confirmLabel: t('products.deleteForever') }))) return;
+    void del.run(async () => {
+      await deleteProductPermanently(p.id);
       notify('success', t('common.deleted'));
     });
   };
@@ -92,8 +110,8 @@ export default function ProductsPage() {
         title={t('nav.products')}
         subtitle={
           canSeeCost
-            ? t('products.summaryWithValue', { count: state.data.length, value: formatUsd(stockValue(state.data)) })
-            : t('products.summary', { count: state.data.length })
+            ? t('products.summaryWithValue', { count: active.length, value: formatUsd(stockValue(state.data)) })
+            : t('products.summary', { count: active.length })
         }
         actions={
           <>
@@ -137,6 +155,7 @@ export default function ProductsPage() {
           <option value="all">{t('products.filterAll')}</option>
           <option value="low">{t('products.filterLow')}</option>
           <option value="out">{t('products.filterOut')}</option>
+          <option value="archived">{t('products.filterArchived', { count: archivedCount })}</option>
         </select>
       </Toolbar>
 
@@ -211,9 +230,15 @@ export default function ProductsPage() {
                           </>
                         )}
                         <Button variant="ghost" size="sm" icon="history" onClick={() => setDialog({ type: 'movements', product: p })} aria-label={t('products.movements')} title={t('products.movements')} />
-                        {can('canDeleteProducts') && (
-                          <Button variant="ghost" size="sm" icon="trash" onClick={() => void remove(p)} aria-label={t('common.delete')} />
-                        )}
+                        {can('canDeleteProducts') &&
+                          (p.status === 'archived' ? (
+                            <>
+                              <Button variant="ghost" size="sm" icon="refresh" onClick={() => restore(p)} disabled={del.busy} aria-label={t('products.restore')} title={t('products.restore')} />
+                              <Button variant="ghost" size="sm" icon="trash" onClick={() => void removeForever(p)} disabled={del.busy} aria-label={t('products.deleteForever')} title={t('products.deleteForever')} />
+                            </>
+                          ) : (
+                            <Button variant="ghost" size="sm" icon="archive" onClick={() => void archive(p)} disabled={del.busy} aria-label={t('products.archive')} title={t('products.archive')} />
+                          ))}
                       </td>
                     </tr>
                   );

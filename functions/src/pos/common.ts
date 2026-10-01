@@ -1,0 +1,274 @@
+import { FieldValue, type DocumentData, type Transaction } from 'firebase-admin/firestore';
+import type { CallableRequest } from 'firebase-functions/v2/https';
+import { z } from 'zod';
+import { db } from '../admin.js';
+import { subUntilOf } from '../claims.js';
+import { BUSINESS_TIMEZONE, DAY_MS } from '../config.js';
+import { fail } from '../errors.js';
+import { normalizePermissions, type PermissionKey } from '../permissions.js';
+import type {
+  CashboxSummary,
+  Customer,
+  ImeiEntry,
+  Product,
+  Purchase,
+  Sale,
+  SaleItem,
+  TierPrice,
+} from '../shared/models.js';
+import { caller } from '../validate.js';
+
+/* ================================================================ access */
+
+export interface PosActor {
+  tenantId: string;
+  uid: string;
+  name: string;
+  isOwner: boolean;
+  can: (perm: PermissionKey) => boolean;
+}
+
+/**
+ * Authorizes a POS operation from the LIVE profile and subscription (not only the token claims),
+ * so a deactivated user, a removed permission or an expired subscription is effective immediately —
+ * including for offline sales being synced later (the subscription is checked at sync time).
+ * `anyOf`: the caller needs at least one of these permissions (owners have all).
+ */
+export async function posActor(request: CallableRequest, anyOf: PermissionKey[]): Promise<PosActor> {
+  const c = caller(request);
+  if (!c.tenantId || !c.emailVerified) fail('permission-denied', 'error.permissionDenied');
+  if (!c.active) fail('permission-denied', 'error.userInactive');
+  const tenantId = c.tenantId;
+  const [profileSnap, subSnap] = await Promise.all([db.doc(`users/${c.uid}`).get(), db.doc(`subscriptions/${tenantId}`).get()]);
+  const profile = profileSnap.data();
+  if (!profile || profile.tenantId !== tenantId) fail('permission-denied', 'error.permissionDenied');
+  if (profile.isActive === false) fail('permission-denied', 'error.userInactive');
+
+  const isOwner = profile.role !== 'subUser' && c.uid === tenantId;
+  const perms = normalizePermissions(profile.permissions);
+  const can = (perm: PermissionKey) => isOwner || perms[perm];
+  if (anyOf.length && !anyOf.some(can)) fail('permission-denied', 'error.permissionDenied');
+
+  if (subUntilOf(subSnap.data()) <= Date.now()) fail('failed-precondition', 'error.fn.subscriptionInactive');
+
+  const name = typeof profile.fullName === 'string' && profile.fullName ? profile.fullName : c.email;
+  return { tenantId, uid: c.uid, name, isOwner, can };
+}
+
+export function requirePerm(actor: PosActor, perm: PermissionKey): void {
+  if (!actor.can(perm)) fail('permission-denied', 'error.permissionDenied');
+}
+
+/* ================================================================= input */
+
+export const idField = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+export const cents = z.number().int().min(0).max(1_000_000_000_00);
+export const lbpField = z.number().int().min(0).max(1_000_000_000_000);
+export const noteField = z.string().trim().max(300).default('');
+/** Client time of an operation created offline (bounded so it can't back-date or future-date data). */
+export const clientTimeField = z.number().int().positive().optional();
+
+export function operationTime(clientMs: number | undefined): number {
+  const now = Date.now();
+  if (clientMs === undefined) return now;
+  if (clientMs > now + 5 * 60_000 || clientMs < now - 7 * DAY_MS) return now;
+  return clientMs;
+}
+
+/* ================================================================= paths */
+
+export const tenantPaths = (t: string) => ({
+  col: (name: string) => db.collection(`tenants/${t}/${name}`),
+  doc: (name: string, id: string) => db.doc(`tenants/${t}/${name}/${id}`),
+  newRef: (name: string) => db.collection(`tenants/${t}/${name}`).doc(),
+  settings: db.doc(`tenants/${t}/settings/main`),
+  cashbox: db.doc(`tenants/${t}/cashbox/summary`),
+  categories: db.doc(`tenants/${t}/lists/categories`),
+  counter: (name: 'sales' | 'purchases') => db.doc(`tenants/${t}/counters/${name}`),
+  dailyStats: (date: string) => db.doc(`tenants/${t}/dailyStats/${date}`),
+});
+
+/* ================================================================= audit */
+
+/** Business date (YYYY-MM-DD) in the store's time zone. */
+export function businessDate(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TIMEZONE.value() || 'Asia/Beirut',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ms));
+}
+
+export function auditFields(actor: PosActor, atMs: number) {
+  return {
+    createdAt: FieldValue.serverTimestamp(),
+    createdAtMs: atMs,
+    localDate: businessDate(atMs),
+    createdBy: actor.uid,
+    createdByName: actor.name,
+  };
+}
+
+/** Adds to the day's aggregates. Only Cloud Functions write dailyStats. */
+export function bumpDailyStats(tx: Transaction, t: string, date: string, deltas: Record<string, number>): void {
+  const data: DocumentData = { date, updatedAt: FieldValue.serverTimestamp() };
+  for (const [key, value] of Object.entries(deltas)) if (value) data[key] = FieldValue.increment(value);
+  tx.set(tenantPaths(t).dailyStats(date), data, { merge: true });
+}
+
+/* ============================================================ converters */
+
+const num = (v: unknown, def = 0): number => (typeof v === 'number' && Number.isFinite(v) ? v : def);
+const int = (v: unknown, def = 0): number => Math.round(num(v, def));
+const str = (v: unknown, def = ''): string => (typeof v === 'string' ? v : def);
+const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+const DEFAULT_RATE = 89500;
+const DEFAULT_CREDIT_LIMIT = 500_00;
+
+const tierPrice = (v: unknown): TierPrice => {
+  const o = (v ?? {}) as DocumentData;
+  return { usdCents: int(o.usdCents), lbp: typeof o.lbp === 'number' && o.lbp > 0 ? Math.round(o.lbp) : null };
+};
+
+export function toProduct(id: string, d: DocumentData): Product {
+  const prices = (d.prices ?? {}) as DocumentData;
+  return {
+    id,
+    name: str(d.name),
+    category: str(d.category),
+    barcode: str(d.barcode),
+    prices: { retail: tierPrice(prices.retail), wholesale: tierPrice(prices.wholesale), vip: tierPrice(prices.vip) },
+    costUsdCents: int(d.costUsdCents),
+    stock: int(d.stock),
+    minStock: typeof d.minStock === 'number' ? d.minStock : null,
+    supplierId: strOrNull(d.supplierId),
+    supplierName: str(d.supplierName),
+    expiryDate: strOrNull(d.expiryDate),
+    imageUrl: strOrNull(d.imageUrl),
+    imagePath: strOrNull(d.imagePath),
+    imeiTracking: d.imeiTracking === true,
+    imeis: arr<ImeiEntry>(d.imeis).filter((e) => e && typeof e.imei === 'string'),
+    lastMovementId: strOrNull(d.lastMovementId),
+    status: d.status === 'archived' ? 'archived' : 'active',
+    archivedAt: null,
+    createdAt: null,
+    updatedAt: null,
+  };
+}
+
+export function toCustomer(id: string, d: DocumentData): Customer {
+  return {
+    id,
+    name: str(d.name),
+    phone: str(d.phone),
+    email: str(d.email),
+    address: str(d.address),
+    creditLimitUsdCents: int(d.creditLimitUsdCents, DEFAULT_CREDIT_LIMIT),
+    debtUsdCents: int(d.debtUsdCents),
+    totalPurchasesUsdCents: int(d.totalPurchasesUsdCents),
+    lastLedgerId: strOrNull(d.lastLedgerId),
+    createdAt: null,
+    updatedAt: null,
+  };
+}
+
+function toSaleItem(i: DocumentData): SaleItem {
+  return {
+    productId: str(i.productId),
+    name: str(i.name),
+    quantity: int(i.quantity),
+    tier: str(i.tier, 'retail') as SaleItem['tier'],
+    unitUsdCents: int(i.unitUsdCents),
+    unitLbp: int(i.unitLbp),
+    originalUnitUsdCents: int(i.originalUnitUsdCents),
+    discountUsdCents: int(i.discountUsdCents),
+    costUsdCents: int(i.costUsdCents),
+    imei: strOrNull(i.imei),
+    returnedQty: int(i.returnedQty),
+  };
+}
+
+export function toSale(id: string, d: DocumentData): Sale {
+  const p = (d.payment ?? {}) as DocumentData;
+  return {
+    id,
+    invoiceNumber: str(d.invoiceNumber),
+    kind: d.kind === 'credit' ? 'credit' : 'cash',
+    currency: d.currency === 'LBP' ? 'LBP' : 'USD',
+    exchangeRate: num(d.exchangeRate, DEFAULT_RATE),
+    items: arr<DocumentData>(d.items).map(toSaleItem),
+    totalUsdCents: int(d.totalUsdCents),
+    totalLbp: int(d.totalLbp),
+    discountUsdCents: int(d.discountUsdCents),
+    costUsdCents: int(d.costUsdCents),
+    customerId: strOrNull(d.customerId),
+    customerName: str(d.customerName),
+    payment: {
+      receivedUsdCents: int(p.receivedUsdCents),
+      receivedLbp: int(p.receivedLbp),
+      previousDebtUsdCents: int(p.previousDebtUsdCents),
+      settledPreviousUsdCents: int(p.settledPreviousUsdCents),
+      unpaidUsdCents: int(p.unpaidUsdCents),
+      debtAddedUsdCents: int(p.debtAddedUsdCents),
+      debtAfterUsdCents: typeof p.debtAfterUsdCents === 'number' ? p.debtAfterUsdCents : null,
+    },
+    returnedUsdCents: int(d.returnedUsdCents),
+    returnedDebtUsdCents: int(d.returnedDebtUsdCents),
+    refundedUsdCents: int(d.refundedUsdCents),
+    refundedLbp: int(d.refundedLbp),
+    returnStatus: d.returnStatus === 'full' || d.returnStatus === 'partial' ? d.returnStatus : 'none',
+    lastReturnId: strOrNull(d.lastReturnId),
+    offline: d.offline === true,
+    localDate: str(d.localDate),
+    createdAt: int(d.createdAtMs),
+    createdBy: str(d.createdBy),
+    createdByName: str(d.createdByName),
+  };
+}
+
+export function toPurchase(id: string, d: DocumentData): Purchase {
+  return {
+    id,
+    number: str(d.number),
+    supplierId: str(d.supplierId),
+    supplierName: str(d.supplierName),
+    date: str(d.date),
+    dueDate: strOrNull(d.dueDate),
+    items: arr<DocumentData>(d.items).map((i) => ({
+      productId: str(i.productId),
+      name: str(i.name),
+      quantity: int(i.quantity),
+      unitCostUsdCents: int(i.unitCostUsdCents),
+      returnedQty: int(i.returnedQty),
+    })),
+    totalUsdCents: int(d.totalUsdCents),
+    returnedUsdCents: int(d.returnedUsdCents),
+    paidUsdCents: int(d.paidUsdCents),
+    remainingUsdCents: int(d.remainingUsdCents),
+    status: str(d.status, 'unpaid') as Purchase['status'],
+    updateCost: d.updateCost === true,
+    note: str(d.note),
+    createdAt: int(d.createdAtMs),
+    createdBy: str(d.createdBy),
+    createdByName: str(d.createdByName),
+  };
+}
+
+export function toCashbox(d: DocumentData | undefined): CashboxSummary {
+  return { usdCents: int(d?.usdCents), lbp: int(d?.lbp), lastTxId: strOrNull(d?.lastTxId), updatedAt: null };
+}
+
+export function exchangeRateOf(settings: DocumentData | undefined): number {
+  const rate = int(settings?.exchangeRate, DEFAULT_RATE);
+  return rate > 0 ? rate : DEFAULT_RATE;
+}
+
+/** Replaces FieldValue sentinels so a written document can be returned to the client as JSON. */
+export function plain(data: DocumentData, atMs: number): DocumentData {
+  const out: DocumentData = {};
+  for (const [k, v] of Object.entries(data)) out[k] = v instanceof FieldValue ? atMs : v;
+  return out;
+}

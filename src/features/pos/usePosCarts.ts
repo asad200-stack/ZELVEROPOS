@@ -32,35 +32,41 @@ function isCart(value: unknown): value is Cart {
 }
 
 interface PosState {
+  /** Storage key the carts belong to; carts are never carried over to another user or store. */
+  key: string;
   carts: Cart[];
   active: number;
 }
 
-function load(tenantId: string, currency: Currency): PosState {
+function load(tenantId: string, uid: string, currency: Currency): PosState {
+  const key = STORAGE_KEYS.cart(tenantId, uid);
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.cart(tenantId));
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw) as PosState;
       const carts = Array.isArray(parsed.carts) ? parsed.carts.filter(isCart).slice(0, MAX_CARTS) : [];
-      if (carts.length) return { carts, active: Math.min(Math.max(0, Number(parsed.active) || 0), carts.length - 1) };
+      if (carts.length) return { key, carts, active: Math.min(Math.max(0, Number(parsed.active) || 0), carts.length - 1) };
     }
   } catch {
     /* corrupted storage: start fresh */
   }
-  return { carts: [newCart(tenantId, currency, '1')], active: 0 };
+  return { key, carts: [newCart(tenantId, currency, '1')], active: 0 };
 }
 
-/** Up to 10 parallel carts (held orders), persisted locally so a reload never loses a sale. */
-export function usePosCarts(tenantId: string, defaultCurrency: Currency) {
-  const [state, setState] = useState<PosState>(() => load(tenantId, defaultCurrency));
+/** Up to 10 parallel carts (held orders), persisted locally per user so a reload never loses a sale. */
+export function usePosCarts(tenantId: string, uid: string, defaultCurrency: Currency) {
+  const key = STORAGE_KEYS.cart(tenantId, uid);
+  const [loaded, setState] = useState<PosState>(() => load(tenantId, uid, defaultCurrency));
+  const state = loaded.key === key ? loaded : load(tenantId, uid, defaultCurrency);
+  if (state !== loaded) setState(state);
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEYS.cart(tenantId), JSON.stringify(state));
+      localStorage.setItem(state.key, JSON.stringify({ carts: state.carts, active: state.active }));
     } catch {
       /* storage full: carts still work in memory */
     }
-  }, [tenantId, state]);
+  }, [state]);
 
   const cart = state.carts[state.active];
 
@@ -78,16 +84,16 @@ export function usePosCarts(tenantId: string, defaultCurrency: Currency) {
       const used = new Set(s.carts.map((c) => c.id));
       let n = 1;
       while (used.has(String(n))) n++;
-      return { carts: [...s.carts, newCart(tenantId, defaultCurrency, String(n))], active: s.carts.length };
+      return { ...s, carts: [...s.carts, newCart(tenantId, defaultCurrency, String(n))], active: s.carts.length };
     });
   }, [tenantId, defaultCurrency]);
 
   const removeCart = useCallback(
     (index: number) => {
       setState((s) => {
-        if (s.carts.length <= 1) return { carts: [newCart(tenantId, defaultCurrency, '1')], active: 0 };
+        if (s.carts.length <= 1) return { ...s, carts: [newCart(tenantId, defaultCurrency, '1')], active: 0 };
         const carts = s.carts.filter((_, i) => i !== index);
-        return { carts, active: Math.min(s.active > index ? s.active - 1 : s.active, carts.length - 1) };
+        return { ...s, carts, active: Math.min(s.active > index ? s.active - 1 : s.active, carts.length - 1) };
       });
     },
     [tenantId, defaultCurrency],
@@ -105,5 +111,29 @@ export function usePosCarts(tenantId: string, defaultCurrency: Currency) {
     });
   }, [tenantId]);
 
-  return { carts: state.carts, active: state.active, cart, update, addCart, removeCart, setActive, resetActive };
+  /**
+   * Opens `content` in the active cart if it is empty, otherwise in a new cart, always with a NEW
+   * idempotency key. Returns false (nothing changed) when every cart slot is taken.
+   */
+  const openInCart = useCallback(
+    (content: Pick<Cart, 'tier' | 'currency' | 'customerId' | 'lines' | 'debtLineUsdCents'>): boolean => {
+      const s = state;
+      const current = s.carts[s.active];
+      if (current && current.lines.length === 0) {
+        const carts = s.carts.slice();
+        carts[s.active] = { ...newCart(tenantId, content.currency, current.id), ...content };
+        setState({ ...s, carts });
+        return true;
+      }
+      if (s.carts.length >= MAX_CARTS) return false;
+      const used = new Set(s.carts.map((c) => c.id));
+      let n = 1;
+      while (used.has(String(n))) n++;
+      setState({ ...s, carts: [...s.carts, { ...newCart(tenantId, content.currency, String(n)), ...content }], active: s.carts.length });
+      return true;
+    },
+    [tenantId, state],
+  );
+
+  return { carts: state.carts, active: state.active, cart, update, addCart, removeCart, setActive, resetActive, openInCart };
 }

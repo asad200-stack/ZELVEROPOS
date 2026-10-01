@@ -169,9 +169,10 @@ export function addProductToCart(cart: Cart, product: Product, quantity = 1, ime
   const idx = cart.lines.findIndex(
     (l) => l.productId === product.id && l.tier === cart.tier && l.customUsdCents === null && !l.imei,
   );
-  if (idx >= 0) {
+  const existing = idx >= 0 ? cart.lines[idx] : undefined;
+  if (existing) {
     const lines = cart.lines.slice();
-    lines[idx] = { ...lines[idx], quantity: lines[idx].quantity + quantity };
+    lines[idx] = { ...existing, quantity: existing.quantity + quantity };
     return { ...cart, lines };
   }
   return {

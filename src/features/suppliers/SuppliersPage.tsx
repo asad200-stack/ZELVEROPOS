@@ -173,7 +173,7 @@ function SupplierFormModal({ supplier, onClose }: { supplier: Supplier | null; o
 
 function PaySupplierModal({ supplier, onClose }: { supplier: Supplier; onClose: () => void }) {
   const { t, lang } = useI18n();
-  const { actor, can } = useTenant();
+  const { can } = useTenant();
   const { notify } = useFeedback();
   const settings = useSettings();
   const [currency, setCurrency] = useState<Currency>('USD');
@@ -197,7 +197,7 @@ function PaySupplierModal({ supplier, onClose }: { supplier: Supplier; onClose: 
           disabled={!parsed}
           onClick={() =>
             void run(async () => {
-              await paySupplier(actor, { supplierId: supplier.id, currency, amount: parsed ?? 0, rate: settings.exchangeRate, method, note });
+              await paySupplier({ supplierId: supplier.id, currency, amount: parsed ?? 0, rate: settings.exchangeRate, method, note });
               notify('success', t('suppliers.paymentRecorded'));
               onClose();
             })

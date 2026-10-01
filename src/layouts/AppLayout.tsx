@@ -12,7 +12,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useI18n } from '@/i18n/i18n';
 import { signOut } from '@/services/authService';
-import { clearSyncFailures, useSyncState } from '@/stores/syncStore';
+import { OfflineStatus } from '@/features/offline/OfflineStatus';
 import { useResource } from '@/stores/tenantStore';
 
 function ExchangeRateBadge({ tenantId }: { tenantId: string }) {
@@ -35,7 +35,6 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
   const { theme, toggleTheme } = useTheme();
   const session = useSession();
   const online = useOnlineStatus();
-  const sync = useSyncState();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = () => setMenuOpen(false);
@@ -95,15 +94,14 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
           </button>
           <div className="topbar__title">{session.tenantId ? <StoreName tenantId={session.tenantId} /> : t('nav.admin')}</div>
           <div className="topbar__actions">
-            {!online && (
-              <span className="topbar__chip topbar__chip--warning">
-                <Icon name="wifiOff" size={14} /> {t('common.offline')}
-              </span>
-            )}
-            {sync.pending > 0 && (
-              <span className="topbar__chip" title={t('sync.pendingHint')}>
-                <Icon name="refresh" size={14} /> {t('sync.pending', { count: sync.pending })}
-              </span>
+            {session.tenantId && session.user ? (
+              <OfflineStatus tenantId={session.tenantId} uid={session.user.uid} isOwner={session.isOwner} />
+            ) : (
+              !online && (
+                <span className="topbar__chip topbar__chip--warning">
+                  <Icon name="wifiOff" size={14} /> {t('common.offline')}
+                </span>
+              )
             )}
             {session.tenantId && <ExchangeRateBadge tenantId={session.tenantId} />}
             <Button variant="ghost" size="sm" icon="globe" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} title={t('common.language')}>
@@ -119,11 +117,6 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
           </div>
         </header>
         <main className="content">
-          {sync.failed.length > 0 && (
-            <Alert tone="error" onRetry={clearSyncFailures} retryLabel={t('common.dismiss')}>
-              {t('sync.failed', { count: sync.failed.length })}
-            </Alert>
-          )}
           <ErrorBoundary
             key={location.pathname}
             fallback={(_, reset) => (

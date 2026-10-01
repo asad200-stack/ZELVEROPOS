@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/Button';
 import { APP_NAME, SUPPORT_PHONE } from '@/constants/app';
 import { useSession, type SessionStatus } from '@/contexts/session';
+import { OfflineStatus } from '@/features/offline/OfflineStatus';
 import { useI18n } from '@/i18n/i18n';
 import { signOut } from '@/services/authService';
 import { formatDate } from '@/utils/format';
@@ -44,6 +45,13 @@ export function AccountStatusScreen({ status }: { status: Extract<SessionStatus,
             <p className="muted">{t('account.errorMessage')}</p>
             <Button onClick={() => window.location.reload()}>{t('common.reload')}</Button>
           </>
+        )}
+        {status !== 'error' && session.tenantId && session.user && (
+          // Offline sales captured on this device stay visible (and are still sent, so the server can
+          // record the rejection) even when the account or store can no longer sell.
+          <div className="row-gap">
+            <OfflineStatus tenantId={session.tenantId} uid={session.user.uid} isOwner={session.isOwner} />
+          </div>
         )}
         <div className="row-gap">
           {status === 'inactive' && (

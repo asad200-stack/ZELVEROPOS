@@ -14,7 +14,9 @@ import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
 import { useCashbox, useSettings } from '@/hooks/useTenantData';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
+import { cashHeldOffline, useOfflineQueue } from '@/offline/queue';
 import { adjustDrawer, listCashTransactions, recordCashMove, type CashMoveType } from '@/services/cashboxService';
+import { AppError } from '@/services/errors';
 import type { CashTxType } from '@/types/models';
 import { downloadCsv } from '@/utils/csv';
 import { formatDateTime, formatLbp, formatUsd } from '@/utils/format';
@@ -46,6 +48,7 @@ export default function CashboxPage() {
   );
   const history = usePagedQuery(`${tenantId}|${range.from}|${range.to}|${type}|${cashbox.data.lastTxId}`, fetchPage);
   const combined = cashbox.data.usdCents + lbpToUsdCents(cashbox.data.lbp, settings.exchangeRate);
+  const offlineHeld = cashHeldOffline(useOfflineQueue().operations);
 
   return (
     <div className="page">
@@ -70,6 +73,14 @@ export default function CashboxPage() {
           </>
         }
       />
+      {offlineHeld.count > 0 && (
+        <Alert tone="warning">
+          {t('offline.cashboxWarning', {
+            count: offlineHeld.count,
+            amount: [offlineHeld.usdCents > 0 && formatUsd(offlineHeld.usdCents), offlineHeld.lbp > 0 && formatLbp(offlineHeld.lbp, lang)].filter(Boolean).join(' + '),
+          })}
+        </Alert>
+      )}
       <div className="stats">
         <StatCard icon="dollar" tone="success" label={t('cash.balanceUsd')} value={formatUsd(cashbox.data.usdCents)} />
         <StatCard icon="wallet" tone="info" label={t('cash.balanceLbp')} value={formatLbp(cashbox.data.lbp, lang)} />
@@ -176,10 +187,8 @@ const EXPENSE_CATEGORIES: TranslationKey[] = ['cash.cat.rent', 'cash.cat.salarie
 
 function CashMoveModal({ type, onClose }: { type: CashMoveType; onClose: () => void }) {
   const { t } = useI18n();
-  const { actor } = useTenant();
   const { notify } = useFeedback();
   const cashbox = useCashbox().data;
-  const settings = useSettings();
   const [usd, setUsd] = useState('');
   const [lbp, setLbp] = useState('');
   const [category, setCategory] = useState('');
@@ -202,7 +211,10 @@ function CashMoveModal({ type, onClose }: { type: CashMoveType; onClose: () => v
           disabled={!valid}
           onClick={() =>
             void run(async () => {
-              await recordCashMove(actor, { type, usdCents: usdCents ?? 0, lbp: lbpAmount ?? 0, category, note, rate: settings.exchangeRate }, cashbox);
+              if (type !== 'deposit' && ((usdCents ?? 0) > cashbox.usdCents || (lbpAmount ?? 0) > cashbox.lbp)) {
+                throw new AppError('error.drawerInsufficient');
+              }
+              await recordCashMove({ type, usdCents: usdCents ?? 0, lbp: lbpAmount ?? 0, category, note });
               notify('success', t('common.saved'));
               onClose();
             })
@@ -234,7 +246,6 @@ function CashMoveModal({ type, onClose }: { type: CashMoveType; onClose: () => v
 
 function AdjustDrawerModal({ onClose }: { onClose: () => void }) {
   const { t, lang } = useI18n();
-  const { actor } = useTenant();
   const { notify } = useFeedback();
   const cashbox = useCashbox().data;
   const [usd, setUsd] = useState(centsToInput(cashbox.usdCents));
@@ -256,7 +267,7 @@ function AdjustDrawerModal({ onClose }: { onClose: () => void }) {
           disabled={usdCents === null || lbpAmount === null || !note.trim()}
           onClick={() =>
             void run(async () => {
-              await adjustDrawer(actor, { usdCents: usdCents ?? 0, lbp: lbpAmount ?? 0 }, note);
+              await adjustDrawer({ usdCents: usdCents ?? 0, lbp: lbpAmount ?? 0 }, note);
               notify('success', t('common.saved'));
               onClose();
             })

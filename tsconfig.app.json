@@ -22,5 +22,6 @@
     "noImplicitOverride": true,
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "config"]
+  "include": ["src", "config"],
+  "exclude": ["src/sw/worker"]
 }

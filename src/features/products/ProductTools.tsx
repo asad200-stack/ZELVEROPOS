@@ -212,7 +212,6 @@ const IMPORT_HEADERS = ['name', 'barcode', 'category', 'retail', 'wholesale', 'v
 
 export function ImportProductsModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
-  const { actor } = useTenant();
   const { notify } = useFeedback();
   const products = useProducts().data;
   const [rows, setRows] = useState<ImportRow[] | null>(null);
@@ -273,7 +272,7 @@ export function ImportProductsModal({ onClose }: { onClose: () => void }) {
           disabled={!rows?.length}
           onClick={() =>
             void run(async () => {
-              const n = await importProducts(actor, rows ?? [], setProgress);
+              const n = await importProducts(rows ?? [], setProgress);
               notify('success', t('products.imported', { count: n }));
               onClose();
             })

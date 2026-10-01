@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import isolation from './config/firebase-isolation.json' with { type: 'json' };
 import { validateFirebaseEnv } from './src/firebase/isolation.ts';
+import { serviceWorkerPlugin } from './tools/serviceWorkerPlugin.ts';
 
 /**
  * Fails `vite dev` / `vite build` immediately when the environment points at the old
@@ -38,7 +39,7 @@ function firebaseIsolationGuard(mode: string): Plugin {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), firebaseIsolationGuard(mode)],
+  plugins: [react(), firebaseIsolationGuard(mode), serviceWorkerPlugin()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

@@ -1,4 +1,5 @@
 import type { TFunction, Lang } from '@/i18n/i18n';
+import type { OfflineOperation } from '@/offline/types';
 import type { Sale, SaleReturn, StoreSettings } from '@/types/models';
 import { APP_NAME } from '@/constants/app';
 import { formatDateTime, formatLbp, formatUsd } from '@/utils/format';
@@ -28,6 +29,7 @@ function page(ctx: ReceiptContext, title: string, body: string): string {
     .num{text-align:end;white-space:nowrap}
     .totals td{padding:2px 0}.grand td{font-weight:700;font-size:${a4 ? '14pt' : '13px'}}
     .small{font-size:${a4 ? '9pt' : '9px'}}
+    .banner{border:2px solid #000;padding:4px;margin:4px 0;text-align:center;font-weight:700}
   `;
   return `<!doctype html><html lang="${ctx.lang}" dir="${dir}"><head><meta charset="utf-8"><title>${e(title)}</title><style>${css}</style></head><body>${body}</body></html>`;
 }
@@ -121,6 +123,64 @@ export function buildReturnReceipt(ret: SaleReturn, ctx: ReceiptContext): string
     </table>
     ${footer(ctx)}`;
   return page(ctx, ret.number, body);
+}
+
+/**
+ * Provisional proof for a sale captured offline. Deliberately different from an invoice: bold
+ * "pending synchronization" banner, OFF reference instead of an invoice number, and a note that the
+ * official invoice is issued only when the server accepts the sale.
+ */
+export function buildOfflineReceipt(op: OfflineOperation, ctx: ReceiptContext): string {
+  const { t, lang } = ctx;
+  const s = op.snapshot;
+  const lbp = s.currency === 'LBP';
+  const money = (usdCents: number, lbpAmount: number) => (lbp ? formatLbp(lbpAmount, lang) : formatUsd(usdCents));
+  const rows = s.lines
+    .map(
+      (i) => `<tr>
+        <td>${e(i.name)}${i.imei ? `<div class="small muted">IMEI ${e(i.imei)}</div>` : ''}${
+          i.customUsdCents !== null && i.customUsdCents !== i.originalUnitUsdCents
+            ? `<div class="small muted">${e(t('pos.listPrice'))}: ${formatUsd(i.originalUnitUsdCents)}</div>`
+            : ''
+        }</td>
+        <td class="num">${i.quantity}</td>
+        <td class="num">${money(i.unitUsdCents, i.unitLbp)}</td>
+        <td class="num">${money(i.lineUsdCents, i.lineLbp)}</td>
+      </tr>`,
+    )
+    .join('');
+  const row = (label: string, value: string) => `<tr><td>${e(label)}</td><td class="num">${e(value)}</td></tr>`;
+  const lines: string[] = [];
+  if (lbp) lines.push(row(t('receipt.equivalent'), formatUsd(s.totalUsdCents)));
+  if (s.debtLineUsdCents) lines.push(row(t('pos.previousBalance'), formatUsd(s.debtLineUsdCents)));
+  lines.push(row(t('pos.paymentMethod'), t(s.kind === 'cash' ? 'pos.cash' : 'pos.credit')));
+  if (s.received.usdCents > 0) lines.push(row(t('receipt.paidUsd'), formatUsd(s.received.usdCents)));
+  if (s.received.lbp > 0) lines.push(row(t('receipt.paidLbp'), formatLbp(s.received.lbp, lang)));
+
+  const synced = op.status === 'SYNCED' && op.result;
+  const body = `${header(ctx)}
+    <div class="banner">${e(t('offline.receiptBanner'))}</div>
+    <table class="small">
+      <tr><td>${e(t('offline.reference'))}: <span class="bold">${e(op.offlineRef)}</span></td>
+        <td class="num">${e(formatDateTime(op.createdAt, lang))}</td></tr>
+      ${s.customerName ? `<tr><td colspan="2">${e(t('pos.customer'))}: ${e(s.customerName)}</td></tr>` : ''}
+      <tr><td colspan="2">${e(t('receipt.cashier'))}: ${e(s.cashierName)}</td></tr>
+      <tr><td colspan="2">${e(t('settings.exchangeRate'))}: ${s.rate.toLocaleString('en-US')}</td></tr>
+    </table>
+    <div class="hr"></div>
+    <table><thead><tr><th>${e(t('pos.item'))}</th><th class="num">${e(t('pos.qty'))}</th><th class="num">${e(
+      t('pos.price'),
+    )}</th><th class="num">${e(t('pos.subtotal'))}</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="hr"></div>
+    <table class="totals"><tr class="grand"><td>${e(t('pos.total'))}</td><td class="num">${money(s.totalUsdCents, s.totalLbp)}</td></tr>${lines.join('')}</table>
+    <div class="hr"></div>
+    <div class="center bold">${e(synced ? t('offline.receiptSynced', { invoice: op.result!.invoiceNumber }) : t('offline.receiptNotInvoice'))}</div>
+    ${footer(ctx)}`;
+  return page(ctx, op.offlineRef, body);
+}
+
+export function printOfflineReceipt(op: OfflineOperation, ctx: ReceiptContext): void {
+  printHtml(buildOfflineReceipt(op, ctx));
 }
 
 export function printSaleReceipt(sale: Sale, ctx: ReceiptContext): void {

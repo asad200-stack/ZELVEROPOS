@@ -4,6 +4,7 @@ import { DateRangeFilter } from '@/components/DateRangeFilter';
 import { initialRange } from '@/domain/dates';
 import { Button } from '@/components/ui/Button';
 import { Alert, Badge, EmptyState, PageHeader, TableWrap, Toolbar } from '@/components/ui/Layout';
+import { clickableRow } from '@/components/ui/clickableRow';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useTenant } from '@/contexts/session';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
@@ -125,7 +126,7 @@ export default function SalesPage() {
               </thead>
               <tbody>
                 {sales.items.map((s) => (
-                  <tr key={s.id} className="clickable" onClick={() => setSelected(s)}>
+                  <tr key={s.id} {...clickableRow(() => setSelected(s))}>
                     <td>
                       <strong>{s.invoiceNumber}</strong>
                       {s.returnStatus !== 'none' && (

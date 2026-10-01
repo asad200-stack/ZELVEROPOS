@@ -179,6 +179,25 @@
   color: var(--c-warning);
 }
 
+.topbar__chip--danger {
+  background: var(--c-danger-soft);
+  border-color: transparent;
+  color: var(--c-danger);
+}
+
+.topbar__chip--success {
+  background: var(--c-success-soft);
+  border-color: transparent;
+  color: var(--c-success);
+}
+
+button.topbar__chip {
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .content {
   flex: 1;
   display: flex;

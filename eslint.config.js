@@ -5,10 +5,10 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'legacy', 'functions/lib', 'functions/node_modules', 'node_modules', 'coverage', 'scripts/*.cjs'] },
+  { ignores: ['dist', 'legacy', 'functions/lib', 'functions/src/shared', 'functions/node_modules', 'node_modules', 'coverage', 'scripts/*.cjs'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts', '*.ts'],
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts', 'tools/**/*.ts', '*.ts'],
     languageOptions: { ecmaVersion: 2022, globals: globals.browser },
     plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     rules: {

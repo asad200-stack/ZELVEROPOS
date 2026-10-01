@@ -104,6 +104,8 @@ export function toProduct(id: string, d: DocumentData): Product {
     imeiTracking: bool(d.imeiTracking),
     imeis: arr<ImeiEntry>(d.imeis).filter((e) => e && typeof e.imei === 'string'),
     lastMovementId: strOrNull(d.lastMovementId),
+    status: d.status === 'archived' ? 'archived' : 'active',
+    archivedAt: millis(d.archivedAt),
     createdAt: millis(d.createdAt, d.createdAtMs),
     updatedAt: millis(d.updatedAt),
   };

@@ -28,6 +28,7 @@ export function SaleDetailsModal({ sale, onClose, onUpdated }: Props) {
   const online = useOnlineStatus();
   const [returns, setReturns] = useState<{ saleId: string; list: SaleReturn[] } | null>(null);
   const [returning, setReturning] = useState(false);
+  const returnAction = useAsyncAction('return');
 
   useEffect(() => {
     let cancelled = false;
@@ -47,10 +48,11 @@ export function SaleDetailsModal({ sale, onClose, onUpdated }: Props) {
   const saleReturns = returns?.saleId === sale.id ? returns.list : null;
 
   return (
-    <Modal open size="lg" title={`${t('sales.invoice')} ${sale.invoiceNumber}`} onClose={onClose} busy={returning}>
+    <Modal open size="lg" title={`${t('sales.invoice')} ${sale.invoiceNumber}`} onClose={onClose} busy={returnAction.busy}>
       {returning ? (
         <ReturnForm
           sale={sale}
+          action={returnAction}
           onCancel={() => setReturning(false)}
           onDone={async (ret) => {
             setReturning(false);
@@ -173,14 +175,20 @@ const RETURN_ERRORS: Record<string, TranslationKey> = {
   invalid: 'error.return.invalid',
 };
 
-function ReturnForm({ sale, onCancel, onDone }: { sale: Sale; onCancel: () => void; onDone: (ret: SaleReturn) => Promise<void> }) {
+interface ReturnFormProps {
+  sale: Sale;
+  action: ReturnType<typeof useAsyncAction>;
+  onCancel: () => void;
+  onDone: (ret: SaleReturn) => Promise<void>;
+}
+
+function ReturnForm({ sale, action, onCancel, onDone }: ReturnFormProps) {
   const { t, lang } = useI18n();
-  const { actor } = useTenant();
   const { confirm } = useFeedback();
   const customerMap = useCustomerMap();
   const [qty, setQty] = useState<Record<number, string>>({});
   const [reason, setReason] = useState('');
-  const { busy, run } = useAsyncAction('return');
+  const { busy, run } = action;
 
   const request = sale.items.map((_, index) => ({ index, quantity: Number(qty[index] || 0) }));
   const debt = sale.customerId ? customerMap.get(sale.customerId)?.debtUsdCents ?? 0 : 0;
@@ -196,7 +204,7 @@ function ReturnForm({ sale, onCancel, onDone }: { sale: Sale; onCancel: () => vo
         confirmLabel: t('returns.confirm'),
       });
       if (!ok) return;
-      const ret = await processReturn({ actor, saleId: sale.id, lines: request, reason });
+      const ret = await processReturn({ saleId: sale.id, lines: request, reason });
       await onDone(ret);
     });
 
@@ -229,6 +237,7 @@ function ReturnForm({ sale, onCancel, onDone }: { sale: Sale; onCancel: () => vo
                       min={0}
                       max={remaining}
                       disabled={remaining === 0}
+                      aria-label={`${t('returns.qtyToReturn')} — ${item.name}`}
                       value={qty[i] ?? ''}
                       onChange={(e) => setQty((q) => ({ ...q, [i]: e.target.value }))}
                     />

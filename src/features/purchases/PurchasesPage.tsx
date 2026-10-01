@@ -3,6 +3,7 @@ import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/Button';
 import { Checkbox, FormGrid, MoneyInput, SelectInput, TextInput } from '@/components/ui/Form';
 import { Alert, Badge, EmptyState, PageHeader, TableWrap, Toolbar } from '@/components/ui/Layout';
+import { clickableRow } from '@/components/ui/clickableRow';
 import { Modal } from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useFeedback } from '@/contexts/feedback';
@@ -85,7 +86,7 @@ export default function PurchasesPage() {
               </thead>
               <tbody>
                 {purchases.items.map((p) => (
-                  <tr key={p.id} className="clickable" onClick={() => setSelected(p)}>
+                  <tr key={p.id} {...clickableRow(() => setSelected(p))}>
                     <td>
                       <strong>{p.number}</strong>
                     </td>
@@ -139,7 +140,7 @@ interface DraftLine {
 
 function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
   const { t } = useI18n();
-  const { actor, can } = useTenant();
+  const { can } = useTenant();
   const { notify } = useFeedback();
   const suppliers = useSuppliers().data;
   const products = useProducts().data;
@@ -157,7 +158,7 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
   const matches = useMemo(() => {
     const q = normalizeSearch(search);
     if (!q) return [];
-    return products.filter((p) => normalizeSearch(p.name).includes(q) || p.barcode === search.trim()).slice(0, 8);
+    return products.filter((p) => p.status === 'active').filter((p) => normalizeSearch(p.name).includes(q) || p.barcode === search.trim()).slice(0, 8);
   }, [products, search]);
 
   const parsed = lines.map((l) => ({ productId: l.productId, quantity: Math.floor(Number(l.quantity)), unitCostUsdCents: parseUsdInput(l.unitCost) }));
@@ -168,7 +169,7 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
   const submit = () =>
     run(async () => {
       if (!valid || paid === null) return;
-      await createPurchase(actor, {
+      await createPurchase({
         supplierId,
         date,
         dueDate: dueDate || null,
@@ -278,7 +279,6 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
 
 function PurchaseDetailsModal({ purchase, onClose }: { purchase: Purchase; onClose: (changed: boolean) => void }) {
   const { t, lang } = useI18n();
-  const { actor } = useTenant();
   const { notify, confirm } = useFeedback();
   const [returning, setReturning] = useState(false);
   const [qty, setQty] = useState<Record<number, string>>({});
@@ -363,7 +363,7 @@ function PurchaseDetailsModal({ purchase, onClose }: { purchase: Purchase; onClo
                 onClick={() =>
                   void run(async () => {
                     if (!(await confirm({ title: t('purchases.confirmReturn', { amount: formatUsd(amount) }), danger: true }))) return;
-                    await returnToSupplier(actor, { purchaseId: purchase.id, lines, note });
+                    await returnToSupplier({ purchaseId: purchase.id, lines, note });
                     notify('success', t('purchases.returned'));
                     onClose(true);
                   })

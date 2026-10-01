@@ -20,6 +20,12 @@ export const TELEGRAM_TIMEZONE = defineString('TELEGRAM_TIMEZONE', {
   description: 'IANA time zone for dates in Telegram notifications',
 });
 
+/** Time zone of the store's business day (dailyStats and the `localDate` of every document). */
+export const BUSINESS_TIMEZONE = defineString('BUSINESS_TIMEZONE', {
+  default: 'Asia/Beirut',
+  description: 'IANA time zone used to compute business dates',
+});
+
 export const DAY_MS = 86_400_000;
 /** Claim value used for lifetime subscriptions (2100-01-01). */
 export const LIFETIME_UNTIL = 4_102_444_800_000;

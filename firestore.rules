@@ -10,10 +10,12 @@ rules_version = '2';
 //   subUntil  epoch ms until which the store subscription allows writes
 //   superAdmin platform administrator
 //
-// Balances are protected by "pairing": a drawer/debt/sale-return change is only accepted when the
-// matching audit document (cash transaction / ledger entry / return) is created in the same atomic
-// write, and the audit document is only accepted when the balance points back to it.
-// See docs/SECURITY.md for the full model and its known limits.
+// Money and stock are SERVER-AUTHORITATIVE: sales, returns, stock movements, cash transactions, the
+// drawer, customer ledger/debt, supplier balances, purchases, supplier payments, document counters
+// and daily statistics are written only by Cloud Functions (functions/src/pos), which re-read the
+// data and validate every amount in a transaction. Clients can only read them. Clients may edit
+// master data (names, prices, contact details…) but never a balance, stock level or IMEI list.
+// See docs/SECURITY.md.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -40,10 +42,8 @@ service cloud.firestore {
       return member(t) && (claim('role', '') == 'owner' || claim('perms', {}).get(p, false) == true);
     }
 
-    // 3-day grace so sales recorded offline just before expiry can still sync.
-    function subscribed() { return claim('subUntil', 0) > request.time.toMillis() - 259200000; }
+    function subscribed() { return claim('subUntil', 0) > request.time.toMillis(); }
 
-    function writer(t) { return member(t) && subscribed(); }
     function canW(t, p) { return can(t, p) && subscribed(); }
 
     // Owner / "sensitive data" users can read everything (full JSON backup).
@@ -60,27 +60,10 @@ service cloud.firestore {
     function isDate(v) { return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'); }
     function nonNegInt(v) { return v is int && v >= 0; }
 
-    // Business documents: stamped with the real author and the server time.
-    function audited() {
-      let d = incoming();
-      return d.createdBy == request.auth.uid
-        && str(d.createdByName, 200)
-        && d.createdAt == request.time
-        && d.createdAtMs is int
-        && isDate(d.localDate);
-    }
-
-    // Master data (products, customers, suppliers).
+    // Master data creation: stamped with the real author and the server time.
     function stamped() {
       let d = incoming();
       return d.createdBy == request.auth.uid && d.createdAt == request.time && d.createdAtMs is int;
-    }
-
-    function tdoc(t, col, id) { return /databases/$(database)/documents/tenants/$(t)/$(col)/$(id); }
-
-    // A document created by this very request (did not exist before, exists after).
-    function createdNow(t, col, id) {
-      return id is string && !exists(tdoc(t, col, id)) && existsAfter(tdoc(t, col, id));
     }
 
     // ------------------------------------------------------------------ platform
@@ -149,67 +132,66 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // Document numbers (INV/CR/RF and PU) only move forward one step at a time.
+      // ---------------------------------------------------------- server-only ledgers
+
       match /counters/{name} {
         allow read: if member(t);
-        allow create, update: if writer(t)
-          && incoming().keys().hasOnly(['nextId', 'updatedAt'])
-          && incoming().nextId is int
-          && (resource == null || incoming().nextId == resource.data.nextId + 1)
-          && ((name == 'sales' && (can(t, 'canSell') || can(t, 'canViewSales')))
-            || (name == 'purchases' && can(t, 'canViewSuppliers')));
-        allow delete: if false;
+        allow write: if false;
       }
 
-      // ---------------------------------------------------------- cash drawer
-
-      // The drawer can only change together with a new cash transaction (which checks the amounts).
       match /cashbox/{id} {
         allow read: if member(t);
-        allow create, update: if id == 'summary' && writer(t)
-          && incoming().keys().hasOnly(['usdCents', 'lbp', 'lastTxId', 'updatedAt'])
-          && incoming().usdCents is int && incoming().lbp is int
-          && (resource == null || incoming().lastTxId != resource.data.lastTxId)
-          && createdNow(t, 'cashTransactions', incoming().lastTxId);
-        allow delete: if false;
+        allow write: if false;
       }
 
-      function cashTypeAllowed(t) {
-        let d = incoming();
-        return (d.type == 'sale' && d.usdCents >= 0 && d.lbp >= 0 && can(t, 'canSell') && createdNow(t, 'sales', d.refId))
-          || (d.type == 'refund' && d.usdCents <= 0 && d.lbp <= 0 && can(t, 'canViewSales') && createdNow(t, 'returns', d.refId))
-          || (d.type == 'debtPayment' && d.usdCents >= 0 && d.lbp >= 0 && can(t, 'canViewCustomers'))
-          || (d.type == 'deposit' && d.usdCents >= 0 && d.lbp >= 0
-            && (can(t, 'canManageCashDrawer')
-              || (d.category == 'purchaseReturn' && can(t, 'canViewSuppliers') && createdNow(t, 'purchaseReturns', d.refId))))
-          || ((d.type == 'expense' || d.type == 'withdrawal') && d.usdCents <= 0 && d.lbp <= 0 && can(t, 'canManageCashDrawer'))
-          || (d.type == 'supplierPayment' && d.usdCents <= 0 && d.lbp <= 0
-            && can(t, 'canViewSuppliers') && can(t, 'canManageCashDrawer') && createdNow(t, 'supplierPayments', d.refId))
-          || (d.type == 'adjustment' && isOwner(t));
-      }
-
-      // Drawer after == drawer before + this transaction, and the drawer points to it.
-      function cashPaired(t, txId) {
-        let d = incoming();
-        let box = tdoc(t, 'cashbox', 'summary');
-        let after = getAfter(box).data;
-        let before = exists(box) ? get(box).data : { 'usdCents': 0, 'lbp': 0 };
-        return after.lastTxId == txId
-          && after.usdCents == before.usdCents + d.usdCents
-          && after.lbp == before.lbp + d.lbp;
-      }
-
-      match /cashTransactions/{txId} {
+      match /cashTransactions/{id} {
         allow read: if can(t, 'canManageCashDrawer') || can(t, 'canViewReports') || fullRead(t);
-        allow create: if writer(t) && audited()
-          && incoming().usdCents is int && incoming().lbp is int
-          && str(incoming().category, 60) && str(incoming().note, 600)
-          && cashTypeAllowed(t)
-          && cashPaired(t, txId);
-        allow update, delete: if false;
+        allow write: if false;
       }
 
-      // ---------------------------------------------------------- products
+      match /stockMovements/{id} {
+        allow read: if can(t, 'canViewProducts') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /sales/{id} {
+        allow get: if can(t, 'canSell') || can(t, 'canViewSales') || can(t, 'canViewReports')
+          || can(t, 'canViewCustomers') || fullRead(t);
+        allow list: if can(t, 'canViewSales') || can(t, 'canViewReports') || can(t, 'canViewCustomers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /returns/{id} {
+        allow read: if can(t, 'canViewSales') || can(t, 'canViewReports') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /customerLedger/{id} {
+        allow read: if can(t, 'canViewCustomers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /purchases/{id} {
+        allow read: if can(t, 'canViewSuppliers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /supplierPayments/{id} {
+        allow read: if can(t, 'canViewSuppliers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /purchaseReturns/{id} {
+        allow read: if can(t, 'canViewSuppliers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /dailyStats/{date} {
+        allow read: if can(t, 'canViewReports') || fullRead(t);
+        allow write: if false;
+      }
+
+      // ---------------------------------------------------------- products (master data only)
 
       function productFieldsValid(d) {
         return nonEmpty(d.name, 200) && str(d.category, 100) && str(d.barcode, 100)
@@ -219,156 +201,42 @@ service cloud.firestore {
           && str(d.supplierName, 200);
       }
 
-      function productUpdateAllowed(t) {
-        let d = incoming();
-        let keys = changed();
-        let stockKeys = ['stock', 'imeis', 'lastMovementId', 'updatedAt'];
-        let movement = d.stock is int && d.lastMovementId is string && d.lastMovementId != existing().get('lastMovementId', null);
-        return (
-            keys.hasOnly(['name', 'category', 'barcode', 'prices', 'costUsdCents', 'minStock', 'supplierId', 'supplierName',
-                          'expiryDate', 'imeiTracking', 'imageUrl', 'imagePath', 'updatedAt'])
-            && can(t, 'canEditProducts') && productFieldsValid(d)
-          )
-          || (keys.hasOnly(stockKeys) && movement
-            && ((d.stock < existing().stock && can(t, 'canSell'))
-              || (d.stock > existing().stock && can(t, 'canViewSales'))
-              || can(t, 'canViewSuppliers') || can(t, 'canEditProducts')))
-          || (keys.hasOnly(stockKeys.concat(['costUsdCents'])) && movement && nonNegInt(d.costUsdCents)
-            && (can(t, 'canViewSuppliers') || can(t, 'canEditProducts')));
-      }
-
       match /products/{id} {
         allow read: if member(t);
-        allow create: if (canW(t, 'canAddProducts') || canW(t, 'canImportProducts'))
-          && stamped() && productFieldsValid(incoming())
-          && nonNegInt(incoming().stock) && incoming().imeis is list;
-        allow update: if writer(t) && productUpdateAllowed(t);
-        allow delete: if canW(t, 'canDeleteProducts');
-      }
-
-      function movementAllowed(t) {
-        let d = incoming();
-        return (d.type == 'sale' && d.quantity < 0 && can(t, 'canSell'))
-          || (d.type == 'return' && d.quantity > 0 && can(t, 'canViewSales'))
-          || ((d.type == 'purchase' || d.type == 'purchaseReturn') && can(t, 'canViewSuppliers'))
-          || (d.type == 'adjustment' && can(t, 'canEditProducts'))
-          || (d.type == 'initial' && d.quantity >= 0 && (can(t, 'canAddProducts') || can(t, 'canImportProducts')));
-      }
-
-      match /stockMovements/{id} {
-        allow read: if can(t, 'canViewProducts') || fullRead(t);
-        allow create: if writer(t) && audited()
-          && incoming().productId is string && incoming().quantity is int && str(incoming().note, 600)
-          && movementAllowed(t);
-        allow update, delete: if false;
-      }
-
-      // ---------------------------------------------------------- sales & returns
-
-      function validNewSale() {
-        let d = incoming();
-        return (d.kind == 'cash' || d.kind == 'credit')
-          && nonEmpty(d.invoiceNumber, 40)
-          && d.items is list && d.items.size() > 0 && d.items.size() <= 300
-          && nonNegInt(d.totalUsdCents) && d.costUsdCents is int && nonNegInt(d.discountUsdCents)
-          && d.payment is map
-          && d.returnedUsdCents == 0 && d.returnedDebtUsdCents == 0
-          && d.refundedUsdCents == 0 && d.refundedLbp == 0
-          && d.returnStatus == 'none' && d.lastReturnId == null
-          && (d.kind == 'cash' || d.customerId is string);
-      }
-
-      // Only a return may modify a sale; a replayed offline sale (set on an existing id) is rejected.
-      function validReturnUpdate(t) {
-        let d = incoming();
-        return changed().hasOnly(['items', 'returnedUsdCents', 'returnedDebtUsdCents', 'refundedUsdCents',
-                                  'refundedLbp', 'returnStatus', 'lastReturnId'])
-          && d.lastReturnId is string && d.lastReturnId != existing().lastReturnId
-          && createdNow(t, 'returns', d.lastReturnId)
-          && d.returnedUsdCents is int && d.returnedUsdCents > existing().returnedUsdCents
-          && d.returnedUsdCents <= existing().totalUsdCents
-          && (d.returnStatus == 'partial' || d.returnStatus == 'full')
-          && d.items.size() == existing().items.size();
-      }
-
-      match /sales/{saleId} {
-        allow get: if can(t, 'canSell') || can(t, 'canViewSales') || can(t, 'canViewReports')
-          || can(t, 'canViewCustomers') || fullRead(t);
-        allow list: if can(t, 'canViewSales') || can(t, 'canViewReports') || can(t, 'canViewCustomers') || fullRead(t);
-        allow create: if canW(t, 'canSell') && audited() && validNewSale();
-        allow update: if canW(t, 'canViewSales') && validReturnUpdate(t);
+        // Created by posCreateProduct / posImportProducts (initial stock needs a movement).
+        allow create: if false;
+        allow update: if canW(t, 'canEditProducts')
+          && changed().hasOnly(['name', 'category', 'barcode', 'prices', 'costUsdCents', 'minStock', 'supplierId',
+                                'supplierName', 'expiryDate', 'imeiTracking', 'imageUrl', 'imagePath', 'updatedAt'])
+          && productFieldsValid(incoming())
+          && (!changed().hasAny(['imeiTracking']) || (existing().stock == 0 && existing().imeis.size() == 0));
+        // Archiving (status) and deletion go through posSetProductStatus / posDeleteProduct, which
+        // refuse to delete a product that has stock or any history.
         allow delete: if false;
       }
 
-      // The return must be applied to its sale in the same transaction, with matching totals.
-      function validReturn(t, id) {
-        let d = incoming();
-        let saleAfter = getAfter(tdoc(t, 'sales', d.saleId)).data;
-        let saleBefore = get(tdoc(t, 'sales', d.saleId)).data;
-        return saleAfter.lastReturnId == id
-          && d.amountUsdCents is int && d.amountUsdCents > 0
-          && nonNegInt(d.refundUsdCents) && nonNegInt(d.refundLbp) && nonNegInt(d.debtReducedUsdCents)
-          && saleAfter.returnedUsdCents == saleBefore.returnedUsdCents + d.amountUsdCents
-          && saleAfter.refundedUsdCents == saleBefore.refundedUsdCents + d.refundUsdCents
-          && saleAfter.refundedLbp == saleBefore.refundedLbp + d.refundLbp
-          && d.items is list && d.items.size() > 0
-          && str(d.reason, 500);
-      }
-
-      match /returns/{id} {
-        allow read: if can(t, 'canViewSales') || can(t, 'canViewReports') || fullRead(t);
-        allow create: if canW(t, 'canViewSales') && audited() && validReturn(t, id);
-        allow update, delete: if false;
-      }
-
-      // ---------------------------------------------------------- customers
+      // ---------------------------------------------------------- customers (master data only)
 
       function customerFieldsValid(d) {
         return nonEmpty(d.name, 150) && str(d.phone, 40) && str(d.email, 200) && str(d.address, 300)
           && nonNegInt(d.creditLimitUsdCents);
       }
 
-      function customerUpdateAllowed(t) {
-        let d = incoming();
-        let keys = changed();
-        return (keys.hasOnly(['name', 'phone', 'email', 'address', 'creditLimitUsdCents', 'updatedAt'])
-            && can(t, 'canViewCustomers') && customerFieldsValid(d))
-          || (keys.hasOnly(['totalPurchasesUsdCents', 'debtUsdCents', 'lastLedgerId', 'updatedAt'])
-            && d.debtUsdCents is int && d.totalPurchasesUsdCents is int
-            && (can(t, 'canSell') || can(t, 'canViewSales') || can(t, 'canViewCustomers') || isOwner(t))
-            && (!keys.hasAny(['debtUsdCents'])
-              || (d.lastLedgerId != existing().lastLedgerId && createdNow(t, 'customerLedger', d.lastLedgerId))));
-      }
-
       match /customers/{id} {
         allow read: if member(t);
+        // A customer with an opening debt is created by posCreateCustomer (with its ledger entry).
         allow create: if canW(t, 'canViewCustomers') && stamped() && customerFieldsValid(incoming())
-          && incoming().totalPurchasesUsdCents == 0 && nonNegInt(incoming().debtUsdCents)
-          && (incoming().lastLedgerId == null
-            ? incoming().debtUsdCents == 0
-            : createdNow(t, 'customerLedger', incoming().lastLedgerId));
-        allow update: if writer(t) && customerUpdateAllowed(t);
+          && incoming().keys().hasOnly(['name', 'phone', 'email', 'address', 'creditLimitUsdCents', 'debtUsdCents',
+                                        'totalPurchasesUsdCents', 'lastLedgerId', 'createdAt', 'createdAtMs',
+                                        'createdBy', 'updatedAt'])
+          && incoming().debtUsdCents == 0 && incoming().totalPurchasesUsdCents == 0 && incoming().lastLedgerId == null;
+        allow update: if canW(t, 'canViewCustomers')
+          && changed().hasOnly(['name', 'phone', 'email', 'address', 'creditLimitUsdCents', 'updatedAt'])
+          && customerFieldsValid(incoming());
         allow delete: if canW(t, 'canViewCustomers') && existing().debtUsdCents == 0;
       }
 
-      function ledgerAllowed(t, id) {
-        let d = incoming();
-        let customerAfter = getAfter(tdoc(t, 'customers', d.customerId)).data;
-        return ((d.type == 'creditSale' || d.type == 'settlement') && can(t, 'canSell') && createdNow(t, 'sales', d.refId))
-          || (d.type == 'refund' && can(t, 'canViewSales') && createdNow(t, 'returns', d.refId) && customerAfter.lastLedgerId == id)
-          || ((d.type == 'payment' || d.type == 'opening') && can(t, 'canViewCustomers') && customerAfter.lastLedgerId == id)
-          || (d.type == 'adjustment' && isOwner(t) && customerAfter.lastLedgerId == id);
-      }
-
-      match /customerLedger/{id} {
-        allow read: if can(t, 'canViewCustomers') || fullRead(t);
-        allow create: if writer(t) && audited()
-          && incoming().customerId is string && incoming().amountUsdCents is int && str(incoming().note, 600)
-          && ledgerAllowed(t, id);
-        allow update, delete: if false;
-      }
-
-      // ---------------------------------------------------------- suppliers & purchases
+      // ---------------------------------------------------------- suppliers (master data only)
 
       function supplierFieldsValid(d) {
         return nonEmpty(d.name, 150) && str(d.contactPerson, 150) && str(d.phone, 40) && str(d.email, 200) && str(d.address, 300);
@@ -377,57 +245,13 @@ service cloud.firestore {
       match /suppliers/{id} {
         allow read: if can(t, 'canViewSuppliers') || can(t, 'canAddProducts') || can(t, 'canEditProducts') || fullRead(t);
         allow create: if canW(t, 'canViewSuppliers') && stamped() && supplierFieldsValid(incoming())
+          && incoming().keys().hasOnly(['name', 'contactPerson', 'phone', 'email', 'address', 'balanceUsdCents',
+                                        'createdAt', 'createdAtMs', 'createdBy', 'updatedAt'])
           && incoming().balanceUsdCents == 0;
         allow update: if canW(t, 'canViewSuppliers')
-          && ((changed().hasOnly(['name', 'contactPerson', 'phone', 'email', 'address', 'updatedAt']) && supplierFieldsValid(incoming()))
-            || (changed().hasOnly(['balanceUsdCents', 'updatedAt']) && incoming().balanceUsdCents is int));
+          && changed().hasOnly(['name', 'contactPerson', 'phone', 'email', 'address', 'updatedAt'])
+          && supplierFieldsValid(incoming());
         allow delete: if canW(t, 'canViewSuppliers') && existing().balanceUsdCents == 0;
-      }
-
-      match /purchases/{id} {
-        allow read: if can(t, 'canViewSuppliers') || fullRead(t);
-        allow create: if canW(t, 'canViewSuppliers') && audited()
-          && nonEmpty(incoming().number, 40) && incoming().supplierId is string
-          && incoming().items is list && incoming().items.size() > 0 && incoming().items.size() <= 300
-          && nonNegInt(incoming().totalUsdCents) && nonNegInt(incoming().paidUsdCents)
-          && nonNegInt(incoming().remainingUsdCents) && incoming().returnedUsdCents == 0
-          && incoming().paidUsdCents + incoming().remainingUsdCents == incoming().totalUsdCents;
-        allow update: if canW(t, 'canViewSuppliers')
-          && changed().hasOnly(['paidUsdCents', 'remainingUsdCents', 'status', 'items', 'returnedUsdCents'])
-          && nonNegInt(incoming().remainingUsdCents)
-          && incoming().paidUsdCents is int && incoming().paidUsdCents >= existing().paidUsdCents
-          && incoming().returnedUsdCents is int && incoming().returnedUsdCents >= existing().returnedUsdCents
-          && incoming().items.size() == existing().items.size();
-        allow delete: if false;
-      }
-
-      match /supplierPayments/{id} {
-        allow read: if can(t, 'canViewSuppliers') || fullRead(t);
-        allow create: if canW(t, 'canViewSuppliers') && audited()
-          && incoming().supplierId is string && incoming().amountUsdCents is int && incoming().amountUsdCents > 0
-          && str(incoming().note, 600);
-        allow update, delete: if false;
-      }
-
-      match /purchaseReturns/{id} {
-        allow read: if can(t, 'canViewSuppliers') || fullRead(t);
-        allow create: if canW(t, 'canViewSuppliers') && audited()
-          && incoming().purchaseId is string && incoming().amountUsdCents is int && incoming().amountUsdCents > 0
-          && incoming().items is list && incoming().items.size() > 0;
-        allow update, delete: if false;
-      }
-
-      // ---------------------------------------------------------- aggregates
-
-      match /dailyStats/{date} {
-        allow read: if can(t, 'canViewReports') || fullRead(t);
-        allow create, update: if writer(t) && isDate(date) && incoming().date == date
-          && incoming().keys().hasOnly([
-            'date', 'salesCount', 'revenueUsdCents', 'costUsdCents', 'discountUsdCents', 'cashSalesUsdCents',
-            'creditSalesUsdCents', 'debtCollectedUsdCents', 'creditIssuedUsdCents', 'returnsCount', 'returnsUsdCents',
-            'returnsCostUsdCents', 'expensesUsdCents', 'updatedAt'
-          ]);
-        allow delete: if false;
       }
     }
   }

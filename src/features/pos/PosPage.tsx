@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { setWorkInProgress } from '@/app/serviceWorker';
 import { Button } from '@/components/ui/Button';
 import { Checkbox, SelectInput } from '@/components/ui/Form';
 import { Icon } from '@/components/ui/Icon';
-import { Alert } from '@/components/ui/Layout';
+import { Alert, Badge } from '@/components/ui/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
-import { addProductToCart, priceCart } from '@/domain/cart';
+import { addProductToCart, newLineKey, priceCart } from '@/domain/cart';
 import { computeCashPayment, computeCredit } from '@/domain/checkout';
 import { parseLbpInput, parseUsdInput } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useCategories, useCustomerMap, useCustomers, useProductMap, useProducts, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
-import { checkout } from '@/services/salesService';
-import type { Currency, PriceTier, Product, Sale } from '@/types/models';
-import { formatUsd } from '@/utils/format';
-import { printSaleReceipt } from '@/features/sales/receipt';
+import { takeReopenRequest, useOfflineQueue } from '@/offline/queue';
+import type { OfflineOperation } from '@/offline/types';
+import { checkout, type CheckoutResult } from '@/services/salesService';
+import type { Currency, PriceTier, Product } from '@/types/models';
+import { formatLbp, formatUsd } from '@/utils/format';
+import { printOfflineReceipt, printSaleReceipt } from '@/features/sales/receipt';
 import { CartPanel } from './CartPanel';
 import { PaymentPanel, type PaymentDraft } from './PaymentPanel';
 import { ProductPicker } from './ProductPicker';
@@ -32,15 +35,16 @@ export default function PosPage() {
   const settings = useSettings();
   const rate = settings.exchangeRate;
   const productsState = useProducts();
+  const sellable = useMemo(() => productsState.data.filter((p) => p.status === 'active'), [productsState.data]);
   const productMap = useProductMap();
   const customers = useCustomers().data;
   const customerMap = useCustomerMap();
   const categories = useCategories();
-  const pos = usePosCarts(tenantId, settings.defaultCurrency);
+  const pos = usePosCarts(tenantId, actor.uid, settings.defaultCurrency);
   const { cart, update } = pos;
   const [draft, setDraft] = useState<PaymentDraft>({ ...EMPTY_DRAFT, payCurrency: cart.currency });
   const [imeiProduct, setImeiProduct] = useState<Product | null>(null);
-  const [completed, setCompleted] = useState<{ sale: Sale; offline: boolean } | null>(null);
+  const [completed, setCompleted] = useState<CheckoutResult | null>(null);
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
   const searchRef = useRef<HTMLInputElement>(null);
   const { busy, run } = useAsyncAction('checkout');
@@ -120,23 +124,46 @@ export default function PosPage() {
         });
         if (!ok) return;
       }
-      const result = await checkout({
-        actor,
-        cart,
-        kind: draft.kind,
-        rate,
-        expectedTotalUsdCents: totals.productsUsdCents,
-        cash: cash.ok ? { receivedUsdCents: cash.receivedUsdCents, receivedLbp: cash.receivedLbp } : undefined,
-        credit: draft.kind === 'credit' ? { paidUsdCents: creditPaidUsd ?? 0, paidLbp: creditPaidLbp ?? 0 } : undefined,
-        cachedProducts: productMap,
-        cachedCustomer: customer,
-      });
+      const result = await checkout(
+        {
+          cart,
+          kind: draft.kind,
+          rate,
+          totals,
+          cash: draft.kind === 'cash' && cash.ok ? { receivedUsdCents: cash.receivedUsdCents, receivedLbp: cash.receivedLbp } : undefined,
+          credit: draft.kind === 'credit' ? { paidUsdCents: creditPaidUsd ?? 0, paidLbp: creditPaidLbp ?? 0 } : undefined,
+        },
+        { tenantId, uid: actor.uid, cashierName: actor.name, customerName: customer?.name ?? '' },
+      );
+      // The cart is cleared only once the sale is either recorded by the server or committed to IndexedDB.
       pos.resetActive();
       setDraft({ ...EMPTY_DRAFT, payCurrency: cart.currency });
       setCompleted(result);
       setMobileTab('products');
-      if (result.duplicate) notify('info', t('pos.duplicateSale'));
+      if (result.mode === 'online' && result.duplicate) notify('info', t('pos.duplicateSale'));
     });
+
+  const queue = useOfflineQueue();
+  useEffect(() => {
+    const op = takeReopenRequest();
+    if (!op) return;
+    const opened = pos.openInCart({
+      tier: op.snapshot.tier,
+      currency: op.snapshot.currency,
+      customerId: op.snapshot.customerId,
+      debtLineUsdCents: null,
+      lines: op.snapshot.lines.map((l) => ({
+        key: newLineKey(),
+        productId: l.productId,
+        name: l.name,
+        tier: l.tier,
+        quantity: l.quantity,
+        customUsdCents: l.customUsdCents,
+        imei: l.imei,
+      })),
+    });
+    notify(opened ? 'info' : 'error', t(opened ? 'offline.reopened' : 'offline.reopenNoRoom', { ref: op.offlineRef }));
+  }, [queue, pos, notify, t]);
 
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     if (e.key === 'F2') {
@@ -155,6 +182,11 @@ export default function PosPage() {
   }, []);
 
   const hasItems = cart.lines.length > 0;
+  const workInProgress = busy || pos.carts.some((c) => c.lines.length > 0);
+  useEffect(() => {
+    setWorkInProgress('pos', workInProgress);
+    return () => setWorkInProgress('pos', false);
+  }, [workInProgress]);
 
   return (
     <div className={`pos pos--${mobileTab}`}>
@@ -169,7 +201,7 @@ export default function PosPage() {
 
       <section className="pos__products">
         <ProductPicker
-          products={productsState.data}
+          products={sellable}
           loading={productsState.status === 'loading'}
           categories={categories}
           tier={cart.tier}
@@ -252,7 +284,7 @@ export default function PosPage() {
           <CartPanel cart={cart} totals={totals} products={productMap} canEditPrice={can('canEditPrice')} onChange={update} />
         </div>
 
-        {!online && <Alert tone="warning">{t('pos.offlineMode')}</Alert>}
+        {!online && <Alert tone="warning">{t('offline.posBanner')}</Alert>}
 
         <PaymentPanel
           draft={draft}
@@ -296,15 +328,23 @@ export default function PosPage() {
         <Modal
           open
           size="sm"
-          title={t('pos.saleCompleted')}
+          title={t(completed.mode === 'online' ? 'pos.saleCompleted' : 'offline.savedTitle')}
           onClose={() => {
             setCompleted(null);
             searchRef.current?.focus();
           }}
           footer={
             <>
-              <Button variant="secondary" icon="printer" onClick={() => printSaleReceipt(completed.sale, { settings, lang, t })}>
-                {t('common.print')}
+              <Button
+                variant="secondary"
+                icon="printer"
+                onClick={() =>
+                  completed.mode === 'online'
+                    ? printSaleReceipt(completed.sale, { settings, lang, t })
+                    : printOfflineReceipt(completed.operation, { settings, lang, t })
+                }
+              >
+                {t(completed.mode === 'online' ? 'common.print' : 'offline.printProof')}
               </Button>
               <Button
                 autoFocus
@@ -318,14 +358,36 @@ export default function PosPage() {
             </>
           }
         >
-          <div className="sale-done">
-            <Icon name="check" size={40} className="text-success" />
-            <div className="sale-done__number">{completed.sale.invoiceNumber}</div>
-            <div className="sale-done__total">{formatUsd(completed.sale.totalUsdCents)}</div>
-            {completed.offline && <Alert tone="warning">{t('pos.savedOffline')}</Alert>}
-          </div>
+          {completed.mode === 'online' ? (
+            <div className="sale-done">
+              <Icon name="check" size={40} className="text-success" />
+              <div className="sale-done__number">{completed.sale.invoiceNumber}</div>
+              <div className="sale-done__total">{formatUsd(completed.sale.totalUsdCents)}</div>
+            </div>
+          ) : (
+            <OfflineSaleDone operation={completed.operation} cause={completed.cause} />
+          )}
         </Modal>
       )}
+    </div>
+  );
+}
+
+function OfflineSaleDone({ operation, cause }: { operation: OfflineOperation; cause: 'offline' | 'network' }) {
+  const { t, lang } = useI18n();
+  const s = operation.snapshot;
+  const cashTaken = s.received.usdCents > 0 || s.received.lbp > 0;
+  const received = [s.received.usdCents > 0 && formatUsd(s.received.usdCents), s.received.lbp > 0 && formatLbp(s.received.lbp, lang)]
+    .filter(Boolean)
+    .join(' + ');
+  return (
+    <div className="sale-done">
+      <Icon name="wifiOff" size={40} className="text-warning" />
+      <Badge tone="warning">{t('offline.status.PENDING_SYNC')}</Badge>
+      <div className="sale-done__number">{operation.offlineRef}</div>
+      <div className="sale-done__total">{s.currency === 'LBP' ? formatLbp(s.totalLbp, lang) : formatUsd(s.totalUsdCents)}</div>
+      <Alert tone="warning">{t(cause === 'network' ? 'offline.savedAfterNetworkError' : 'offline.savedNotInvoice')}</Alert>
+      {cashTaken && <Alert tone="error">{t('offline.cashWarning', { amount: received })}</Alert>}
     </div>
   );
 }

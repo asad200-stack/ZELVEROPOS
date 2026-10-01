@@ -22,6 +22,8 @@ export function product(over: Partial<Product> = {}): Product {
     imeiTracking: false,
     imeis: [],
     lastMovementId: null,
+    status: 'active',
+    archivedAt: null,
     createdAt: null,
     updatedAt: null,
     ...over,

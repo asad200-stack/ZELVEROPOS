@@ -18,7 +18,8 @@ export const PAGE_SIZE = 50;
 export const STORAGE_KEYS = {
   lang: 'zelvero.lang',
   theme: 'zelvero.theme',
-  cart: (tenantId: string) => `zelvero.cart.${tenantId}`,
+  /** Per store AND user: cashiers sharing a device never see each other's open carts. */
+  cart: (tenantId: string, uid: string) => `zelvero.cart.${tenantId}.${uid}`,
   sidebar: 'zelvero.sidebar',
 } as const;
 

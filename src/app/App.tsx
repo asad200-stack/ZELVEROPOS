@@ -11,6 +11,7 @@ import { I18nProvider } from '@/i18n/I18nProvider';
 import { useI18n } from '@/i18n/i18n';
 import { APP_NAME } from '@/constants/app';
 import { AppRoutes } from './AppRoutes';
+import { UpdateNotice } from './UpdateNotice';
 
 function CrashScreen({ error, reset }: { error: Error; reset: () => void }) {
   const { t } = useI18n();
@@ -78,6 +79,7 @@ export function App() {
                   <AppRoutes />
                 </BrowserRouter>
               </SessionProvider>
+              <UpdateNotice />
             </FirebaseGate>
           </FeedbackProvider>
         </ErrorBoundary>

@@ -15,7 +15,7 @@ import { formatUsd } from '@/utils/format';
 
 export function StockAdjustModal({ product, onClose }: { product: Product; onClose: () => void }) {
   const { t } = useI18n();
-  const { actor, can } = useTenant();
+  const { can } = useTenant();
   const { notify } = useFeedback();
   const { busy, run } = useAsyncAction('stock-adjust');
   const [mode, setMode] = useState<'add' | 'remove' | 'set'>('add');
@@ -35,7 +35,7 @@ export function StockAdjustModal({ product, onClose }: { product: Product; onClo
 
   const submit = () =>
     run(async () => {
-      await adjustStock(actor, {
+      await adjustStock({
         productId: product.id,
         mode,
         quantity: qty,

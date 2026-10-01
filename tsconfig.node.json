@@ -2,9 +2,10 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "target": "ES2023",
-    "lib": ["ES2023"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "types": ["node"],
+    "types": ["node", "vite/client"],
+    "paths": { "@/*": ["./src/*"] },
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -16,5 +17,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["vite.config.ts", "vitest.rules.config.ts", "tests/rules", "tests/unit"]
+  "include": ["vite.config.ts", "tools", "vitest.rules.config.ts", "vitest.integration.config.ts", "tests/rules", "tests/unit", "tests/integration"]
 }

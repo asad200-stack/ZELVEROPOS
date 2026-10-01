@@ -39,6 +39,7 @@ dist/
 build/
 functions/lib/
 functions/isolation.json
+functions/src/shared/
 coverage/
 *.tsbuildinfo
 

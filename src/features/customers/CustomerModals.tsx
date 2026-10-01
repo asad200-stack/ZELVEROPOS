@@ -87,7 +87,6 @@ export function CustomerFormModal({ customer, onClose }: { customer: Customer | 
 
 export function PayDebtModal({ customer, onClose }: { customer: Customer; onClose: () => void }) {
   const { t, lang } = useI18n();
-  const { actor } = useTenant();
   const { notify } = useFeedback();
   const settings = useSettings();
   const [usd, setUsd] = useState('');
@@ -102,7 +101,7 @@ export function PayDebtModal({ customer, onClose }: { customer: Customer; onClos
   const submit = () =>
     run(async () => {
       if (usdCents === null || lbpAmount === null || total <= 0 || over) return;
-      await payDebt(actor, { customerId: customer.id, usdCents, lbp: lbpAmount, rate: settings.exchangeRate, note });
+      await payDebt({ customerId: customer.id, usdCents, lbp: lbpAmount, rate: settings.exchangeRate, note });
       notify('success', t('customers.paymentRecorded'));
       onClose();
     });
@@ -159,7 +158,6 @@ export function PayDebtModal({ customer, onClose }: { customer: Customer; onClos
 
 export function AdjustDebtModal({ customer, onClose }: { customer: Customer; onClose: () => void }) {
   const { t } = useI18n();
-  const { actor } = useTenant();
   const { notify } = useFeedback();
   const [value, setValue] = useState(centsToInput(customer.debtUsdCents));
   const [note, setNote] = useState('');
@@ -178,7 +176,7 @@ export function AdjustDebtModal({ customer, onClose }: { customer: Customer; onC
           disabled={cents === null || !note.trim()}
           onClick={() =>
             void run(async () => {
-              await adjustDebt(actor, customer.id, cents ?? 0, note);
+              await adjustDebt(customer.id, cents ?? 0, note);
               notify('success', t('common.saved'));
               onClose();
             })

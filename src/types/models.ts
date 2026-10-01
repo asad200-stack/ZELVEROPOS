@@ -42,9 +42,14 @@ export interface Product {
   imeiTracking: boolean;
   imeis: ImeiEntry[];
   lastMovementId: string | null;
+  /** Archived products keep their stock and history but cannot be sold or purchased. */
+  status: ProductStatus;
+  archivedAt: Millis;
   createdAt: Millis;
   updatedAt: Millis;
 }
+
+export type ProductStatus = 'active' | 'archived';
 
 export interface Customer {
   id: string;

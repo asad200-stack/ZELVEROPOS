@@ -616,6 +616,33 @@ select.input {
   color: var(--c-text-muted);
 }
 
+/* New app version waiting (never reloads by itself) */
+.update-notice {
+  position: fixed;
+  z-index: 190;
+  bottom: 16px;
+  inset-inline-start: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 10px 12px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-inline-start: 4px solid var(--c-info);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  animation: pop-in 0.2s ease-out;
+}
+
+.update-notice > .icon {
+  color: var(--c-info);
+}
+
+.update-notice > span {
+  flex: 1;
+}
+
 /* Cards & stats */
 .card {
   background: var(--c-surface);
@@ -863,8 +890,14 @@ select.input {
   background: var(--c-surface-2);
 }
 
-.table tr.clickable:hover td {
+.table tr.clickable:hover td,
+.table tr.clickable:focus-visible td {
   background: var(--c-primary-soft);
+}
+
+.table tr.clickable:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: -2px;
 }
 
 .actions-cell {

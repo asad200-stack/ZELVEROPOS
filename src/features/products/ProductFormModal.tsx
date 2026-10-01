@@ -86,7 +86,7 @@ export function ProductFormModal({ product, onClose }: Props) {
       if (product?.imeiTracking && !data.imeiTracking && product.imeis.some((e) => e.status === 'available')) {
         throw new AppError('error.imeiTrackingLocked');
       }
-      const id = product ? (await updateProduct(actor, product.id, input), product.id) : await createProduct(actor, input);
+      const id = product ? (await updateProduct(actor, product.id, input, product), product.id) : await createProduct(input);
       if (image) {
         const uploaded = await uploadTenantImage(tenantId, 'products', id, image);
         await setProductImage(actor, id, uploaded, product?.imagePath ?? null);
