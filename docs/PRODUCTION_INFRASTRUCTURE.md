@@ -33,7 +33,7 @@ instance limit, or uses another service account.
 | Auth `getUser`, `getUserByEmail`, `createUser`, `updateUser`, `deleteUser`, `setCustomUserClaims`, `revokeRefreshTokens` (claims, sub-users, signup, super admin, account deletion) | `firebaseauth.users.*` | `roles/firebaseauth.admin` | project |
 | Storage `file().delete()` (product image), `deleteFiles({ prefix })` (clear tenant data, delete account) | `storage.objects.list`, `storage.objects.delete` | `roles/storage.objectUser` | POS bucket only |
 | Firestore-triggered Telegram functions receive Eventarc events as this account | `eventarc.events.receiveEvent` | `roles/eventarc.eventReceiver` | project |
-| Eventarc invokes the trigger services | `run.routes.invoke` | none at project level: the Firebase CLI grants `roles/run.invoker` on each trigger service to this account during deploy | per service |
+| Eventarc invokes the trigger services | `run.routes.invoke` | `roles/run.invoker`, granted manually on each of the 4 trigger services only (firebase-tools does not grant it for event triggers) | per service |
 | Telegram `fetch` to `api.telegram.org` | outbound internet (default for 2nd gen) | none | — |
 | Logs (stdout/stderr) | collected by Cloud Run | none | — |
 
@@ -49,6 +49,10 @@ project-wide Storage.
   `scripts/firebase-guard.mjs` and a typed project-id confirmation).
 - Google-managed service agents (Cloud Functions, Eventarc, Pub/Sub) receive their roles when the CLI
   enables the APIs on the first deploy.
+- firebase-tools also grants the default compute account project-level `roles/run.invoker` and
+  `roles/eventarc.eventReceiver` on every deploy with event triggers (it assumes triggers run as that
+  account). No function runs as it; the grants are unused.
+- Artifact Registry `gcf-artifacts` (europe-west1) deletes function images older than 1 day.
 
 ## Launch checklist
 
@@ -56,9 +60,12 @@ project-wide Storage.
       controlled local testing).
 - [ ] After the first Hosting deploy, check `Cache-Control` with `curl -I` on `/`, `/pos`,
       `/index.html`, `/sw.js` (`no-cache`) and `/assets/*` (`immutable`).
-- [ ] After the first Functions deploy, confirm every service in Cloud Run runs as
+- [x] After the first Functions deploy, confirm every service in Cloud Run runs as
       `zelvero-functions-runtime@` in `europe-west1`, and that the trigger services grant
-      `run.invoker` only to that account.
+      `run.invoker` only to that account (`node scripts/verify/functions-live.mjs zelvoropos`).
+- [ ] After every Functions deploy, run `node scripts/verify/functions-live.mjs zelvoropos`. A new
+      Firestore trigger needs `roles/run.invoker` for the runtime account on its Cloud Run service,
+      and a callable whose first create failed needs `allUsers` (firebase-tools only sets it on create).
 - [ ] Configure App Check (reCAPTCHA Enterprise) in monitoring mode; enforce only after the metrics
       show verified traffic, one service at a time.
 - [ ] Uninstall the Firebase GitHub App installation `163487612` from the `asad200-stack` GitHub

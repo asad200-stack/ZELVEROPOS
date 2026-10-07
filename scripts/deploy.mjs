@@ -2,7 +2,7 @@
 /**
  * Guarded deployment for ZELVERO POS.
  *   npm run deploy               -> hosting + rules + indexes + storage + functions
- *   npm run deploy -- hosting    -> hosting only (also: functions | rules | storage)
+ *   npm run deploy -- hosting    -> hosting only (also: functions | rules | firestore | storage)
  *
  * Always passes an explicit --project so the Firebase CLI never falls back to a cached/other project.
  */
@@ -15,6 +15,7 @@ const ONLY = {
   hosting: 'hosting',
   functions: 'functions',
   rules: 'firestore:rules,firestore:indexes,storage',
+  firestore: 'firestore:rules,firestore:indexes',
   storage: 'storage',
 };
 
