@@ -9,26 +9,18 @@ import { caller, parse, trimmed } from './validate.js';
 
 const subdomainField = z.string().trim().toLowerCase().regex(SUBDOMAIN_RE);
 
-const availabilitySchema = z.object({
-  subdomain: subdomainField,
-  email: z.string().trim().toLowerCase().email().max(200),
-});
+/** Unknown keys (e.g. an `email` sent by an older client) are stripped and never read. */
+const availabilitySchema = z.object({ subdomain: subdomainField });
 
-async function emailExists(email: string): Promise<boolean> {
-  try {
-    await auth.getUserByEmail(email);
-    return true;
-  } catch (e) {
-    if ((e as { code?: string }).code === 'auth/user-not-found') return false;
-    throw e;
-  }
-}
-
-/** Public pre-check used by the signup form (the transaction in completeSignup is authoritative). */
+/**
+ * Public pre-check used by the signup form (the transaction in completeSignup is authoritative).
+ * Store subdomains are public; account e-mails are not: nothing here may depend on an e-mail
+ * address, or the endpoint would defeat Firebase Auth e-mail enumeration protection.
+ */
 export const checkSignupAvailability = onCall({ region: REGION }, async (request) => {
   const input = parse(availabilitySchema, request.data);
-  const [sub, emailTaken] = await Promise.all([db.doc(`storeSubdomains/${input.subdomain}`).get(), emailExists(input.email)]);
-  return { subdomainAvailable: !sub.exists, emailAvailable: !emailTaken };
+  const sub = await db.doc(`storeSubdomains/${input.subdomain}`).get();
+  return { subdomainAvailable: !sub.exists };
 });
 
 const signupSchema = z.object({

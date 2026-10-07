@@ -3,6 +3,7 @@
  * Controlled production backend smoke test (Stage 4). Uses the real Firebase web SDK exactly like the
  * app (Auth, callables, Firestore, Storage). Operator-side checks are READ-ONLY (gcloud credentials).
  *
+ *   node scripts/verify/prod-smoke.mjs zelvoropos availability  public signup pre-check leaks no e-mail state
  *   node scripts/verify/prod-smoke.mjs zelvoropos signup      create the test owner + super-admin Auth identity
  *   node scripts/verify/prod-smoke.mjs zelvoropos backend     after both e-mails are verified
  *   node scripts/verify/prod-smoke.mjs zelvoropos resume-after-sale  continue from the recorded sale
@@ -268,8 +269,8 @@ async function signupPhase() {
     s.superAdminTempPassword = password();
     saveState(s);
     section('Real signup flow (authService.register): availability -> Auth user -> verification e-mail -> completeSignup');
-    const avail = await owner.call('checkSignupAvailability', { subdomain: SUBDOMAIN, email: OWNER });
-    critical('subdomain and e-mail available before signup', avail.data.subdomainAvailable && avail.data.emailAvailable, JSON.stringify(avail.data));
+    const avail = await owner.call('checkSignupAvailability', { subdomain: SUBDOMAIN });
+    critical('subdomain available before signup', avail.data.subdomainAvailable === true, JSON.stringify(avail.data));
     cred = await createUserWithEmailAndPassword(owner.auth, OWNER, s.ownerPassword);
     s.ownerUid = cred.user.uid;
     saveState(s);
@@ -284,8 +285,8 @@ async function signupPhase() {
   await cred.user.getIdToken(true);
 
   section('Duplicate signup protection');
-  const again = await owner.call('checkSignupAvailability', { subdomain: SUBDOMAIN, email: OWNER });
-  check('availability now reports e-mail and subdomain taken', !again.data.subdomainAvailable && !again.data.emailAvailable, JSON.stringify(again.data));
+  const again = await owner.call('checkSignupAvailability', { subdomain: SUBDOMAIN });
+  check('availability now reports the subdomain taken', again.data.subdomainAvailable === false, JSON.stringify(again.data));
   await denied('second Auth signup with the same e-mail', () => createUserWithEmailAndPassword(client('dup').auth, OWNER, password()), /email-already-in-use/);
   const repeat = await owner.call('completeSignup', { fullName: 'TEST OWNER', storeName: STORE_NAME, subdomain: SUBDOMAIN, phone: '+000 TEST' });
   check('repeated completeSignup is idempotent (same tenant)', repeat.data.tenantId === s.tenantId);
@@ -579,7 +580,33 @@ async function handedOverPhase() {
   console.log('INFO  temporary super-admin password removed from the local state file');
 }
 
-const phases = { signup: signupPhase, backend: backendPhase, 'resume-after-sale': resumeAfterSalePhase, finalize: finalizePhase, handover: handoverPhase, 'handed-over': handedOverPhase };
+/** Public signup pre-check must not reveal whether an e-mail has an account (raw HTTP, anonymous). */
+async function availabilityPhase() {
+  section('checkSignupAvailability: no e-mail enumeration');
+  const url = `https://${REGION}-${project}.cloudfunctions.net/checkSignupAvailability`;
+  const probe = async (data) => {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data }) });
+    const body = await res.text();
+    return { exchange: { status: res.status, contentType: res.headers.get('content-type'), body } };
+  };
+  await probe({ subdomain: 'warm-up-probe' });
+  const emails = [SUPER_ADMIN, OWNER, CASHIER, 'nobody-zelvero-probe@example.com', 'not-an-email', undefined];
+  const free = [];
+  const taken = [];
+  for (let round = 0; round < 3; round++) {
+    for (const email of emails) {
+      free.push({ email, ...(await probe({ subdomain: 'zelvero-free-probe', ...(email !== undefined && { email }) })) });
+      taken.push({ email, ...(await probe({ subdomain: SUBDOMAIN, ...(email !== undefined && { email }) })) });
+    }
+  }
+  const distinct = (rows) => [...new Set(rows.map((r) => JSON.stringify(r.exchange)))];
+  critical('free subdomain: one identical response for existing, unknown, invalid and missing e-mails', distinct(free).length === 1, distinct(free).join(' | '));
+  critical('taken subdomain: one identical response for every e-mail', distinct(taken).length === 1, distinct(taken).join(' | '));
+  critical('responses carry subdomain availability only', JSON.parse(free[0].exchange.body).result?.subdomainAvailable === true
+    && JSON.parse(taken[0].exchange.body).result?.subdomainAvailable === false && Object.keys(JSON.parse(free[0].exchange.body).result).length === 1);
+}
+
+const phases = { availability: availabilityPhase, signup: signupPhase, backend: backendPhase, 'resume-after-sale': resumeAfterSalePhase, finalize: finalizePhase, handover: handoverPhase, 'handed-over': handedOverPhase };
 if (!phases[phase]) {
   console.error(`Unknown phase "${phase}". Use one of: ${Object.keys(phases).join(', ')}`);
   process.exit(1);

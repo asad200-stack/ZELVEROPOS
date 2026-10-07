@@ -155,9 +155,7 @@ export const posApi = {
 };
 
 export const api = {
-  checkSignupAvailability: callable<{ subdomain: string; email: string }, { subdomainAvailable: boolean; emailAvailable: boolean }>(
-    'checkSignupAvailability',
-  ),
+  checkSignupAvailability: callable<{ subdomain: string }, { subdomainAvailable: boolean }>('checkSignupAvailability'),
   completeSignup: callable<SignupInput, { tenantId: string }>('completeSignup'),
   refreshMyClaims: callable<Record<string, never>, { ok: true }>('refreshMyClaims'),
   createSubUser: callable<{ email: string; password: string; fullName: string; permissions: PermissionMap }, { uid: string }>(

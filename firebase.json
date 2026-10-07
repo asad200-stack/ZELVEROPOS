@@ -3,7 +3,7 @@
     "public": "dist",
     "predeploy": ["node scripts/firebase-guard.mjs --hook"],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "rewrites": [{ "source": "**/!(*.*)", "destination": "/index.html" }],
     "headers": [
       {
         "source": "/assets/**",

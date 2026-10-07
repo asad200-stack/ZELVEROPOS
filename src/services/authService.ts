@@ -25,8 +25,7 @@ export async function sendPasswordReset(email: string): Promise<void> {
 }
 
 export async function register(input: SignupInput & { email: string; password: string }): Promise<void> {
-  const availability = await api.checkSignupAvailability({ subdomain: input.subdomain, email: input.email.trim() });
-  if (!availability.emailAvailable) throw new AppError('error.auth.emailInUse');
+  const availability = await api.checkSignupAvailability({ subdomain: input.subdomain });
   if (!availability.subdomainAvailable) throw new AppError('error.subdomainTaken');
 
   const cred = await createUserWithEmailAndPassword(firebase.auth, input.email.trim(), input.password);

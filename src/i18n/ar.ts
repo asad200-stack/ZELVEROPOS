@@ -134,6 +134,7 @@ export const ar: Record<TranslationKey, string> = {
   'error.alreadyExists': 'هذا السجل موجود مسبقاً.',
   'error.auth.emailInUse': 'هذا البريد الإلكتروني مسجّل مسبقاً.',
   'error.auth.invalidCredential': 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+  'error.auth.signupFailed': 'تعذّر إنشاء حساب بهذا البريد الإلكتروني. إذا كان لديك حساب، سجّل الدخول أو أعد تعيين كلمة المرور.',
   'error.auth.invalidEmail': 'بريد إلكتروني غير صالح.',
   'error.auth.recentLogin': 'يرجى تسجيل الدخول مجدداً للمتابعة.',
   'error.auth.tooManyRequests': 'محاولات كثيرة. انتظر قليلاً ثم حاول مجدداً.',

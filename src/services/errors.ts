@@ -18,7 +18,7 @@ const FIREBASE_CODE_MAP: Record<string, TranslationKey> = {
   'auth/wrong-password': 'error.auth.invalidCredential',
   'auth/user-not-found': 'error.auth.invalidCredential',
   'auth/invalid-email': 'error.auth.invalidEmail',
-  'auth/email-already-in-use': 'error.auth.emailInUse',
+  'auth/email-already-in-use': 'error.auth.signupFailed',
   'auth/weak-password': 'error.auth.weakPassword',
   'auth/too-many-requests': 'error.auth.tooManyRequests',
   'auth/user-disabled': 'error.auth.userDisabled',

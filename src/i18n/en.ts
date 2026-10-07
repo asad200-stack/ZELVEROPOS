@@ -142,6 +142,7 @@ export const en = {
   'error.auth.invalidCredential': 'Incorrect email or password.',
   'error.auth.invalidEmail': 'Invalid email address.',
   'error.auth.recentLogin': 'Please sign in again to continue.',
+  'error.auth.signupFailed': "We couldn't create an account with this email. If you already have an account, sign in or reset your password.",
   'error.auth.tooManyRequests': 'Too many attempts. Please wait a moment and try again.',
   'error.auth.userDisabled': 'This account has been disabled.',
   'error.auth.weakPassword': 'Password is too weak.',

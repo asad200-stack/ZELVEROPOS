@@ -3,10 +3,12 @@
  * Guarded deployment for ZELVERO POS.
  *   npm run deploy               -> hosting + rules + indexes + storage + functions
  *   npm run deploy -- hosting    -> hosting only (also: functions | rules | firestore | storage)
+ *   npm run deploy -- functions:checkSignupAvailability  -> one function
  *
  * Always passes an explicit --project so the Firebase CLI never falls back to a cached/other project.
  */
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { checkFirebaseTargets } from './firebase-guard.mjs';
 
@@ -20,8 +22,22 @@ const ONLY = {
 };
 
 const target = process.argv[2] || 'all';
-if (!ONLY[target]) {
-  console.error(`Unknown target "${target}". Use one of: ${Object.keys(ONLY).join(', ')}`);
+const single = /^functions:([A-Za-z][A-Za-z0-9]*)$/.exec(target);
+if (single) {
+  let exported = [];
+  try {
+    const index = readFileSync('functions/lib/index.js', 'utf8');
+    exported = [...index.matchAll(/^export \{([^}]*)\}/gm)].flatMap((m) => m[1].split(',').map((s) => s.trim()));
+  } catch {
+    /* not built */
+  }
+  if (!exported.includes(single[1])) {
+    console.error(`"${single[1]}" is not exported by functions/lib/index.js (run: npm --prefix functions run build).`);
+    process.exit(1);
+  }
+  ONLY[target] = target;
+} else if (!ONLY[target]) {
+  console.error(`Unknown target "${target}". Use one of: ${Object.keys(ONLY).join(', ')}, functions:<name>`);
   process.exit(1);
 }
 
