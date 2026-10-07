@@ -26,6 +26,7 @@
     "emulators": "node scripts/firebase-guard.mjs --emulator --project=demo-zelvero && npm --prefix functions run build && npx firebase-tools emulators:start --project demo-zelvero",
     "test:rules": "node scripts/firebase-guard.mjs --emulator --project=demo-zelvero && npx firebase-tools emulators:exec --only firestore,storage --project demo-zelvero \"vitest run --config vitest.rules.config.ts\"",
     "test:integration": "node scripts/firebase-guard.mjs --emulator --project=demo-zelvero && npm --prefix functions run build && npx firebase-tools emulators:exec --only auth,firestore,functions --project demo-zelvero \"vitest run --config vitest.integration.config.ts\"",
+    "test:e2e": "node scripts/firebase-guard.mjs --emulator --project=demo-zelvero && npm --prefix functions run build && npx firebase-tools emulators:exec --only auth,firestore,functions,storage --project demo-zelvero \"vitest run --config vitest.e2e.config.ts\"",
     "test:auth-email": "node scripts/firebase-guard.mjs --emulator --project=demo-zelvero && npm --prefix functions run build && npx firebase-tools emulators:exec --only auth,firestore,functions --project demo-zelvero \"node scripts/verify/auth-email-e2e.mjs\"",
     "deploy": "node scripts/deploy.mjs all",
     "deploy:hosting": "node scripts/deploy.mjs hosting",

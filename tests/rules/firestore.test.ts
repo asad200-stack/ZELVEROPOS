@@ -1,5 +1,6 @@
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import {
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -358,6 +359,11 @@ describe('suppliers: balance only changes server-side', () => {
     await assertFails(setDoc(doc(cashier(), tp(T, 'suppliers', 'sup4')), newSupplier('cashier')));
   });
 
+  it('inline creation from Add Product: only users with supplier access may create a supplier', async () => {
+    await assertFails(setDoc(doc(editor(), tp(T, 'suppliers', 'sup5')), newSupplier('editor')));
+    await assertSucceeds(setDoc(doc(owner(), tp(T, 'suppliers', 'sup6')), newSupplier(OWNER, { phone: '71123456' })));
+  });
+
   it('a supplier with an open balance cannot be deleted', async () => {
     await assertFails(deleteDoc(doc(owner(), tp(T, 'suppliers', 'sup1'))));
   });
@@ -374,6 +380,28 @@ describe('suppliers: balance only changes server-side', () => {
       });
     });
     await assertFails(updateDoc(doc(buyer(), tp(T, 'purchases', 'pu1')), { paidUsdCents: 1_100, remainingUsdCents: 0, status: 'paid' }));
+  });
+});
+
+describe('category list (inline creation from Add Product)', () => {
+  const list = (fs: Firestore) => doc(fs, tp(T, 'lists', 'categories'));
+
+  it('product editors may add a category name; others may not', async () => {
+    await assertSucceeds(setDoc(list(editor()), { names: arrayUnion('Chargers') }, { merge: true }));
+    await assertSucceeds(setDoc(list(owner()), { names: arrayUnion('Cables') }, { merge: true }));
+    await assertFails(setDoc(list(cashier()), { names: arrayUnion('Nope') }, { merge: true }));
+    await assertFails(setDoc(list(clerk()), { names: arrayUnion('Nope') }, { merge: true }));
+    await assertFails(setDoc(list(buyer()), { names: arrayUnion('Nope') }, { merge: true }));
+  });
+
+  it('only the names field may be written, and only on the categories list', async () => {
+    await assertFails(setDoc(list(editor()), { names: arrayUnion('A'), extra: true }, { merge: true }));
+    await assertFails(setDoc(doc(editor(), tp(T, 'lists', 'other')), { names: arrayUnion('A') }, { merge: true }));
+  });
+
+  it('another tenant cannot add categories', async () => {
+    const intruder = db(env, 'intruder', { tenantId: OTHER, role: 'owner' });
+    await assertFails(setDoc(list(intruder), { names: arrayUnion('X') }, { merge: true }));
   });
 });
 

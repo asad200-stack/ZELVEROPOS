@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useId, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 
 interface FieldProps {
   label?: ReactNode;
@@ -65,6 +65,7 @@ type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   hint?: ReactNode;
   fieldClassName?: string;
   options: { value: string; label: string }[];
+  ref?: Ref<HTMLSelectElement>;
 };
 
 export function SelectInput({ label, error, hint, required, fieldClassName, className, options, ...rest }: SelectProps) {

@@ -12,13 +12,16 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   /** Prevent closing via backdrop/Escape while an operation is running. */
   busy?: boolean;
+  /** Called first on Escape; return true when it was handled (e.g. a nested panel closed) to keep the modal open. */
+  onEscapeKey?: () => boolean;
 }
 
-export function Modal({ open, title, onClose, children, footer, size = 'md', busy = false }: ModalProps) {
+export function Modal({ open, title, onClose, children, footer, size = 'md', busy = false, onEscapeKey }: ModalProps) {
   const { t } = useI18n();
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const onEscape = useEffectEvent(() => {
+    if (onEscapeKey?.()) return;
     if (!busy) onClose();
   });
 

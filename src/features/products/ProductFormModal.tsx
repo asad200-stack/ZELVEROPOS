@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState, type ChangeEvent, type RefObject } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Checkbox, FormGrid, MoneyInput, SelectInput, TextArea, TextInput } from '@/components/ui/Form';
 import { Modal } from '@/components/ui/Modal';
@@ -8,12 +8,24 @@ import { centsToInput } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useForm } from '@/hooks/useForm';
 import { useCategories, useProducts, useSuppliers } from '@/hooks/useTenantData';
-import { useI18n } from '@/i18n/i18n';
-import { AppError } from '@/services/errors';
-import { assertUniqueBarcode, createProduct, setProductImage, updateProduct } from '@/services/productService';
+import { useI18n, type TranslationKey } from '@/i18n/i18n';
+import { AppError, logError, toUserMessage } from '@/services/errors';
+import { requireOnline } from '@/services/ops';
+import { addCategory, assertUniqueBarcode, createProduct, setProductImage, updateProduct } from '@/services/productService';
 import { uploadTenantImage } from '@/services/storageService';
+import { createSupplier } from '@/services/supplierService';
 import type { Product } from '@/types/models';
-import { productSchema } from '@/validation/schemas';
+import { productSchema, supplierSchema, toFieldErrors, type FieldErrors } from '@/validation/schemas';
+import { InlineCreatePanel } from './InlineCreatePanel';
+import {
+  NEW_OPTION,
+  categoryOptions,
+  mergeSuppliers,
+  resolveCategory,
+  resolveSupplier,
+  singleFlight,
+  supplierOptions,
+} from './inlineCreate';
 
 interface Props {
   product: Product | null;
@@ -26,6 +38,38 @@ function generateBarcode(): string {
   digits[0] = 2; // "in-store" prefix range
   const sum = digits.reduce((s, d, i) => s + d * (i % 2 ? 3 : 1), 0);
   return digits.join('') + ((10 - (sum % 10)) % 10);
+}
+
+/** State of one inline "add new …" panel; a save in flight is shared by repeated clicks / Enter presses. */
+function useInlinePanel(select: RefObject<HTMLSelectElement | null>) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const flight = useRef(singleFlight((fn: () => Promise<void>) => fn()));
+
+  const close = () => {
+    setOpen(false);
+    setError(null);
+    requestAnimationFrame(() => select.current?.focus());
+  };
+
+  const save = (fn: () => Promise<void>) =>
+    flight.current(async () => {
+      setSaving(true);
+      setError(null);
+      try {
+        await fn();
+      } catch (err) {
+        logError('inline-create', err);
+        const msg = toUserMessage(err);
+        setError(t(msg.key, msg.params));
+      } finally {
+        setSaving(false);
+      }
+    });
+
+  return { open, show: () => (setError(null), setOpen(true)), close, saving, error, save };
 }
 
 export function ProductFormModal({ product, onClose }: Props) {
@@ -58,13 +102,69 @@ export function ProductFormModal({ product, onClose }: Props) {
     imeis: '',
   });
 
+  const categorySelect = useRef<HTMLSelectElement>(null);
+  const supplierSelect = useRef<HTMLSelectElement>(null);
+  const categoryPanel = useInlinePanel(categorySelect);
+  const supplierPanel = useInlinePanel(supplierSelect);
+  const [newCategory, setNewCategory] = useState('');
+  const [newSupplier, setNewSupplier] = useState({ name: '', phone: '' });
+  const [categoryError, setCategoryError] = useState<TranslationKey | null>(null);
+  const [supplierErrors, setSupplierErrors] = useState<FieldErrors>({});
+  const [createdSuppliers, setCreatedSuppliers] = useState<{ id: string; name: string }[]>([]);
+  const allSuppliers = mergeSuppliers(suppliers, createdSuppliers);
+  const canCreateSupplier = can('canViewSuppliers');
+
+  const onCategoryChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    if (e.target.value !== NEW_OPTION) return form.set('category', e.target.value);
+    setNewCategory('');
+    setCategoryError(null);
+    categoryPanel.show();
+  };
+
+  const onSupplierChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    if (e.target.value !== NEW_OPTION) return form.set('supplierId', e.target.value);
+    setNewSupplier({ name: '', phone: '' });
+    setSupplierErrors({});
+    supplierPanel.show();
+  };
+
+  const saveCategory = () =>
+    categoryPanel.save(async () => {
+      const name = newCategory.trim();
+      setCategoryError(!name ? 'validation.required' : name.length > 100 ? 'validation.tooLong' : null);
+      if (!name || name.length > 100) return;
+      requireOnline();
+      const outcome = await resolveCategory(newCategory, categories, (name) => addCategory(tenantId, name));
+      if (outcome.kind === 'invalid') return;
+      form.set('category', outcome.value);
+      notify(outcome.kind === 'created' ? 'success' : 'info', t(outcome.kind === 'created' ? 'products.categoryCreated' : 'products.categoryExists', { name: outcome.value }));
+      categoryPanel.close();
+    });
+
+  const saveSupplier = () =>
+    supplierPanel.save(async () => {
+      const parsed = supplierSchema.safeParse({ ...newSupplier, contactPerson: '', email: '', address: '' });
+      setSupplierErrors(parsed.success ? {} : toFieldErrors(parsed.error));
+      if (!parsed.success) return;
+      requireOnline();
+      const outcome = await resolveSupplier(parsed.data, suppliers, (input) =>
+        createSupplier(actor, { ...input, contactPerson: '', email: '', address: '' }, suppliers),
+      );
+      if (outcome.kind === 'invalid') return;
+      if (outcome.kind === 'created') setCreatedSuppliers((list) => [...list, outcome.value]);
+      form.set('supplierId', outcome.value.id);
+      notify(outcome.kind === 'created' ? 'success' : 'info', t(outcome.kind === 'created' ? 'products.supplierCreated' : 'products.supplierExists', { name: outcome.value.name }));
+      supplierPanel.close();
+    });
+
   const submit = () =>
     run(async () => {
+      if (categoryPanel.saving || supplierPanel.saving) return;
       const data = form.validate(productSchema);
       if (!data) return;
       assertUniqueBarcode(data.barcode, products, product?.id);
       const retail = data.retail ?? 0;
-      const supplier = suppliers.find((s) => s.id === data.supplierId) ?? null;
+      const supplier = allSuppliers.find((s) => s.id === data.supplierId) ?? null;
       const input = {
         name: data.name,
         category: data.category,
@@ -101,13 +201,18 @@ export function ProductFormModal({ product, onClose }: Props) {
       size="lg"
       title={product ? t('products.edit') : t('products.add')}
       onClose={onClose}
-      busy={busy}
+      busy={busy || categoryPanel.saving || supplierPanel.saving}
+      onEscapeKey={() => {
+        const panel = [supplierPanel, categoryPanel].find((p) => p.open);
+        if (panel && !panel.saving) panel.close();
+        return !!panel;
+      }}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
+          <Button variant="secondary" onClick={onClose} disabled={busy || categoryPanel.saving || supplierPanel.saving}>
             {t('common.cancel')}
           </Button>
-          <Button loading={busy} onClick={() => void submit()}>
+          <Button loading={busy} disabled={categoryPanel.saving || supplierPanel.saving} onClick={() => void submit()}>
             {t('common.save')}
           </Button>
         </>
@@ -123,12 +228,33 @@ export function ProductFormModal({ product, onClose }: Props) {
       >
         <FormGrid>
           <TextInput label={t('products.name')} required autoFocus {...form.bind('name')} />
-          <TextInput label={t('products.category')} list="product-categories" {...form.bind('category')} />
-          <datalist id="product-categories">
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          <SelectInput
+            ref={categorySelect}
+            label={t('products.category')}
+            {...form.bind('category')}
+            onChange={onCategoryChange}
+            disabled={categoryPanel.saving}
+            options={categoryOptions(categories, form.values.category, t('products.addNewCategory'))}
+          />
+          {categoryPanel.open && (
+            <InlineCreatePanel
+              title={t('products.newCategory')}
+              saving={categoryPanel.saving}
+              error={categoryPanel.error}
+              onSave={() => void saveCategory()}
+              onCancel={categoryPanel.close}
+            >
+              <TextInput
+                label={t('products.categoryName')}
+                required
+                maxLength={100}
+                autoComplete="off"
+                error={categoryError && t(categoryError)}
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+              />
+            </InlineCreatePanel>
+          )}
           <div className="field-with-action">
             <TextInput label={t('products.barcode')} {...form.bind('barcode')} />
             <Button variant="secondary" size="sm" icon="barcode" onClick={() => form.set('barcode', generateBarcode())}>
@@ -136,10 +262,41 @@ export function ProductFormModal({ product, onClose }: Props) {
             </Button>
           </div>
           <SelectInput
+            ref={supplierSelect}
             label={t('products.supplier')}
             {...form.bind('supplierId')}
-            options={[{ value: '', label: '—' }, ...suppliers.map((s) => ({ value: s.id, label: s.name }))]}
+            onChange={onSupplierChange}
+            disabled={supplierPanel.saving}
+            options={supplierOptions(allSuppliers, canCreateSupplier ? t('products.addNewSupplier') : null)}
           />
+          {supplierPanel.open && (
+            <InlineCreatePanel
+              title={t('suppliers.add')}
+              saving={supplierPanel.saving}
+              error={supplierPanel.error}
+              onSave={() => void saveSupplier()}
+              onCancel={supplierPanel.close}
+            >
+              <TextInput
+                label={t('suppliers.name')}
+                required
+                maxLength={100}
+                autoComplete="off"
+                error={supplierErrors.name && t(supplierErrors.name)}
+                value={newSupplier.name}
+                onChange={(e) => setNewSupplier((s) => ({ ...s, name: e.target.value }))}
+              />
+              <TextInput
+                label={t('auth.phone')}
+                type="tel"
+                maxLength={30}
+                autoComplete="off"
+                error={supplierErrors.phone && t(supplierErrors.phone)}
+                value={newSupplier.phone}
+                onChange={(e) => setNewSupplier((s) => ({ ...s, phone: e.target.value }))}
+              />
+            </InlineCreatePanel>
+          )}
         </FormGrid>
 
         <h3 className="section-title">{t('products.prices')}</h3>
