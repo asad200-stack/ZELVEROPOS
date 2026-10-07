@@ -36,7 +36,8 @@ export interface Session {
   actor: Actor | null;
   error: unknown;
   can: (permission: PermissionKey) => boolean;
-  refresh: () => Promise<void>;
+  /** Reloads the Auth user and forces a token refresh; resolves to the fresh emailVerified flag. */
+  refresh: () => Promise<boolean>;
 }
 
 export const SessionContext = createContext<Session | null>(null);

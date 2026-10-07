@@ -10,6 +10,7 @@ import { useSession, useTenant } from '@/contexts/session';
 import { localDate } from '@/domain/dates';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useAsyncData } from '@/hooks/useAsyncData';
+import { useEmailCooldown } from '@/hooks/useEmailCooldown';
 import { useSettingsState } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { sendPasswordReset } from '@/services/authService';
@@ -341,6 +342,7 @@ function AccountCard() {
   const [name, setName] = useState(profile?.fullName ?? '');
   const save = useAsyncAction('settings-account');
   const reset = useAsyncAction('settings-reset');
+  const resetCooldown = useEmailCooldown('reset', 'browser');
   if (!profile) return null;
   return (
     <Card title={t('settings.account')}>
@@ -390,14 +392,18 @@ function AccountCard() {
             variant="secondary"
             icon="lock"
             loading={reset.busy}
+            disabled={resetCooldown.seconds > 0}
             onClick={() =>
               void reset.run(async () => {
-                await sendPasswordReset(user?.email ?? profile.email);
-                notify('success', t('auth.resetSent'));
+                const outcome = await sendPasswordReset(user?.email ?? profile.email);
+                resetCooldown.sync();
+                if (outcome.status === 'failed') throw outcome.error;
+                if (outcome.status === 'rateLimited') notify('error', t('auth.emailRateLimited'));
+                else if (outcome.status === 'sent') notify('success', t('auth.resetSent'));
               })
             }
           >
-            {t('settings.changePassword')}
+            {resetCooldown.seconds > 0 ? t('auth.resendIn', { seconds: resetCooldown.seconds }) : t('settings.changePassword')}
           </Button>
         </div>
         <p className="muted small">

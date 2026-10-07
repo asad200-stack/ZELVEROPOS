@@ -3,6 +3,7 @@ import { onIdTokenChanged, type User } from 'firebase/auth';
 import { onSnapshot } from 'firebase/firestore';
 import { firebase } from '@/firebase/app';
 import { ALL_PERMISSIONS, normalizePermissions, type PermissionKey } from '@/constants/permissions';
+import { refreshVerification } from '@/services/authRefresh';
 import { paths, toSubscription, toUserProfile } from '@/services/db';
 import { api } from '@/services/functionsClient';
 import type { Subscription, UserProfile } from '@/types/models';
@@ -113,12 +114,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [user, currentClaims, currentProfile]);
 
+  // reload() mutates the same User object, so a counter forces the session to be recomputed.
+  const [userRevision, setUserRevision] = useState(0);
   const refresh = useCallback(async () => {
     const u = firebase.auth.currentUser;
-    if (!u) return;
-    await u.reload();
-    await u.getIdToken(true);
+    if (!u) return false;
+    const verified = await refreshVerification(u);
     setUser(firebase.auth.currentUser);
+    setUserRevision((n) => n + 1);
+    return verified;
   }, []);
 
   const value = useMemo<Session>(() => {
@@ -161,7 +165,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       can: (p: PermissionKey) => permissions[p] === true,
       refresh,
     };
-  }, [user, currentClaims, currentProfile, subscription, tenantId, error, refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- userRevision tracks in-place User mutations
+  }, [user, userRevision, currentClaims, currentProfile, subscription, tenantId, error, refresh]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

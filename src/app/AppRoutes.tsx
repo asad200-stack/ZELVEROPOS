@@ -14,6 +14,7 @@ const LoginPage = page(() => import('@/features/auth/LoginPage'));
 const SignupPage = page(() => import('@/features/auth/SignupPage'));
 const ForgotPasswordPage = page(() => import('@/features/auth/ForgotPasswordPage'));
 const VerifyEmailPage = page(() => import('@/features/auth/VerifyEmailPage'));
+const AuthActionPage = page(() => import('@/features/auth/AuthActionPage'));
 const SetupPage = page(() => import('@/features/auth/SetupPage'));
 const SuperAdminPage = page(() => import('@/features/admin/SuperAdminPage'));
 const NotFoundPage = page(() => import('@/pages/NotFoundPage'));
@@ -58,6 +59,7 @@ export function AppRoutes() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           </Route>
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/auth/action" element={<AuthActionPage />} />
           <Route path="/setup" element={<SetupPage />} />
         </Route>
 

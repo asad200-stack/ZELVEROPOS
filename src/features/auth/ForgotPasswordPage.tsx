@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { TextInput } from '@/components/ui/Form';
 import { Alert } from '@/components/ui/Layout';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { useEmailCooldown } from '@/hooks/useEmailCooldown';
 import { useForm } from '@/hooks/useForm';
 import { useI18n } from '@/i18n/i18n';
 import { sendPasswordReset } from '@/services/authService';
@@ -17,19 +18,20 @@ export default function ForgotPasswordPage() {
   const form = useForm({ email: '' });
   const { busy, run } = useAsyncAction('forgot-password');
   const [sent, setSent] = useState(false);
+  const [notice, setNotice] = useState<'rateLimited' | null>(null);
+  const cooldown = useEmailCooldown('reset', 'browser');
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const data = form.validate(schema);
     if (!data) return;
     void run(async () => {
-      try {
-        await sendPasswordReset(data.email);
-      } catch (err) {
-        // Do not reveal whether the account exists.
-        if ((err as { code?: string }).code !== 'auth/user-not-found') throw err;
-      }
-      setSent(true);
+      const outcome = await sendPasswordReset(data.email);
+      cooldown.sync();
+      // Do not reveal whether the account exists.
+      if (outcome.status === 'failed' && (outcome.error as { code?: string }).code !== 'auth/user-not-found') throw outcome.error;
+      if (outcome.status === 'rateLimited') setNotice('rateLimited');
+      else if (outcome.status !== 'cooldown') setSent(true);
     });
   };
 
@@ -41,9 +43,10 @@ export default function ForgotPasswordPage() {
       ) : (
         <>
           <p className="muted small">{t('auth.resetHint')}</p>
+          {(notice === 'rateLimited' || cooldown.rateLimited) && <Alert tone="warning">{t('auth.emailRateLimited')}</Alert>}
           <TextInput label={t('auth.email')} type="email" autoComplete="email" autoFocus required {...form.bind('email')} />
-          <Button type="submit" block loading={busy}>
-            {t('auth.sendResetLink')}
+          <Button type="submit" block loading={busy} disabled={cooldown.seconds > 0}>
+            {cooldown.seconds > 0 ? t('auth.resendIn', { seconds: cooldown.seconds }) : t('auth.sendResetLink')}
           </Button>
         </>
       )}

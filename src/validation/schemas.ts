@@ -87,6 +87,13 @@ export const signupSchema = z
   })
   .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: msg('validation.passwordMatch') });
 
+export const newPasswordSchema = z
+  .object({
+    password: z.string().min(8, msg('validation.passwordLength')).max(128, msg('validation.tooLong')),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: msg('validation.passwordMatch') });
+
 export const setupSchema = z.object({
   fullName: required(80),
   storeName: required(80),
