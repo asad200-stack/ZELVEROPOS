@@ -1,6 +1,8 @@
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
+import { collection, doc, getDocs, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
+  asAdmin,
   call,
   callOk,
   clearAuth,
@@ -539,4 +541,105 @@ describe('input validation', () => {
     const res = await callOk<{ sale: Record<string, unknown> }>(tokens.cashier!, 'posCheckout', cashSale({ clientCreatedAtMs: Date.now() - 60 * DAY }));
     expect(Math.abs(Number(res.sale.createdAtMs) - Date.now())).toBeLessThan(60_000);
   });
+});
+
+interface BurstRow {
+  index: number;
+  saleId: string;
+  http: number;
+  ms: number;
+  thrown: string | null;
+  invoice: string | null;
+  duplicate: boolean | null;
+  error: string | null;
+  committed: boolean;
+}
+
+/** Calls posCheckout and records the HTTP outcome, including a dropped connection. */
+async function checkoutBurst(token: string, data: unknown, index: number, saleId: string): Promise<Omit<BurstRow, 'committed'>> {
+  const started = Date.now();
+  try {
+    const res = await fetch('http://127.0.0.1:5001/demo-zelvero/europe-west1/posCheckout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ data }),
+      signal: AbortSignal.timeout(45_000),
+    });
+    const text = await res.text();
+    let parsed: { result?: { sale?: { invoiceNumber?: string }; duplicate?: boolean }; error?: { status?: string; message?: string; details?: { key?: string } } } | null = null;
+    try {
+      parsed = JSON.parse(text) as typeof parsed;
+    } catch {
+      parsed = null;
+    }
+    return {
+      index,
+      saleId,
+      http: res.status,
+      ms: Date.now() - started,
+      thrown: parsed ? null : `invalid-json:${text.slice(0, 120)}`,
+      invoice: parsed?.result?.sale?.invoiceNumber ?? null,
+      duplicate: parsed?.result?.duplicate ?? null,
+      error: parsed?.error ? (parsed.error.details?.key ?? parsed.error.status ?? parsed.error.message ?? 'error') : null,
+    };
+  } catch (e) {
+    return {
+      index,
+      saleId,
+      http: 0,
+      ms: Date.now() - started,
+      thrown: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
+      invoice: null,
+      duplicate: null,
+      error: null,
+    };
+  }
+}
+
+describe('concurrent checkout', () => {
+  it('concurrentCheckoutBurst never commits a sale the caller was told failed', async () => {
+    await asAdmin(env, (fs) => updateDoc(doc(fs, tp(T, 'products', 'p1')), { stock: 50 }));
+    const payloads = Array.from({ length: 50 }, () => cashSale({ cash: { receivedUsdCents: 500, receivedLbp: 0 } }, { quantity: 1 }));
+    const toldFailed = (row: Omit<BurstRow, 'committed'>) => Boolean(row.thrown || row.error || !row.invoice);
+    const first = await Promise.all(payloads.map((body, index) => checkoutBurst(tokens.cashier!, body, index, String(body.saleId))));
+    const again = await Promise.all(
+      first.filter(toldFailed).map((row) => checkoutBurst(tokens.cashier!, payloads[row.index]!, row.index, row.saleId)),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    const committed = await asAdmin(env, async (fs) => {
+      const snap = await getDocs(collection(fs, tp(T, 'sales')));
+      return new Map(snap.docs.map((d) => [d.id, String(d.data().invoiceNumber ?? '')]));
+    });
+    const bySale = new Map<string, { first: Omit<BurstRow, 'committed'>; retry?: Omit<BurstRow, 'committed'> }>();
+    for (const row of first) bySale.set(row.saleId, { first: row });
+    for (const row of again) bySale.get(row.saleId)!.retry = row;
+    const resolved = [...bySale.entries()].map(([saleId, attempts]) => {
+      const ok = [attempts.first, attempts.retry].filter((row) => row && !toldFailed(row));
+      return { saleId, committed: committed.has(saleId), invoice: committed.get(saleId) ?? null, clientInvoice: ok[0]?.invoice ?? null, ok: ok.length > 0 };
+    });
+    const committedButFailed = resolved.filter((row) => row.committed && !row.ok);
+    const succeededButMissing = resolved.filter((row) => row.ok && !row.committed);
+    const mismatched = resolved.filter((row) => row.ok && row.committed && row.clientInvoice !== row.invoice);
+    console.info(JSON.stringify({
+      checkoutBurst: {
+        requests: first.length,
+        firstOk: first.filter((row) => !toldFailed(row)).length,
+        retried: again.length,
+        committed: committed.size,
+        committedButFailed: committedButFailed.length,
+        succeededButMissing: succeededButMissing.length,
+      },
+    }));
+    expect(committedButFailed).toEqual([]);
+    expect(succeededButMissing).toEqual([]);
+    expect(mismatched).toEqual([]);
+    expect(committed.size).toBeGreaterThan(0);
+    expect(await stock()).toBe(50 - committed.size);
+    expect((await drawer()).usdCents).toBe(10_000 + 500 * committed.size);
+    const movements = await readWhere(env, tp(T, 'stockMovements'), 'type', 'sale');
+    const cash = await readWhere(env, tp(T, 'cashTransactions'), 'type', 'sale');
+    expect(movements).toHaveLength(committed.size);
+    expect(cash).toHaveLength(committed.size);
+    expect(new Set(movements.map((row) => row.refId)).size).toBe(committed.size);
+  }, 180_000);
 });

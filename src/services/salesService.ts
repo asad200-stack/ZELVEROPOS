@@ -46,13 +46,19 @@ export async function checkout(req: CheckoutRequest, ctx: CheckoutContext): Prom
     operation: await enqueueSale({ tenantId: ctx.tenantId, uid: ctx.uid, payload, snapshot: buildSaleSnapshot(req, ctx) }),
   });
   if (!isOnline()) return queue('offline');
-  try {
-    const result = await posApi.checkout(payload);
-    return { mode: 'online', sale: toSale(payload.saleId, result.sale), duplicate: result.duplicate };
-  } catch (error) {
-    if (isTransportFailure(error)) return queue('network');
-    throw error;
+  let lastError: unknown;
+  // A timed-out call can still commit. Resend the same saleId before telling the cashier it failed.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const result = await posApi.checkout(payload);
+      return { mode: 'online', sale: toSale(payload.saleId, result.sale), duplicate: result.duplicate };
+    } catch (error) {
+      lastError = error;
+      if (!isTransportFailure(error)) throw error;
+    }
   }
+  if (isTransportFailure(lastError)) return queue('network');
+  throw lastError;
 }
 
 /* ================================================================ returns */

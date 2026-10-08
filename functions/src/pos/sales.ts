@@ -84,7 +84,8 @@ export const posCheckout = onCall(async (request) => {
   const p = tenantPaths(t);
   const saleRef = p.doc('sales', input.saleId);
 
-  return db.runTransaction(async (tx) => {
+  try {
+    return await db.runTransaction(async (tx) => {
     const existing = await tx.get(saleRef);
     if (existing.exists) {
       const sale = existing.data()!;
@@ -341,7 +342,22 @@ export const posCheckout = onCall(async (request) => {
     });
 
     return { sale: plain(saleDoc, atMs), duplicate: false };
-  });
+    });
+  } catch (error) {
+    // A lock timeout or a dropped commit acknowledgement must not look like a new failure
+    // when this saleId was already written. The caller retries the same id.
+    const grpcCode = (error as { code?: unknown }).code;
+    if (typeof grpcCode === 'number' && (grpcCode === 4 || grpcCode === 10 || grpcCode === 14)) {
+      const existing = await saleRef.get();
+      if (existing.exists) {
+        const sale = existing.data()!;
+        if (sale.createdBy !== actor.uid) fail('already-exists', 'error.alreadyExists');
+        return { sale: plain(sale, Number(sale.createdAtMs) || atMs), duplicate: true };
+      }
+      fail('unavailable', 'error.network');
+    }
+    throw error;
+  }
 });
 
 /* ================================================================ returns */
