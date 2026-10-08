@@ -95,7 +95,7 @@ function StoreForm({ settings, disabled }: { settings: StoreSettings; disabled: 
         <fieldset disabled={disabled || busy} className="stack">
           <FormGrid>
             <TextInput label={t('settings.storeName')} required value={values.storeName} onChange={set('storeName')} maxLength={80} />
-            <TextInput label={t('settings.storePhone')} value={values.storePhone} onChange={set('storePhone')} maxLength={40} />
+            <TextInput label={t('settings.storePhone')} type="tel" value={values.storePhone} onChange={set('storePhone')} maxLength={40} />
           </FormGrid>
           <TextInput label={t('settings.storeAddress')} value={values.storeAddress} onChange={set('storeAddress')} maxLength={200} />
           <TextArea label={t('settings.receiptFooter')} value={values.receiptFooter} onChange={set('receiptFooter')} maxLength={300} rows={2} />

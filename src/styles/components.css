@@ -211,8 +211,33 @@ select.input {
 }
 
 .input--money {
-  text-align: end;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
   font-variant-numeric: tabular-nums;
+}
+
+/* Amounts, quantities, phones, and dates type from the left in both languages. */
+input[inputmode='numeric'],
+input[inputmode='decimal'],
+input[type='number'],
+input[type='tel'],
+input[type='email'],
+input[type='url'],
+input[type='password'],
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'] {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+}
+
+input.input--qty,
+input.qty__input {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: center;
 }
 
 .checkbox {
@@ -244,6 +269,10 @@ select.input {
 .form-grid {
   display: grid;
   gap: 14px;
+}
+
+.form-grid > * {
+  min-width: 0;
 }
 
 .form-grid--1 {
@@ -324,10 +353,93 @@ select.input {
   display: flex;
   align-items: flex-end;
   gap: 8px;
+  min-width: 0;
 }
 
 .field-with-action > .field {
   flex: 1;
+  min-width: 0;
+}
+
+.field-with-action > .btn {
+  flex: none;
+}
+
+/* File inputs ignore a fixed 38px height and paint the Choose File button outside the box. */
+.input--file {
+  height: auto;
+  min-height: 42px;
+  padding: 8px 10px;
+  line-height: 1.4;
+}
+
+.input--file::file-selector-button {
+  margin-inline-end: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface-2);
+  color: var(--c-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.product-form__image {
+  margin-top: 2px;
+}
+
+.imei-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-surface-2);
+}
+
+.imei-entry__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.imei-entry__head .section-title {
+  margin: 0;
+}
+
+.imei-entry__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-inline-start: 1.4rem;
+}
+
+.imei-entry__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.imei-entry__row > span,
+.imei-entry__row > .input {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+}
+
+.imei-entry > .input {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
 }
 
 .password-field {

@@ -60,10 +60,18 @@ function productFields(input: ProductInput): ProductFieldsCall {
 /** Creates a product server-side (initial stock is recorded as a stock movement). */
 export async function createProduct(input: ProductInput): Promise<string> {
   requireOnline();
-  const initialImeis = [...new Set(input.initialImeis.map((s) => s.trim()).filter(Boolean))];
+  const trimmed = input.initialImeis.map((s) => s.trim()).filter(Boolean);
+  const initialImeis = [...new Set(trimmed)];
+  const duplicate = trimmed.find((serial, index) => trimmed.indexOf(serial) !== index);
+  if (duplicate) throw new AppError('error.imeiExists', { imei: duplicate });
+  const stock = Math.max(0, Math.floor(input.initialStock));
+  // Stock 0 still means "use the serial count" for older clients. Any other count must match.
+  if (input.imeiTracking && stock !== 0 && stock !== initialImeis.length) {
+    throw new AppError('error.initialImeiCount', { stock });
+  }
   const { id } = await posApi.createProduct({
     product: productFields(input),
-    initialStock: input.imeiTracking ? 0 : Math.max(0, Math.floor(input.initialStock)),
+    initialStock: stock,
     initialImeis: input.imeiTracking ? initialImeis : [],
   });
   return id;

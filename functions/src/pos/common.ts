@@ -206,9 +206,13 @@ export function toSale(id: string, d: DocumentData): Sale {
     costUsdCents: int(d.costUsdCents),
     customerId: strOrNull(d.customerId),
     customerName: str(d.customerName),
+    orderLabel: str(d.orderLabel),
+    note: str(d.note),
     payment: {
       receivedUsdCents: int(p.receivedUsdCents),
       receivedLbp: int(p.receivedLbp),
+      changeUsdCents: int(p.changeUsdCents),
+      changeLbp: int(p.changeLbp),
       previousDebtUsdCents: int(p.previousDebtUsdCents),
       settledPreviousUsdCents: int(p.settledPreviousUsdCents),
       unpaidUsdCents: int(p.unpaidUsdCents),

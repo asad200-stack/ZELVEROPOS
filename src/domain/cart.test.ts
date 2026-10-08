@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { Cart } from './cart';
+import { emptyCartDraft, type Cart } from './cart';
 import { addProductToCart, findStockShortages, findUnavailableImeis, priceCart } from './cart';
 import { product } from './fixtures.test-utils';
 
 const RATE = 100_000;
 
 function emptyCart(over: Partial<Cart> = {}): Cart {
-  return { id: 'c', tier: 'retail', currency: 'USD', customerId: null, lines: [], debtLineUsdCents: null, saleId: 'sale-1', ...over };
+  return { id: 'c', label: '', note: '', tier: 'retail', currency: 'USD', customerId: null, lines: [], debtLineUsdCents: null, saleId: 'sale-1', draft: emptyCartDraft(), ...over };
 }
 
 describe('cart', () => {

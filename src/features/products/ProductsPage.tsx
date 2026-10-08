@@ -203,7 +203,11 @@ export default function ProductsPage() {
                           {p.imageUrl && <img src={p.imageUrl} alt="" loading="lazy" className="product-cell__img" />}
                           <div>
                             <strong>{p.name}</strong>
-                            {p.barcode && <div className="small muted">{p.barcode}</div>}
+                            {p.barcode && (
+                              <div className="small muted" dir="ltr">
+                                {p.barcode}
+                              </div>
+                            )}
                             {p.imeiTracking && <Badge tone="info">IMEI</Badge>}
                           </div>
                         </div>

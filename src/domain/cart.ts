@@ -1,4 +1,5 @@
-import type { Currency, PriceTier, Product } from '@/types/models';
+import type { ChangeManual } from './checkout';
+import type { Currency, PriceTier, Product, SaleKind } from '@/types/models';
 import { usdCentsToLbp, type Cents } from './money';
 import { lineUnitLbp, tierUsdCents, unitDiscount } from './pricing';
 
@@ -13,8 +14,24 @@ export interface CartLine {
   imei: string | null;
 }
 
+/** Cashier-facing payment entry for one cart. */
+export interface CartDraft {
+  kind: SaleKind;
+  receivedUsd: string;
+  receivedLbp: string;
+  changeUsd: string;
+  changeLbp: string;
+  changeManual: ChangeManual;
+  creditUsd: string;
+  creditLbp: string;
+}
+
 export interface Cart {
   id: string;
+  /** Order label such as "Johnny" or "Table 4". Independent of the customer. */
+  label: string;
+  /** Optional sale note. Printed only when it is not empty. */
+  note: string;
   tier: PriceTier;
   currency: Currency;
   customerId: string | null;
@@ -23,6 +40,41 @@ export interface Cart {
   debtLineUsdCents: number | null;
   /** Idempotency key: the Firestore id the sale will get. Regenerated after a successful sale. */
   saleId: string;
+  /** Payment entry for this cart only. Switching carts must not copy it. */
+  draft: CartDraft;
+}
+
+export function emptyCartDraft(): CartDraft {
+  return {
+    kind: 'cash',
+    receivedUsd: '',
+    receivedLbp: '',
+    changeUsd: '',
+    changeLbp: '',
+    changeManual: null,
+    creditUsd: '',
+    creditLbp: '',
+  };
+}
+
+/** Old saved carts predate the label, note and per-cart payment. Fill those without dropping the sale. */
+export function normalizeCart(cart: Cart): Cart {
+  const d = cart.draft;
+  return {
+    ...cart,
+    label: typeof cart.label === 'string' ? cart.label.trim().slice(0, 40) : '',
+    note: typeof cart.note === 'string' ? cart.note.trim().slice(0, 200) : '',
+    draft: {
+      kind: d?.kind === 'credit' ? 'credit' : 'cash',
+      receivedUsd: typeof d?.receivedUsd === 'string' ? d.receivedUsd : '',
+      receivedLbp: typeof d?.receivedLbp === 'string' ? d.receivedLbp : '',
+      changeUsd: typeof d?.changeUsd === 'string' ? d.changeUsd : '',
+      changeLbp: typeof d?.changeLbp === 'string' ? d.changeLbp : '',
+      changeManual: d?.changeManual === 'usd' || d?.changeManual === 'lbp' ? d.changeManual : null,
+      creditUsd: typeof d?.creditUsd === 'string' ? d.creditUsd : '',
+      creditLbp: typeof d?.creditLbp === 'string' ? d.creditLbp : '',
+    },
+  };
 }
 
 export interface PricedLine extends CartLine {

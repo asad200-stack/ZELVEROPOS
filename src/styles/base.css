@@ -27,6 +27,7 @@
   --radius: 10px;
   --radius-lg: 14px;
   --sidebar-w: 240px;
+  --sidebar-rail: 72px;
   --topbar-h: 56px;
   --font: 'Segoe UI', system-ui, -apple-system, 'Noto Sans Arabic', 'Tahoma', sans-serif;
   --font-mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
@@ -185,6 +186,7 @@ kbd {
   text-align: end;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  unicode-bidi: isolate;
 }
 
 .text-success {

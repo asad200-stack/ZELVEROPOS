@@ -47,7 +47,21 @@ export const posCreateProduct = onCall(async (request) => {
   const f = input.product;
   await assertBarcodeFree(t, f.barcode);
 
-  const imeis = f.imeiTracking ? [...new Set(input.initialImeis)].map((imei) => ({ imei, status: 'available' })) : [];
+  const trimmedImeis = input.initialImeis.map((imei) => imei.trim()).filter(Boolean);
+  if (f.imeiTracking) {
+    const seen = new Set<string>();
+    for (const imei of trimmedImeis) {
+      if (seen.has(imei)) fail('already-exists', 'error.imeiExists', { imei });
+      seen.add(imei);
+    }
+    // Opening quantity is the serial list. A non-zero requested count that disagrees is refused
+    // so the product cannot claim more devices than it has serial numbers. Zero keeps the
+    // previous client behavior: stock equals the number of serials.
+    if (input.initialStock !== 0 && input.initialStock !== trimmedImeis.length) {
+      fail('invalid-argument', 'error.initialImeiCount', { stock: input.initialStock, count: trimmedImeis.length });
+    }
+  }
+  const imeis = f.imeiTracking ? trimmedImeis.map((imei) => ({ imei, status: 'available' as const })) : [];
   const stock = f.imeiTracking ? imeis.length : input.initialStock;
   const atMs = Date.now();
   const audit = auditFields(actor, atMs);

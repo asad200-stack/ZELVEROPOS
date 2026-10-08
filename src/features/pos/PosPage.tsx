@@ -8,11 +8,11 @@ import { Modal } from '@/components/ui/Modal';
 import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
 import { addProductToCart, newLineKey, priceCart } from '@/domain/cart';
-import { computeCashPayment, computeCredit } from '@/domain/checkout';
-import { parseLbpInput, parseUsdInput } from '@/domain/money';
+import { computeCredit, planCashTender, type CashTenderPlan } from '@/domain/checkout';
+import { parseLbpInput, parseUsdInput, usdCentsToLbp } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { useCategories, useCustomerMap, useCustomers, useProductMap, useProducts, useSettings } from '@/hooks/useTenantData';
+import { useCashbox, useCategories, useCustomerMap, useCustomers, useProductMap, useProducts, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { takeReopenRequest, useOfflineQueue } from '@/offline/queue';
 import type { OfflineOperation } from '@/offline/types';
@@ -21,11 +21,31 @@ import type { Currency, PriceTier, Product } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { printOfflineReceipt, printSaleReceipt } from '@/features/sales/receipt';
 import { CartPanel } from './CartPanel';
+import { FitAmount } from './FitAmount';
 import { PaymentPanel, type PaymentDraft } from './PaymentPanel';
 import { ProductPicker } from './ProductPicker';
 import { MAX_CARTS, usePosCarts } from './usePosCarts';
 
-const EMPTY_DRAFT: PaymentDraft = { kind: 'cash', payCurrency: 'USD', amount: '', creditUsd: '', creditLbp: '' };
+const INVALID_TENDER: CashTenderPlan = {
+  ok: false,
+  error: 'invalidAmount',
+  receivedUsdCents: 0,
+  receivedLbp: 0,
+  changeUsdCents: 0,
+  changeLbp: 0,
+  remainingUsdCents: 0,
+  remainingLbp: 0,
+  drawerShort: false,
+  allUsdCents: 0,
+  allLbp: 0,
+  allUsdOk: false,
+  allLbpOk: false,
+};
+
+function typedAmount(raw: string, parse: (value: string) => number | null): number | null {
+  if (!raw.trim()) return 0;
+  return parse(raw);
+}
 
 export default function PosPage() {
   const { t, lang } = useI18n();
@@ -33,43 +53,50 @@ export default function PosPage() {
   const { notify, confirm } = useFeedback();
   const online = useOnlineStatus();
   const settings = useSettings();
+  const cashbox = useCashbox();
   const rate = settings.exchangeRate;
+  const categories = useCategories();
   const productsState = useProducts();
   const sellable = useMemo(() => productsState.data.filter((p) => p.status === 'active'), [productsState.data]);
   const productMap = useProductMap();
   const customers = useCustomers().data;
   const customerMap = useCustomerMap();
-  const categories = useCategories();
   const pos = usePosCarts(tenantId, actor.uid, settings.defaultCurrency);
   const { cart, update } = pos;
-  const [draft, setDraft] = useState<PaymentDraft>({ ...EMPTY_DRAFT, payCurrency: cart.currency });
+  const customer = cart.customerId ? customerMap.get(cart.customerId) ?? null : null;
+  const draft = cart.draft;
+  const setDraft = (patch: Partial<PaymentDraft>) => update((c) => ({ ...c, draft: { ...c.draft, ...patch } }));
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const skipRenameSave = useRef(false);
   const [imeiProduct, setImeiProduct] = useState<Product | null>(null);
   const [completed, setCompleted] = useState<CheckoutResult | null>(null);
-  const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
+  const [mobileTab, setMobileTab] = useState<'products' | 'cart' | 'checkout'>('products');
   const searchRef = useRef<HTMLInputElement>(null);
   const { busy, run } = useAsyncAction('checkout');
 
   const totals = useMemo(() => priceCart(cart, productMap, rate), [cart, productMap, rate]);
-  const customer = cart.customerId ? customerMap.get(cart.customerId) ?? null : null;
-
-  const cashAmount =
-    draft.amount.trim() === ''
-      ? draft.payCurrency === 'USD'
-        ? cart.currency === 'USD'
-          ? totals.dueUsdCents
-          : null
-        : cart.currency === 'LBP'
-          ? totals.dueLbp
-          : null
-      : draft.payCurrency === 'USD'
-        ? parseUsdInput(draft.amount)
-        : parseLbpInput(draft.amount);
 
   const cash = useMemo(() => {
-    if (cashAmount === null && draft.amount.trim() !== '') return { ok: false as const, error: 'invalidAmount' as const, remainderLbp: 0 };
-    const fallback = draft.payCurrency === 'USD' ? (cart.currency === 'USD' ? totals.dueUsdCents : 0) : totals.dueLbp;
-    return computeCashPayment(totals, cart.currency, rate, { payCurrency: draft.payCurrency, amount: cashAmount ?? fallback });
-  }, [cashAmount, draft.amount, draft.payCurrency, cart.currency, totals, rate]);
+    const receivedUsdCents = typedAmount(draft.receivedUsd, parseUsdInput);
+    const receivedLbp = typedAmount(draft.receivedLbp, parseLbpInput);
+    const manualUsdCents = draft.changeManual === 'usd' ? typedAmount(draft.changeUsd, parseUsdInput) : 0;
+    const manualLbp = draft.changeManual === 'lbp' ? typedAmount(draft.changeLbp, parseLbpInput) : 0;
+    if (receivedUsdCents === null || receivedLbp === null || manualUsdCents === null || manualLbp === null) return INVALID_TENDER;
+    const drawerKnown = cashbox.status === 'ready';
+    return planCashTender({
+      dueUsdCents: totals.dueUsdCents,
+      dueLbp: totals.dueLbp,
+      rate,
+      receivedUsdCents,
+      receivedLbp,
+      manual: draft.changeManual,
+      manualUsdCents: manualUsdCents ?? 0,
+      manualLbp: manualLbp ?? 0,
+      drawerUsdCents: drawerKnown ? cashbox.data.usdCents : Number.MAX_SAFE_INTEGER,
+      drawerLbp: drawerKnown ? cashbox.data.lbp : Number.MAX_SAFE_INTEGER,
+    });
+  }, [draft, totals.dueUsdCents, totals.dueLbp, rate, cashbox.status, cashbox.data.usdCents, cashbox.data.lbp]);
 
   const creditPaidUsd = parseUsdInput(draft.creditUsd || '0');
   const creditPaidLbp = parseLbpInput(draft.creditLbp || '0');
@@ -130,14 +157,21 @@ export default function PosPage() {
           kind: draft.kind,
           rate,
           totals,
-          cash: draft.kind === 'cash' && cash.ok ? { receivedUsdCents: cash.receivedUsdCents, receivedLbp: cash.receivedLbp } : undefined,
+          cash:
+            draft.kind === 'cash' && cash.ok
+              ? {
+                  receivedUsdCents: cash.receivedUsdCents,
+                  receivedLbp: cash.receivedLbp,
+                  changeUsdCents: cash.changeUsdCents,
+                  changeLbp: cash.changeLbp,
+                }
+              : undefined,
           credit: draft.kind === 'credit' ? { paidUsdCents: creditPaidUsd ?? 0, paidLbp: creditPaidLbp ?? 0 } : undefined,
         },
         { tenantId, uid: actor.uid, cashierName: actor.name, customerName: customer?.name ?? '' },
       );
       // The cart is cleared only once the sale is either recorded by the server or committed to IndexedDB.
       pos.resetActive();
-      setDraft({ ...EMPTY_DRAFT, payCurrency: cart.currency });
       setCompleted(result);
       setMobileTab('products');
       if (result.mode === 'online' && result.duplicate) notify('info', t('pos.duplicateSale'));
@@ -152,6 +186,8 @@ export default function PosPage() {
       currency: op.snapshot.currency,
       customerId: op.snapshot.customerId,
       debtLineUsdCents: null,
+      label: op.snapshot.orderLabel ?? '',
+      note: op.snapshot.note ?? '',
       lines: op.snapshot.lines.map((l) => ({
         key: newLineKey(),
         productId: l.productId,
@@ -172,7 +208,7 @@ export default function PosPage() {
       searchRef.current?.select();
     } else if (e.key === 'F9') {
       e.preventDefault();
-      if (!completed && !imeiProduct) void complete();
+      if (!completed && !imeiProduct && !document.querySelector('[role="dialog"]')) void complete();
     }
   });
   useEffect(() => {
@@ -197,6 +233,9 @@ export default function PosPage() {
         <button type="button" className={mobileTab === 'cart' ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => setMobileTab('cart')}>
           {t('pos.cart')} ({totals.itemCount})
         </button>
+        <button type="button" className={mobileTab === 'checkout' ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => setMobileTab('checkout')}>
+          {t('pos.checkout')}
+        </button>
       </div>
 
       <section className="pos__products">
@@ -205,7 +244,6 @@ export default function PosPage() {
           loading={productsState.status === 'loading'}
           categories={categories}
           tier={cart.tier}
-          currency={cart.currency}
           rate={rate}
           lowStockThreshold={settings.lowStockThreshold}
           searchRef={searchRef}
@@ -214,20 +252,99 @@ export default function PosPage() {
       </section>
 
       <section className="pos__cart">
+        <header className="cart-head">
+          <h2>{t('pos.cartItems', { count: totals.itemCount })}</h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="trash"
+            disabled={!hasItems}
+            onClick={async () => {
+              if (await confirm({ title: t('pos.clearCart'), danger: true })) {
+                update((c) => ({ ...c, lines: [], debtLineUsdCents: null, draft: { ...c.draft, receivedUsd: '', receivedLbp: '', changeUsd: '', changeLbp: '', changeManual: null } }));
+              }
+            }}
+          >
+            {t('pos.clearCart')}
+          </Button>
+        </header>
         <div className="cart-tabs" role="tablist">
-          {pos.carts.map((c, i) => (
-            <div key={c.id} className={i === pos.active ? 'cart-tab cart-tab--active' : 'cart-tab'}>
-              <button type="button" role="tab" aria-selected={i === pos.active} onClick={() => pos.setActive(i)}>
-                #{c.id}
-                {c.lines.length > 0 && <span className="cart-tab__count">{c.lines.length}</span>}
-              </button>
-              {pos.carts.length > 1 && (
-                <button type="button" className="cart-tab__close" onClick={() => pos.removeCart(i)} aria-label={t('common.remove')}>
-                  <Icon name="x" size={12} />
-                </button>
-              )}
-            </div>
-          ))}
+          {pos.carts.map((c, i) => {
+            const title = c.label.trim() || `#${c.id}`;
+            return (
+              <div key={c.id} className={i === pos.active ? 'cart-tab cart-tab--active' : 'cart-tab'}>
+                {renaming === c.id ? (
+                  <input
+                    className="cart-tab__name"
+                    value={renameValue}
+                    autoFocus
+                    maxLength={40}
+                    aria-label={t('pos.renameCart')}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        pos.renameCart(c.id, renameValue);
+                        setRenaming(null);
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        skipRenameSave.current = true;
+                        setRenaming(null);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (skipRenameSave.current) {
+                        skipRenameSave.current = false;
+                        return;
+                      }
+                      pos.renameCart(c.id, renameValue);
+                      setRenaming(null);
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={i === pos.active}
+                    title={title}
+                    onClick={() => pos.setActive(i)}
+                    onDoubleClick={() => {
+                      setRenaming(c.id);
+                      setRenameValue(c.label);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setRenaming(c.id);
+                      setRenameValue(c.label);
+                    }}
+                  >
+                    <span className="cart-tab__label">{title}</span>
+                    {c.lines.length > 0 && <span className="cart-tab__count">{c.lines.length}</span>}
+                  </button>
+                )}
+                {i === pos.active && renaming !== c.id && (
+                  <button
+                    type="button"
+                    className="cart-tab__edit"
+                    aria-label={t('pos.renameCart')}
+                    title={t('pos.renameCart')}
+                    onClick={() => {
+                      setRenaming(c.id);
+                      setRenameValue(c.label);
+                    }}
+                  >
+                    <Icon name="edit" size={12} />
+                  </button>
+                )}
+                {pos.carts.length > 1 && (
+                  <button type="button" className="cart-tab__close" onClick={() => pos.removeCart(i)} aria-label={t('common.remove')}>
+                    <Icon name="x" size={12} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
           {pos.carts.length < MAX_CARTS && (
             <button type="button" className="cart-tab cart-tab--add" onClick={pos.addCart} aria-label={t('pos.newCart')}>
               <Icon name="plus" size={14} />
@@ -255,7 +372,6 @@ export default function PosPage() {
             onChange={(e) => {
               const currency = e.target.value as Currency;
               update((c) => ({ ...c, currency }));
-              setDraft((d) => ({ ...d, payCurrency: currency, amount: '' }));
             }}
             options={[
               { value: 'USD', label: 'USD $' },
@@ -280,16 +396,61 @@ export default function PosPage() {
           />
         )}
 
+        {customer && <p className="cart-customer">{customer.name}</p>}
+
         <div className="pos__lines">
           <CartPanel cart={cart} totals={totals} products={productMap} canEditPrice={can('canEditPrice')} onChange={update} />
         </div>
 
         {!online && <Alert tone="warning">{t('offline.posBanner')}</Alert>}
 
+        <footer className="cart-foot">
+          <div className="cart-foot__row">
+            <span>{t('pos.subtotal')}</span>
+            <span className="cart-foot__money">
+              <FitAmount value={formatUsd(totals.productsUsdCents)} />
+              <FitAmount value={formatLbp(totals.productsLbp, lang)} className="fit-amount--muted" />
+            </span>
+          </div>
+          {totals.discountUsdCents > 0 && (
+            <div className="cart-foot__row">
+              <span>{t('pos.discount')}</span>
+              <span className="cart-foot__money">
+                <FitAmount value={`−${formatUsd(totals.discountUsdCents)}`} className="fit-amount--good" />
+                <FitAmount value={formatLbp(usdCentsToLbp(totals.discountUsdCents, rate), lang)} className="fit-amount--muted" />
+              </span>
+            </div>
+          )}
+          <div className="cart-foot__total">
+            <span>{t('pos.total')}</span>
+            <span className="cart-foot__money">
+              <FitAmount value={formatUsd(totals.dueUsdCents)} />
+              <FitAmount value={formatLbp(totals.dueLbp, lang)} className="fit-amount--sub" />
+            </span>
+          </div>
+          <div className="cart-foot__actions">
+            <Button variant="secondary" icon="clipboard" disabled={!hasItems || pos.carts.length >= MAX_CARTS} onClick={() => pos.addCart()}>
+              {t('pos.saveCart')}
+            </Button>
+            <Button
+              disabled={!hasItems}
+              onClick={() => {
+                setMobileTab('checkout');
+                requestAnimationFrame(() => document.getElementById(draft.kind === 'cash' ? 'received-usd' : 'complete-sale')?.focus());
+              }}
+            >
+              {t('pos.checkout')}
+            </Button>
+          </div>
+        </footer>
+      </section>
+
+      <section className="pos__checkout">
         <PaymentPanel
           draft={draft}
-          onDraft={(patch) => setDraft((d) => ({ ...d, ...patch }))}
-          currency={cart.currency}
+          onDraft={setDraft}
+          note={cart.note}
+          onNote={(note) => update((c) => ({ ...c, note: note.slice(0, 200) }))}
           totals={totals}
           customer={customer}
           cash={cash}
@@ -298,18 +459,6 @@ export default function PosPage() {
           disabled={!hasItems}
           onComplete={() => void complete()}
         />
-        {hasItems && (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="trash"
-            onClick={async () => {
-              if (await confirm({ title: t('pos.clearCart'), danger: true })) update((c) => ({ ...c, lines: [], debtLineUsdCents: null }));
-            }}
-          >
-            {t('pos.clearCart')}
-          </Button>
-        )}
       </section>
 
       {imeiProduct && (
@@ -400,6 +549,7 @@ function ImeiPicker({ product, inCart, onClose, onPick }: { product: Product; in
     <Modal open size="sm" title={t('pos.selectImei', { name: product.name })} onClose={onClose}>
       <input
         className="input"
+        dir="ltr"
         placeholder={t('pos.scanImei')}
         value={filter}
         autoFocus

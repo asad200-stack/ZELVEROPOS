@@ -247,7 +247,7 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
                     <tr key={l.productId}>
                       <td>{p?.name ?? l.productId}</td>
                       <td className="num">
-                        <input className="input input--qty" inputMode="numeric" value={l.quantity} onChange={(e) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
+                        <input className="input input--qty" dir="ltr" inputMode="numeric" value={l.quantity} onChange={(e) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
                       </td>
                       <td className="num">
                         <input className="input input--money" inputMode="decimal" value={l.unitCost} onChange={(e) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, unitCost: e.target.value } : x)))} />

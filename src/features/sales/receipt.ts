@@ -2,7 +2,7 @@ import type { TFunction, Lang } from '@/i18n/i18n';
 import type { OfflineOperation } from '@/offline/types';
 import type { Sale, SaleReturn, StoreSettings } from '@/types/models';
 import { APP_NAME } from '@/constants/app';
-import { formatDateTime, formatLbp, formatUsd } from '@/utils/format';
+import { formatDateTime, formatLbp, formatNumber, formatUsd } from '@/utils/format';
 import { escapeHtml as e, printHtml, safeUrl } from '@/utils/html';
 
 interface ReceiptContext {
@@ -26,7 +26,7 @@ function page(ctx: ReceiptContext, title: string, body: string): string {
     table{width:100%;border-collapse:collapse}
     th,td{padding:${a4 ? '6px 4px' : '2px 0'};text-align:start;vertical-align:top}
     ${a4 ? 'th,td{border-bottom:1px solid #ddd}th{background:#f3f3f3}' : ''}
-    .num{text-align:end;white-space:nowrap}
+    .num{text-align:end;white-space:nowrap;unicode-bidi:isolate}
     .totals td{padding:2px 0}.grand td{font-weight:700;font-size:${a4 ? '14pt' : '13px'}}
     .small{font-size:${a4 ? '9pt' : '9px'}}
     .banner{border:2px solid #000;padding:4px;margin:4px 0;text-align:center;font-weight:700}
@@ -76,6 +76,8 @@ export function buildSaleReceipt(sale: Sale, ctx: ReceiptContext): string {
   if (p.settledPreviousUsdCents > 0) lines.push(row(t('pos.previousBalanceSettled'), formatUsd(p.settledPreviousUsdCents)));
   if (p.receivedUsdCents > 0) lines.push(row(t('receipt.paidUsd'), formatUsd(p.receivedUsdCents)));
   if (p.receivedLbp > 0) lines.push(row(t('receipt.paidLbp'), formatLbp(p.receivedLbp, lang)));
+  if ((p.changeUsdCents ?? 0) > 0) lines.push(row(t('receipt.changeUsd'), formatUsd(p.changeUsdCents ?? 0)));
+  if ((p.changeLbp ?? 0) > 0) lines.push(row(t('receipt.changeLbp'), formatLbp(p.changeLbp ?? 0, lang)));
   if (sale.kind === 'credit') {
     lines.push(row(t('receipt.unpaid'), formatUsd(p.unpaidUsdCents)));
     if (p.debtAfterUsdCents !== null) lines.push(row(t('receipt.balanceAfter'), formatUsd(p.debtAfterUsdCents)));
@@ -86,8 +88,10 @@ export function buildSaleReceipt(sale: Sale, ctx: ReceiptContext): string {
     <table class="small"><tr><td>${e(t('receipt.invoice'))}: <span class="bold">${e(sale.invoiceNumber)}</span></td>
       <td class="num">${e(formatDateTime(sale.createdAt, lang))}</td></tr>
       ${sale.customerName ? `<tr><td colspan="2">${e(t('pos.customer'))}: ${e(sale.customerName)}</td></tr>` : ''}
+      ${sale.orderLabel ? `<tr><td colspan="2">${e(t('receipt.order'))}: ${e(sale.orderLabel)}</td></tr>` : ''}
+      ${sale.note ? `<tr><td colspan="2">${e(t('receipt.note'))}: ${e(sale.note)}</td></tr>` : ''}
       <tr><td colspan="2">${e(t('receipt.cashier'))}: ${e(sale.createdByName)}</td></tr>
-      ${lbp ? `<tr><td colspan="2">${e(t('settings.exchangeRate'))}: ${sale.exchangeRate.toLocaleString('en-US')}</td></tr>` : ''}
+      ${lbp ? `<tr><td colspan="2">${e(t('settings.exchangeRate'))}: ${formatNumber(sale.exchangeRate)}</td></tr>` : ''}
     </table>
     <div class="hr"></div>
     <table><thead><tr><th>${e(t('pos.item'))}</th><th class="num">${e(t('pos.qty'))}</th><th class="num">${e(
@@ -156,6 +160,8 @@ export function buildOfflineReceipt(op: OfflineOperation, ctx: ReceiptContext): 
   lines.push(row(t('pos.paymentMethod'), t(s.kind === 'cash' ? 'pos.cash' : 'pos.credit')));
   if (s.received.usdCents > 0) lines.push(row(t('receipt.paidUsd'), formatUsd(s.received.usdCents)));
   if (s.received.lbp > 0) lines.push(row(t('receipt.paidLbp'), formatLbp(s.received.lbp, lang)));
+  if ((s.change?.usdCents ?? 0) > 0) lines.push(row(t('receipt.changeUsd'), formatUsd(s.change?.usdCents ?? 0)));
+  if ((s.change?.lbp ?? 0) > 0) lines.push(row(t('receipt.changeLbp'), formatLbp(s.change?.lbp ?? 0, lang)));
 
   const synced = op.status === 'SYNCED' && op.result;
   const body = `${header(ctx)}
@@ -164,8 +170,10 @@ export function buildOfflineReceipt(op: OfflineOperation, ctx: ReceiptContext): 
       <tr><td>${e(t('offline.reference'))}: <span class="bold">${e(op.offlineRef)}</span></td>
         <td class="num">${e(formatDateTime(op.createdAt, lang))}</td></tr>
       ${s.customerName ? `<tr><td colspan="2">${e(t('pos.customer'))}: ${e(s.customerName)}</td></tr>` : ''}
+      ${s.orderLabel ? `<tr><td colspan="2">${e(t('receipt.order'))}: ${e(s.orderLabel)}</td></tr>` : ''}
+      ${s.note ? `<tr><td colspan="2">${e(t('receipt.note'))}: ${e(s.note)}</td></tr>` : ''}
       <tr><td colspan="2">${e(t('receipt.cashier'))}: ${e(s.cashierName)}</td></tr>
-      <tr><td colspan="2">${e(t('settings.exchangeRate'))}: ${s.rate.toLocaleString('en-US')}</td></tr>
+      <tr><td colspan="2">${e(t('settings.exchangeRate'))}: ${formatNumber(s.rate)}</td></tr>
     </table>
     <div class="hr"></div>
     <table><thead><tr><th>${e(t('pos.item'))}</th><th class="num">${e(t('pos.qty'))}</th><th class="num">${e(

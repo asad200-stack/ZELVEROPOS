@@ -121,6 +121,43 @@ describe('posCheckout', () => {
     expect(error?.key).toBe('error.paymentMismatch');
   });
 
+  it('keeps the physical tender and change, and moves the drawer by the net', async () => {
+    await callOk(tokens.owner!, 'posCashMove', { type: 'deposit', usdCents: 0, lbp: 1_000_000, category: '', note: '' });
+    const sale = cashSale({ cash: { receivedUsdCents: 2_000, receivedLbp: 0, changeUsdCents: 0, changeLbp: 895_000 } });
+    const res = await callOk<{ sale: { payment: Record<string, number> } }>(tokens.cashier!, 'posCheckout', sale);
+    expect(res.sale.payment).toMatchObject({ receivedUsdCents: 2_000, receivedLbp: 0, changeUsdCents: 0, changeLbp: 895_000 });
+    expect(await drawer()).toMatchObject({ usdCents: 12_000, lbp: 105_000 });
+    const refund = await callOk<{ saleReturn: { refundUsdCents: number; refundLbp: number } }>(tokens.clerk!, 'posReturn', {
+      saleId: sale.saleId,
+      lines: [{ index: 0, quantity: 2 }],
+    });
+    expect(refund.saleReturn).toMatchObject({ refundUsdCents: 1_000, refundLbp: 0 });
+    expect(await drawer()).toMatchObject({ usdCents: 11_000, lbp: 105_000 });
+  });
+
+  it('stores the cart name and note without replacing the customer', async () => {
+    const sale = cashSale({ customerId: null, orderLabel: 'Johnny', note: 'Deliver at 5 PM' });
+    const res = await callOk<{ sale: { orderLabel: string; note: string; customerName: string } }>(tokens.cashier!, 'posCheckout', sale);
+    expect(res.sale).toMatchObject({ orderLabel: 'Johnny', note: 'Deliver at 5 PM', customerName: '' });
+  });
+
+  it('returns USD change from the cash just received', async () => {
+    await callOk(tokens.cashier!, 'posCheckout', cashSale({ cash: { receivedUsdCents: 21_000, receivedLbp: 0, changeUsdCents: 20_000, changeLbp: 0 } }));
+    expect((await drawer()).usdCents).toBe(11_000);
+    expect(await stock()).toBe(8);
+  });
+
+  it('refuses LBP change the drawer and the tender do not have', async () => {
+    const { error } = await call(
+      tokens.cashier!,
+      'posCheckout',
+      cashSale({ cash: { receivedUsdCents: 21_000, receivedLbp: 0, changeUsdCents: 0, changeLbp: 17_900_000 } }),
+    );
+    expect(error?.key).toBe('error.drawerInsufficient');
+    expect((await drawer()).usdCents).toBe(10_000);
+    expect(await stock()).toBe(10);
+  });
+
   it('refuses a stale exchange rate', async () => {
     const { error } = await call(tokens.cashier!, 'posCheckout', cashSale({ rate: 1 }));
     expect(error?.key).toBe('error.rateChanged');
@@ -307,6 +344,38 @@ describe('inventory', () => {
     });
     expect(await stock(T, id)).toBe(4);
     expect((await readWhere(env, tp(T, 'stockMovements'), 'productId', id))[0]).toMatchObject({ type: 'initial', quantity: 4 });
+  });
+
+  it('serialized opening stock must match the IMEI list and is not created when it does not', async () => {
+    const product = {
+      name: 'Serialized phone',
+      category: 'Phones',
+      barcode: 'SER-1',
+      prices: { retail: { usdCents: 100, lbp: null }, wholesale: { usdCents: 0, lbp: null }, vip: { usdCents: 0, lbp: null } },
+      costUsdCents: 40,
+      minStock: null,
+      supplierId: null,
+      supplierName: '',
+      expiryDate: null,
+      imeiTracking: true,
+    };
+    const mismatch = await call(tokens.editor!, 'posCreateProduct', { product, initialStock: 5, initialImeis: ['352099001234567', '352099001234575', '352099001234583'] });
+    expect(mismatch.error?.key).toBe('error.initialImeiCount');
+    expect(await readWhere(env, tp(T, 'products'), 'barcode', 'SER-1')).toHaveLength(0);
+    const duplicate = await call(tokens.editor!, 'posCreateProduct', { product, initialStock: 2, initialImeis: ['352099001234567', '352099001234567'] });
+    expect(duplicate.error?.key).toBe('error.imeiExists');
+    const { id } = await callOk<{ id: string }>(tokens.editor!, 'posCreateProduct', {
+      product,
+      initialStock: 2,
+      initialImeis: ['352099001234567', '352099001234575'],
+    });
+    expect(await readDoc(env, tp(T, 'products', id))).toMatchObject({
+      stock: 2,
+      imeis: [
+        { imei: '352099001234567', status: 'available' },
+        { imei: '352099001234575', status: 'available' },
+      ],
+    });
   });
 });
 

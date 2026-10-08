@@ -60,7 +60,10 @@ export interface CheckoutCall {
     expectedUnitLbp?: number;
   }[];
   expectedTotalUsdCents: number;
-  cash?: { receivedUsdCents: number; receivedLbp: number };
+  /** Cart label. Omitted when the cashier left the default number. */
+  orderLabel?: string;
+  note?: string;
+  cash?: { receivedUsdCents: number; receivedLbp: number; changeUsdCents?: number; changeLbp?: number };
   credit?: { paidUsdCents: number; paidLbp: number };
   clientCreatedAtMs?: number;
   offlineRef?: string | null;

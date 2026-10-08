@@ -49,6 +49,173 @@ export function computeCashPayment(
   return { ok: true, receivedUsdCents: 0, receivedLbp: dueLbp, remainderLbp };
 }
 
+export type ChangeManual = 'usd' | 'lbp' | null;
+
+export type CashTenderError = 'invalidAmount' | 'nothingDue' | 'underpaid' | 'remaining' | 'exceeds' | 'drawer';
+
+export interface CashTenderPlan {
+  ok: boolean;
+  error: CashTenderError | null;
+  receivedUsdCents: Cents;
+  receivedLbp: number;
+  changeUsdCents: Cents;
+  changeLbp: number;
+  /** Change still owed to the customer. Zero when the two return fields cover the tender. */
+  remainingUsdCents: Cents;
+  remainingLbp: number;
+  drawerShort: boolean;
+  /** Giving back the whole change in one currency. Disabled when the drawer cannot cover it. */
+  allUsdCents: Cents;
+  allLbp: number;
+  allUsdOk: boolean;
+  allLbpOk: boolean;
+}
+
+/**
+ * Dual-currency cash. The cashier records the physical bills received and the physical change
+ * returned. The two return fields are one change value: editing one calculates the other.
+ * Change is paid from the drawer that existed before this sale, so a large bill just received
+ * cannot be broken unless the drawer already holds the notes being handed back.
+ */
+export function planCashTender(input: {
+  dueUsdCents: Cents;
+  dueLbp: number;
+  rate: number;
+  receivedUsdCents: Cents;
+  receivedLbp: number;
+  manual: ChangeManual;
+  manualUsdCents: Cents;
+  manualLbp: number;
+  drawerUsdCents: Cents;
+  drawerLbp: number;
+}): CashTenderPlan {
+  const receivedUsd = whole(input.receivedUsdCents);
+  const receivedLbp = whole(input.receivedLbp);
+  const drawerUsd = Math.max(0, whole(input.drawerUsdCents) ?? 0);
+  const drawerLbp = Math.max(0, whole(input.drawerLbp) ?? 0);
+  const blank: CashTenderPlan = {
+    ok: false,
+    error: 'invalidAmount',
+    receivedUsdCents: 0,
+    receivedLbp: 0,
+    changeUsdCents: 0,
+    changeLbp: 0,
+    remainingUsdCents: 0,
+    remainingLbp: 0,
+    drawerShort: false,
+    allUsdCents: 0,
+    allLbp: 0,
+    allUsdOk: false,
+    allLbpOk: false,
+  };
+  if (receivedUsd === null || receivedLbp === null) return blank;
+  if (input.dueUsdCents <= 0 && input.dueLbp <= 0) return { ...blank, error: 'nothingDue' };
+
+  const dueUsd = input.dueUsdCents;
+  const dueLbp = input.dueLbp;
+  const rate = input.rate;
+  const lbpFor = (changeUsd: number) => receivedLbp - dueLbp + usdCentsToLbp(receivedUsd - changeUsd, rate);
+  const usdFor = (changeLbp: number) => receivedUsd - lbpToUsdCents(changeLbp + dueLbp - receivedLbp, rate);
+
+  const allUsdCents = Math.max(0, usdFor(0));
+  const allLbp = Math.max(0, lbpFor(0));
+  // Change can be handed back from the notes already in the drawer plus the cash just received, per currency.
+  const availableUsd = drawerUsd + receivedUsd;
+  const availableLbp = drawerLbp + receivedLbp;
+  const quick = {
+    allUsdCents,
+    allLbp,
+    allUsdOk: allUsdCents <= availableUsd && Math.max(0, lbpFor(allUsdCents)) <= availableLbp,
+    allLbpOk: allLbp <= availableLbp && Math.max(0, usdFor(allLbp)) <= availableUsd,
+  };
+
+  const receivedValue = receivedUsd + lbpToUsdCents(receivedLbp, rate);
+  if (receivedValue + 1 < dueUsd) {
+    const short = dueUsd - receivedValue;
+    return {
+      ...blank,
+      error: 'underpaid',
+      receivedUsdCents: receivedUsd,
+      receivedLbp,
+      remainingUsdCents: short,
+      remainingLbp: usdCentsToLbp(short, rate),
+      ...quick,
+    };
+  }
+
+  let changeUsd: number;
+  let changeLbp: number;
+  if (input.manual === 'usd') {
+    const typed = whole(input.manualUsdCents);
+    if (typed === null) return blank;
+    changeUsd = typed;
+    changeLbp = Math.max(0, lbpFor(changeUsd));
+  } else if (input.manual === 'lbp') {
+    const typed = whole(input.manualLbp);
+    if (typed === null) return blank;
+    changeLbp = typed;
+    changeUsd = Math.max(0, usdFor(changeLbp));
+  } else {
+    const preferUsd = receivedUsd > 0 && (receivedLbp === 0 || receivedUsd >= lbpToUsdCents(receivedLbp, rate));
+    if (preferUsd) {
+      changeUsd = Math.min(Math.max(0, usdFor(0)), availableUsd);
+      changeLbp = Math.max(0, lbpFor(changeUsd));
+      if (changeLbp > availableLbp) {
+        changeLbp = availableLbp;
+        changeUsd = Math.min(Math.max(0, usdFor(changeLbp)), availableUsd);
+      }
+    } else {
+      changeLbp = Math.min(Math.max(0, lbpFor(0)), availableLbp);
+      changeUsd = Math.max(0, usdFor(changeLbp));
+      if (changeUsd > availableUsd) {
+        changeUsd = availableUsd;
+        changeLbp = Math.min(Math.max(0, lbpFor(changeUsd)), availableLbp);
+      }
+    }
+  }
+
+  const remainingCents = receivedValue - dueUsd - (changeUsd + lbpToUsdCents(changeLbp, rate));
+  const drawerShort = changeUsd > availableUsd || changeLbp > availableLbp;
+  let error: CashTenderError | null = null;
+  if (remainingCents < -1) error = 'exceeds';
+  else if (remainingCents > 1) error = 'remaining';
+  else if (drawerShort) error = 'drawer';
+  const remaining = Math.max(0, remainingCents);
+
+  return {
+    ok: error === null,
+    error,
+    receivedUsdCents: receivedUsd,
+    receivedLbp,
+    changeUsdCents: changeUsd,
+    changeLbp,
+    remainingUsdCents: remaining,
+    remainingLbp: remaining > 0 ? usdCentsToLbp(remaining, rate) : 0,
+    drawerShort,
+    ...quick,
+  };
+}
+
+/** Net drawer movement (physical in minus physical change) covers the amount due. */
+export function cashNetCoversDue(
+  currency: Currency,
+  rate: number,
+  dueUsdCents: Cents,
+  dueLbp: number,
+  netUsdCents: Cents,
+  netLbp: number,
+): boolean {
+  return currency === 'USD'
+    ? Math.abs(netUsdCents + lbpToUsdCents(netLbp, rate) - dueUsdCents) <= 1
+    : Math.abs(usdCentsToLbp(netUsdCents, rate) + netLbp - dueLbp) <= lbpCentTolerance(rate);
+}
+
+function whole(value: number): number | null {
+  if (!Number.isFinite(value)) return null;
+  const n = Math.round(value);
+  return n < 0 ? null : n;
+}
+
 /* ---------------------------------------------------------------- credit */
 
 export interface CreditInput {

@@ -76,6 +76,18 @@ export function SaleDetailsModal({ sale, onClose, onUpdated }: Props) {
               <span className="muted">{t('pos.customer')}</span>
               <strong>{sale.customerName || t('pos.walkIn')}</strong>
             </div>
+            {sale.orderLabel ? (
+              <div>
+                <span className="muted">{t('receipt.order')}</span>
+                <strong>{sale.orderLabel}</strong>
+              </div>
+            ) : null}
+            {sale.note ? (
+              <div>
+                <span className="muted">{t('receipt.note')}</span>
+                <strong>{sale.note}</strong>
+              </div>
+            ) : null}
             <div>
               <span className="muted">{t('receipt.cashier')}</span>
               <strong>{sale.createdByName}</strong>
@@ -118,6 +130,8 @@ export function SaleDetailsModal({ sale, onClose, onUpdated }: Props) {
             {sale.discountUsdCents > 0 && <Row label={t('pos.discount')} value={formatUsd(sale.discountUsdCents)} />}
             {p.receivedUsdCents > 0 && <Row label={t('receipt.paidUsd')} value={formatUsd(p.receivedUsdCents)} />}
             {p.receivedLbp > 0 && <Row label={t('receipt.paidLbp')} value={formatLbp(p.receivedLbp, lang)} />}
+            {(p.changeUsdCents ?? 0) > 0 && <Row label={t('receipt.changeUsd')} value={formatUsd(p.changeUsdCents ?? 0)} />}
+            {(p.changeLbp ?? 0) > 0 && <Row label={t('receipt.changeLbp')} value={formatLbp(p.changeLbp ?? 0, lang)} />}
             {p.settledPreviousUsdCents > 0 && <Row label={t('pos.previousBalanceSettled')} value={formatUsd(p.settledPreviousUsdCents)} />}
             {sale.kind === 'credit' && <Row label={t('receipt.unpaid')} value={formatUsd(p.unpaidUsdCents)} />}
             {sale.returnedUsdCents > 0 && <Row label={t('sales.returned')} value={formatUsd(sale.returnedUsdCents)} />}
@@ -233,6 +247,7 @@ function ReturnForm({ sale, action, onCancel, onDone }: ReturnFormProps) {
                   <td className="num">
                     <input
                       className="input input--qty"
+                      dir="ltr"
                       type="number"
                       min={0}
                       max={remaining}

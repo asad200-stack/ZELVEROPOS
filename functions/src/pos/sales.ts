@@ -3,9 +3,8 @@ import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
 import { db } from '../admin.js';
 import { fail } from '../errors.js';
-import { findStockShortages, findUnavailableImeis, priceCart, type Cart } from '../shared/cart.js';
-import { computeCredit, debtLineSettlement, formatDocNumber } from '../shared/checkout.js';
-import { lbpCentTolerance, lbpToUsdCents, usdCentsToLbp } from '../shared/money.js';
+import { emptyCartDraft, findStockShortages, findUnavailableImeis, priceCart, type Cart } from '../shared/cart.js';
+import { cashNetCoversDue, computeCredit, debtLineSettlement, formatDocNumber } from '../shared/checkout.js';
 import { planReturn, returnStatusAfter } from '../shared/returns.js';
 import type { Product } from '../shared/models.js';
 import { tierUsdCents } from '../shared/pricing.js';
@@ -56,7 +55,16 @@ const checkoutSchema = z.object({
     .max(300),
   /** Product total the cashier confirmed; refused if prices changed meanwhile. */
   expectedTotalUsdCents: cents,
-  cash: z.object({ receivedUsdCents: cents, receivedLbp: lbpField }).optional(),
+  orderLabel: z.string().trim().max(40).optional(),
+  note: z.string().trim().max(200).optional(),
+  cash: z
+    .object({
+      receivedUsdCents: cents,
+      receivedLbp: lbpField,
+      changeUsdCents: cents.optional(),
+      changeLbp: lbpField.optional(),
+    })
+    .optional(),
   credit: z.object({ paidUsdCents: cents, paidLbp: lbpField }).optional(),
   clientCreatedAtMs: clientTimeField,
   /** Temporary reference printed on an offline receipt; set only by the offline sync queue. */
@@ -115,12 +123,15 @@ export const posCheckout = onCall(async (request) => {
 
     const cart: Cart = {
       id: 'server',
+      label: input.orderLabel ?? '',
+      note: input.note ?? '',
       tier: input.lines[0]!.tier,
       currency: input.currency,
       customerId: customer?.id ?? null,
       debtLineUsdCents: input.debtLineUsdCents,
       saleId: input.saleId,
       lines: input.lines.map((l, i) => ({ ...l, key: String(i), name: products.get(l.productId)?.name ?? '' })),
+      draft: emptyCartDraft(),
     };
     const totals = priceCart(cart, products, rate);
     const lineChanged = input.lines.some(
@@ -137,6 +148,8 @@ export const posCheckout = onCall(async (request) => {
     const debtBefore = customer?.debtUsdCents ?? 0;
     let receivedUsdCents: number;
     let receivedLbp: number;
+    let changeUsdCents = 0;
+    let changeLbp = 0;
     let settledPrevious = 0;
     let unpaid = 0;
     let debtDelta = 0;
@@ -145,14 +158,20 @@ export const posCheckout = onCall(async (request) => {
     if (input.kind === 'cash') {
       receivedUsdCents = input.cash?.receivedUsdCents ?? 0;
       receivedLbp = input.cash?.receivedLbp ?? 0;
+      changeUsdCents = input.cash?.changeUsdCents ?? 0;
+      changeLbp = input.cash?.changeLbp ?? 0;
       if (totals.debtLineUsdCents > 0) {
         if (totals.debtLineUsdCents > debtBefore) fail('failed-precondition', 'error.debtChanged');
         settledPrevious = debtLineSettlement(totals.debtLineUsdCents, debtBefore);
       }
-      const matches =
-        input.currency === 'USD'
-          ? Math.abs(receivedUsdCents + lbpToUsdCents(receivedLbp, rate) - totals.dueUsdCents) <= 1
-          : Math.abs(usdCentsToLbp(receivedUsdCents, rate) + receivedLbp - totals.dueLbp) <= lbpCentTolerance(rate);
+      const matches = cashNetCoversDue(
+        input.currency,
+        rate,
+        totals.dueUsdCents,
+        totals.dueLbp,
+        receivedUsdCents - changeUsdCents,
+        receivedLbp - changeLbp,
+      );
       if (!matches) fail('invalid-argument', 'error.paymentMismatch');
       if (settledPrevious > 0) {
         ledger.push({ type: 'settlement', amount: -settledPrevious });
@@ -208,9 +227,13 @@ export const posCheckout = onCall(async (request) => {
       costUsdCents: totals.costUsdCents,
       customerId: customer?.id ?? null,
       customerName: customer?.name ?? '',
+      orderLabel: input.orderLabel ?? '',
+      note: input.note ?? '',
       payment: {
         receivedUsdCents,
         receivedLbp,
+        changeUsdCents,
+        changeLbp,
         previousDebtUsdCents: debtBefore,
         settledPreviousUsdCents: settledPrevious,
         unpaidUsdCents: unpaid,
@@ -286,14 +309,17 @@ export const posCheckout = onCall(async (request) => {
       tx.update(p.doc('customers', customer.id), update);
     }
 
-    if (receivedUsdCents > 0 || receivedLbp > 0) {
+    const netUsdCents = receivedUsdCents - changeUsdCents;
+    const netLbp = receivedLbp - changeLbp;
+    if (netUsdCents !== 0 || netLbp !== 0) {
       const cashbox = toCashbox(cashboxSnap.data());
+      const after = { usdCents: cashbox.usdCents + netUsdCents, lbp: cashbox.lbp + netLbp };
+      if (after.usdCents < 0 || after.lbp < 0) fail('failed-precondition', 'error.drawerInsufficient');
       const cashRef = p.newRef('cashTransactions');
-      const after = { usdCents: cashbox.usdCents + receivedUsdCents, lbp: cashbox.lbp + receivedLbp };
       tx.set(cashRef, {
         type: 'sale',
-        usdCents: receivedUsdCents,
-        lbp: receivedLbp,
+        usdCents: netUsdCents,
+        lbp: netLbp,
         balanceAfter: after,
         category: input.kind === 'credit' ? 'creditSale' : 'sale',
         note: '',

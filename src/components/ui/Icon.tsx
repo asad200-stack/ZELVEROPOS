@@ -13,6 +13,7 @@ const PATHS = {
   trash: ['M3 6h18', 'M8 6V4h8v2', 'M19 6l-1 14H6L5 6', 'M10 11v6', 'M14 11v6'],
   search: ['m21 21-4.3-4.3', 'M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0z'],
   menu: ['M4 6h16', 'M4 12h16', 'M4 18h16'],
+  more: ['M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2z', 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z', 'M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z'],
   home: ['m3 10 9-7 9 7v10a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z'],
   cart: ['M6 6h15l-1.5 9h-12z', 'M6 6 5 2H2', 'M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2z', 'M18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2z'],
   box: ['M21 8 12 3 3 8v8l9 5 9-5z', 'm3 8 9 5 9-5', 'M12 13v8'],
@@ -74,7 +75,7 @@ export function Icon({ name, size = 18, className, title }: IconProps) {
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={name === 'more' ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth={2}
       strokeLinecap="round"

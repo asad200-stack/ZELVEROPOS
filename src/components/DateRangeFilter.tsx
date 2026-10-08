@@ -34,6 +34,7 @@ export function DateRangeFilter({ value, onChange }: { value: DateRange; onChang
         <>
           <input
             className="input"
+            dir="ltr"
             type="date"
             value={value.from}
             max={value.to}
@@ -42,6 +43,7 @@ export function DateRangeFilter({ value, onChange }: { value: DateRange; onChang
           />
           <input
             className="input"
+            dir="ltr"
             type="date"
             value={value.to}
             min={value.from}

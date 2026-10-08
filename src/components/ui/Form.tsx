@@ -38,6 +38,14 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   fieldClassName?: string;
 };
 
+const LTR_INPUT_TYPES = new Set(['number', 'tel', 'email', 'url', 'password', 'date', 'time', 'datetime-local']);
+
+/** Codes and amounts stay left-to-right even when the surrounding page is Arabic. */
+function ltrDir(rest: InputHTMLAttributes<HTMLInputElement>): 'ltr' | undefined {
+  if (rest.inputMode === 'numeric' || rest.inputMode === 'decimal' || (rest.type && LTR_INPUT_TYPES.has(rest.type))) return 'ltr';
+  return undefined;
+}
+
 export function TextInput({ label, error, hint, required, fieldClassName, className, ...rest }: InputProps) {
   return (
     <Field label={label} error={error} hint={hint} required={required} className={fieldClassName}>
@@ -48,6 +56,7 @@ export function TextInput({ label, error, hint, required, fieldClassName, classN
           aria-invalid={error ? true : undefined}
           required={required}
           {...rest}
+          dir={ltrDir(rest) ?? rest.dir}
         />
       )}
     </Field>
@@ -56,7 +65,7 @@ export function TextInput({ label, error, hint, required, fieldClassName, classN
 
 /** Decimal money input: keeps the raw string so users can type freely; parse on submit. */
 export function MoneyInput(props: InputProps) {
-  return <TextInput inputMode="decimal" autoComplete="off" {...props} />;
+  return <TextInput inputMode="decimal" autoComplete="off" {...props} dir="ltr" />;
 }
 
 type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {

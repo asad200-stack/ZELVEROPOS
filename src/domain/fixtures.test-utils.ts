@@ -58,6 +58,8 @@ export function sale(over: Partial<Sale> = {}): Sale {
     costUsdCents: 400,
     customerId: null,
     customerName: '',
+    orderLabel: '',
+    note: '',
     payment: {
       receivedUsdCents: 1_000,
       receivedLbp: 0,

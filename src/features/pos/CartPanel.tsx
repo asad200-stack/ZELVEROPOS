@@ -7,8 +7,9 @@ import { MoneyInput } from '@/components/ui/Form';
 import type { Cart, CartTotals, PricedLine } from '@/domain/cart';
 import { centsToInput, parseUsdInput } from '@/domain/money';
 import { useI18n } from '@/i18n/i18n';
-import type { Currency, Product } from '@/types/models';
+import type { Product } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
+import { FitAmount } from './FitAmount';
 
 interface Props {
   cart: Cart;
@@ -18,10 +19,9 @@ interface Props {
   onChange: (fn: (cart: Cart) => Cart) => void;
 }
 
-export function CartPanel({ cart, totals, products, canEditPrice, onChange }: Props) {
+export function CartPanel({ totals, products, canEditPrice, onChange }: Props) {
   const { t, lang } = useI18n();
   const [editing, setEditing] = useState<PricedLine | null>(null);
-  const money = (usd: number, lbp: number, currency: Currency) => (currency === 'USD' ? formatUsd(usd) : formatLbp(lbp, lang));
 
   const setQty = (key: string, qty: number) =>
     onChange((c) => ({
@@ -41,15 +41,23 @@ export function CartPanel({ cart, totals, products, canEditPrice, onChange }: Pr
         const overStock = !line.imei && product && line.quantity > product.stock;
         return (
           <div key={line.key} className={line.missing ? 'cart-line cart-line--error' : 'cart-line'}>
+            {product?.imageUrl ? (
+              <img className="cart-line__img" src={product.imageUrl} alt="" />
+            ) : (
+              <span className="cart-line__img cart-line__img--empty">
+                <Icon name="package" size={16} />
+              </span>
+            )}
             <div className="cart-line__info">
               <div className="cart-line__name">{line.name}</div>
               <div className="cart-line__meta">
-                {line.imei && <span>IMEI {line.imei} · </span>}
-                <span>{money(line.unitUsdCents, line.unitLbp, cart.currency)}</span>
-                {line.discountUsdCents > 0 && <span className="text-success"> (−{formatUsd(line.discountUsdCents)})</span>}
-                {line.customUsdCents !== null && line.discountUsdCents === 0 && <span className="text-warning"> *</span>}
-                {overStock && <span className="text-danger"> · {t('pos.overStock', { stock: product.stock })}</span>}
-                {line.missing && <span className="text-danger"> · {t('pos.productRemoved')}</span>}
+                {line.imei && <span className="cart-line__imei">IMEI {line.imei}</span>}
+                <FitAmount value={formatUsd(line.unitUsdCents)} />
+                <FitAmount value={formatLbp(line.unitLbp, lang)} className="fit-amount--muted" />
+                {line.discountUsdCents > 0 && <span className="text-success">−{formatUsd(line.discountUsdCents)}</span>}
+                {line.customUsdCents !== null && line.discountUsdCents === 0 && <span className="text-warning">*</span>}
+                {overStock && <span className="text-danger">{t('pos.overStock', { stock: product.stock })}</span>}
+                {line.missing && <span className="text-danger">{t('pos.productRemoved')}</span>}
               </div>
             </div>
             <div className="qty">
@@ -58,6 +66,7 @@ export function CartPanel({ cart, totals, products, canEditPrice, onChange }: Pr
               </button>
               <input
                 className="qty__input"
+                dir="ltr"
                 inputMode="numeric"
                 value={line.quantity}
                 disabled={!!line.imei}
@@ -68,7 +77,10 @@ export function CartPanel({ cart, totals, products, canEditPrice, onChange }: Pr
                 <Icon name="plus" size={14} />
               </button>
             </div>
-            <div className="cart-line__total">{money(line.lineUsdCents, line.lineLbp, cart.currency)}</div>
+            <div className="cart-line__total">
+              <FitAmount value={formatUsd(line.lineUsdCents)} />
+              <FitAmount value={formatLbp(line.lineLbp, lang)} className="fit-amount--muted" />
+            </div>
             <div className="cart-line__actions">
               {canEditPrice && !line.missing && <Button variant="ghost" size="sm" icon="tag" onClick={() => setEditing(line)} aria-label={t('pos.editPrice')} />}
               <Button variant="ghost" size="sm" icon="trash" onClick={() => remove(line.key)} aria-label={t('common.remove')} />
@@ -81,7 +93,10 @@ export function CartPanel({ cart, totals, products, canEditPrice, onChange }: Pr
           <div className="cart-line__info">
             <div className="cart-line__name">{t('pos.previousBalance')}</div>
           </div>
-          <div className="cart-line__total">{money(totals.debtLineUsdCents, totals.debtLineLbp, cart.currency)}</div>
+          <div className="cart-line__total">
+            <FitAmount value={formatUsd(totals.debtLineUsdCents)} />
+            <FitAmount value={formatLbp(totals.debtLineLbp, lang)} className="fit-amount--muted" />
+          </div>
           <div className="cart-line__actions">
             <Button variant="ghost" size="sm" icon="trash" onClick={() => onChange((c) => ({ ...c, debtLineUsdCents: null }))} aria-label={t('common.remove')} />
           </div>

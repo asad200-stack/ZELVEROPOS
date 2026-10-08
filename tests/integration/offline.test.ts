@@ -2,7 +2,7 @@ import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { IDBFactory } from 'fake-indexeddb';
 import { deleteDoc, doc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { priceCart, type Cart, type CartLine } from '@/domain/cart';
+import { emptyCartDraft, priceCart, type Cart, type CartLine } from '@/domain/cart';
 import { product } from '@/domain/fixtures.test-utils';
 import { buildCheckoutCall, buildSaleSnapshot } from '@/offline/checkoutPayload';
 import { newSaleOperation } from '@/offline/operations';
@@ -106,11 +106,14 @@ async function device(uid: string, opts: { factory?: InstanceType<typeof IDBFact
       seq += 1;
       const cart: Cart = {
         id: '1',
+        label: '',
+        note: '',
         tier: 'retail',
         currency: 'USD',
         customerId: o.customerId ?? null,
         debtLineUsdCents: null,
         saleId: `off${Date.now()}${seq}`,
+        draft: emptyCartDraft(),
         lines: lines.map((l, i) => ({ key: String(i), productId: 'p1', name: '', tier: 'retail', quantity: 1, customUsdCents: null, imei: null, ...l })),
       };
       const totals = priceCart(cart, CATALOG, RATE);

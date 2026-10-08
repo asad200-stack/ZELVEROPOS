@@ -42,7 +42,7 @@ export const lbpField = () =>
   z.string().transform((v, ctx) => {
     if (!v.trim()) return null;
     const lbp = parseLbpInput(v);
-    if (lbp === null) {
+    if (lbp === null || lbp > 1_000_000_000_000) {
       ctx.issues.push({ code: 'custom', message: msg('validation.amount'), input: v });
       return z.NEVER;
     }

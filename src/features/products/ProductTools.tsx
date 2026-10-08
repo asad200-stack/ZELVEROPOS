@@ -188,10 +188,18 @@ export function LabelsModal({ products, onClose }: { products: Product[]; onClos
         {products.map((p) => (
           <li key={p.id} className="list-row">
             <span>
-              {p.name} <span className="muted small">{p.barcode || t('products.noBarcode')}</span>
+              {p.name}{' '}
+              {p.barcode ? (
+                <span className="muted small" dir="ltr">
+                  {p.barcode}
+                </span>
+              ) : (
+                <span className="muted small">{t('products.noBarcode')}</span>
+              )}
             </span>
             <input
               className="input input--qty"
+              dir="ltr"
               type="number"
               min={0}
               max={500}

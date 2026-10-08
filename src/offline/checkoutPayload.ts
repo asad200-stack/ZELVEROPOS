@@ -9,7 +9,7 @@ export interface CheckoutRequest {
   rate: number;
   /** Prices exactly as shown to the cashier; the server refuses the sale if any of them changed. */
   totals: CartTotals;
-  cash?: { receivedUsdCents: number; receivedLbp: number };
+  cash?: { receivedUsdCents: number; receivedLbp: number; changeUsdCents?: number; changeLbp?: number };
   credit?: { paidUsdCents: number; paidLbp: number };
 }
 
@@ -41,6 +41,8 @@ export function buildCheckoutCall(req: CheckoutRequest): CheckoutCall {
       expectedUnitLbp: totals.lines[i]?.unitLbp,
     })),
     expectedTotalUsdCents: totals.productsUsdCents,
+    orderLabel: cart.label.trim() || undefined,
+    note: cart.note.trim() || undefined,
     cash: req.kind === 'cash' ? req.cash : undefined,
     credit: req.kind === 'credit' ? req.credit : undefined,
   };
@@ -72,7 +74,10 @@ export function buildSaleSnapshot(req: CheckoutRequest, ctx: CheckoutContext): S
     debtLineUsdCents: cart.customerId ? cart.debtLineUsdCents : null,
     customerId: cart.customerId,
     customerName: ctx.customerName,
+    orderLabel: cart.label.trim() || undefined,
+    note: cart.note.trim() || undefined,
     received: { usdCents: paid?.receivedUsdCents ?? 0, lbp: paid?.receivedLbp ?? 0 },
+    change: req.kind === 'cash' && req.cash ? { usdCents: req.cash.changeUsdCents ?? 0, lbp: req.cash.changeLbp ?? 0 } : { usdCents: 0, lbp: 0 },
     cashierName: ctx.cashierName,
   };
 }

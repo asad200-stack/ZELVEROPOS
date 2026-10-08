@@ -19,9 +19,22 @@ export function roundLbp(lbp: number): number {
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
+export function isValidExchangeRate(rate: number): boolean {
+  return Number.isInteger(rate) && rate > 0 && rate <= 1_000_000_000_000;
+}
+
 export function usdCentsToLbp(cents: Cents, rate: number): number {
-  if (!(rate > 0)) return 0;
+  if (!isValidExchangeRate(rate)) return 0;
   return Math.round(((Number(cents) || 0) * rate) / 100);
+}
+
+/** Grouped LBP string for an input, or '' when USD is empty. Null if the rate or USD cannot be converted. */
+export function suggestedLbpInput(usdRaw: string, rate: number): string | null {
+  if (!isValidExchangeRate(rate)) return null;
+  if (!String(usdRaw ?? '').trim()) return '';
+  const cents = parseUsdInput(usdRaw);
+  if (cents === null) return null;
+  return usdCentsToLbp(cents, rate).toLocaleString('en-US');
 }
 
 export function lbpToUsdCents(lbp: number, rate: number): Cents {

@@ -96,7 +96,7 @@ export default function SalesPage() {
             });
           }}
         >
-          <input className="input" placeholder={t('sales.findInvoice')} value={invoice} onChange={(e) => setInvoice(e.target.value)} />
+          <input className="input" dir="ltr" placeholder={t('sales.findInvoice')} value={invoice} onChange={(e) => setInvoice(e.target.value)} />
           <Button type="submit" variant="secondary" icon="search" loading={search.busy} aria-label={t('common.search')} />
         </form>
       </Toolbar>

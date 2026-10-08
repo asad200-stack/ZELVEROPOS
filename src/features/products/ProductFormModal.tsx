@@ -1,13 +1,13 @@
-import { useRef, useState, type ChangeEvent, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Checkbox, FormGrid, MoneyInput, SelectInput, TextArea, TextInput } from '@/components/ui/Form';
+import { Checkbox, FormGrid, MoneyInput, SelectInput, TextInput } from '@/components/ui/Form';
 import { Modal } from '@/components/ui/Modal';
 import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
-import { centsToInput } from '@/domain/money';
+import { isValidExchangeRate } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useForm } from '@/hooks/useForm';
-import { useCategories, useProducts, useSuppliers } from '@/hooks/useTenantData';
+import { useCategories, useProducts, useSettings, useSuppliers } from '@/hooks/useTenantData';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
 import { AppError, logError, toUserMessage } from '@/services/errors';
 import { requireOnline } from '@/services/ops';
@@ -16,6 +16,7 @@ import { uploadTenantImage } from '@/services/storageService';
 import { createSupplier } from '@/services/supplierService';
 import type { Product } from '@/types/models';
 import { productSchema, supplierSchema, toFieldErrors, type FieldErrors } from '@/validation/schemas';
+import { ImeiEntryList } from './ImeiEntryList';
 import { InlineCreatePanel } from './InlineCreatePanel';
 import {
   NEW_OPTION,
@@ -26,11 +27,37 @@ import {
   singleFlight,
   supplierOptions,
 } from './inlineCreate';
+import {
+  PRICE_TIERS,
+  draftFromStored,
+  enterAction,
+  focusProductField,
+  lbpEdited,
+  lbpToSave,
+  productFieldOrder,
+  rateChanged,
+  resolveCreateInventory,
+  selectEnterMoves,
+  usdEdited,
+  type PriceTierName,
+  type TierPriceDraft,
+} from './productFormLogic';
 
 interface Props {
   product: Product | null;
   onClose: () => void;
 }
+
+const USD_NAME: Record<PriceTierName, 'retail' | 'wholesale' | 'vip'> = {
+  retail: 'retail',
+  wholesale: 'wholesale',
+  vip: 'vip',
+};
+const LBP_NAME: Record<PriceTierName, 'retailLbp' | 'wholesaleLbp' | 'vipLbp'> = {
+  retail: 'retailLbp',
+  wholesale: 'wholesaleLbp',
+  vip: 'vipLbp',
+};
 
 function generateBarcode(): string {
   // 12 random digits + EAN-13 check digit.
@@ -79,21 +106,33 @@ export function ProductFormModal({ product, onClose }: Props) {
   const products = useProducts().data;
   const suppliers = useSuppliers().data;
   const categories = useCategories();
+  const rate = useSettings().exchangeRate;
   const { busy, run } = useAsyncAction('product-save');
   const [image, setImage] = useState<File | null>(null);
+  const [serials, setSerials] = useState<string[]>([]);
+  const [serialError, setSerialError] = useState<string | null>(null);
   const canSeeCost = can('canViewCosts');
+  const rateOk = isValidExchangeRate(rate);
+
+  const initialDrafts = Object.fromEntries(
+    PRICE_TIERS.map((tier) => [
+      tier,
+      draftFromStored(product?.prices[tier].usdCents ?? 0, product?.prices[tier].lbp ?? null, rate, !product || tier !== 'retail'),
+    ]),
+  ) as Record<PriceTierName, TierPriceDraft>;
+  const lbpMode = useRef(Object.fromEntries(PRICE_TIERS.map((tier) => [tier, initialDrafts[tier].lbpMode])) as Record<PriceTierName, 'auto' | 'manual'>);
 
   const form = useForm({
     name: product?.name ?? '',
     category: product?.category ?? '',
     barcode: product?.barcode ?? '',
-    retail: centsToInput(product?.prices.retail.usdCents ?? null),
-    wholesale: product?.prices.wholesale.usdCents ? centsToInput(product.prices.wholesale.usdCents) : '',
-    vip: product?.prices.vip.usdCents ? centsToInput(product.prices.vip.usdCents) : '',
-    retailLbp: product?.prices.retail.lbp ? String(product.prices.retail.lbp) : '',
-    wholesaleLbp: product?.prices.wholesale.lbp ? String(product.prices.wholesale.lbp) : '',
-    vipLbp: product?.prices.vip.lbp ? String(product.prices.vip.lbp) : '',
-    cost: product ? centsToInput(product.costUsdCents) : '',
+    retail: initialDrafts.retail.usd,
+    wholesale: initialDrafts.wholesale.usd,
+    vip: initialDrafts.vip.usd,
+    retailLbp: initialDrafts.retail.lbp,
+    wholesaleLbp: initialDrafts.wholesale.lbp,
+    vipLbp: initialDrafts.vip.lbp,
+    cost: product ? String((product.costUsdCents / 100).toFixed(2)) : '',
     minStock: product?.minStock !== null && product?.minStock !== undefined ? String(product.minStock) : '',
     expiryDate: product?.expiryDate ?? '',
     initialStock: '',
@@ -102,8 +141,20 @@ export function ProductFormModal({ product, onClose }: Props) {
     imeis: '',
   });
 
+  useEffect(() => {
+    for (const tier of PRICE_TIERS) {
+      const usd = form.values[USD_NAME[tier]];
+      const lbp = form.values[LBP_NAME[tier]];
+      const next = rateChanged({ usd, lbp, lbpMode: lbpMode.current[tier] }, rate);
+      if (next.lbp !== lbp) form.set(LBP_NAME[tier], next.lbp);
+    }
+    // form.set is stable. LBP itself is not a dependency, or a rate update would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rate, form.values.retail, form.values.wholesale, form.values.vip]);
+
   const categorySelect = useRef<HTMLSelectElement>(null);
   const supplierSelect = useRef<HTMLSelectElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const categoryPanel = useInlinePanel(categorySelect);
   const supplierPanel = useInlinePanel(supplierSelect);
   const [newCategory, setNewCategory] = useState('');
@@ -113,6 +164,22 @@ export function ProductFormModal({ product, onClose }: Props) {
   const [createdSuppliers, setCreatedSuppliers] = useState<{ id: string; name: string }[]>([]);
   const allSuppliers = mergeSuppliers(suppliers, createdSuppliers);
   const canCreateSupplier = can('canViewSuppliers');
+  const showInitialStock = !product;
+  const showImeiEntry = !product && form.values.imeiTracking;
+  const fieldOrder = productFieldOrder({ showCost: canSeeCost, showInitialStock, showImeiEntry });
+
+  const onUsd = (tier: PriceTierName, usd: string) => {
+    const next = usdEdited({ usd, lbp: form.values[LBP_NAME[tier]], lbpMode: lbpMode.current[tier] }, usd, rate);
+    lbpMode.current[tier] = next.lbpMode;
+    form.set(USD_NAME[tier], next.usd);
+    if (next.lbp !== form.values[LBP_NAME[tier]]) form.set(LBP_NAME[tier], next.lbp);
+  };
+
+  const onLbp = (tier: PriceTierName, lbp: string) => {
+    const next = lbpEdited({ usd: form.values[USD_NAME[tier]], lbp: form.values[LBP_NAME[tier]], lbpMode: lbpMode.current[tier] }, lbp, rate);
+    lbpMode.current[tier] = next.lbpMode;
+    form.set(LBP_NAME[tier], next.lbp);
+  };
 
   const onCategoryChange = (e: ChangeEvent<HTMLSelectElement>) => {
     if (e.target.value !== NEW_OPTION) return form.set('category', e.target.value);
@@ -162,17 +229,27 @@ export function ProductFormModal({ product, onClose }: Props) {
       if (categoryPanel.saving || supplierPanel.saving) return;
       const data = form.validate(productSchema);
       if (!data) return;
+      const inventory = resolveCreateInventory(data.imeiTracking, product ? null : data.initialStock, product ? [] : serials);
+      if (!inventory.ok) {
+        setSerialError(t('error.initialImeiCount', { stock: inventory.stock }));
+        return;
+      }
+      setSerialError(null);
       assertUniqueBarcode(data.barcode, products, product?.id);
       const retail = data.retail ?? 0;
       const supplier = allSuppliers.find((s) => s.id === data.supplierId) ?? null;
+      const tier = (name: PriceTierName, usd: number | null) => ({
+        usdCents: usd ?? retail,
+        lbp: lbpToSave({ usd: form.values[USD_NAME[name]], lbp: form.values[LBP_NAME[name]], lbpMode: lbpMode.current[name] }),
+      });
       const input = {
         name: data.name,
         category: data.category,
         barcode: data.barcode,
         prices: {
-          retail: { usdCents: retail, lbp: data.retailLbp },
-          wholesale: { usdCents: data.wholesale ?? retail, lbp: data.wholesaleLbp },
-          vip: { usdCents: data.vip ?? retail, lbp: data.vipLbp },
+          retail: tier('retail', data.retail),
+          wholesale: tier('wholesale', data.wholesale),
+          vip: tier('vip', data.vip),
         },
         costUsdCents: canSeeCost ? (data.cost ?? 0) : (product?.costUsdCents ?? 0),
         minStock: data.minStock,
@@ -180,8 +257,8 @@ export function ProductFormModal({ product, onClose }: Props) {
         supplierName: supplier?.name ?? '',
         expiryDate: data.expiryDate,
         imeiTracking: data.imeiTracking,
-        initialStock: data.initialStock ?? 0,
-        initialImeis: data.imeis.split(/[\s,;]+/).filter(Boolean),
+        initialStock: product ? 0 : inventory.initialStock,
+        initialImeis: product ? [] : inventory.initialImeis,
       };
       if (product?.imeiTracking && !data.imeiTracking && product.imeis.some((e) => e.status === 'available')) {
         throw new AppError('error.imeiTrackingLocked');
@@ -194,6 +271,27 @@ export function ProductFormModal({ product, onClose }: Props) {
       notify('success', t(product ? 'common.saved' : 'products.created'));
       onClose();
     });
+
+  const onFormKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== 'Enter') return;
+    const target = e.target as HTMLInputElement;
+    const action = enterAction(
+      { tag: target.tagName, name: target.name || target.id, type: target.type, inInline: !!target.closest('.inline-create') },
+      fieldOrder,
+    );
+    if (action.type === 'ignore' || action.type === 'add-serial') return;
+    e.preventDefault();
+    if (action.type === 'focus') focusProductField(formRef.current, action.name);
+  };
+
+  const onFormKeyUp = (e: KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== 'Enter') return;
+    const target = e.target as HTMLSelectElement;
+    if (target.tagName !== 'SELECT' || target.closest('.inline-create')) return;
+    if (!selectEnterMoves(target.value, categoryPanel.open || supplierPanel.open)) return;
+    const action = enterAction({ tag: 'INPUT', name: target.name, inInline: false }, fieldOrder);
+    if (action.type === 'focus') focusProductField(formRef.current, action.name);
+  };
 
   return (
     <Modal
@@ -219,12 +317,12 @@ export function ProductFormModal({ product, onClose }: Props) {
       }
     >
       <form
-        className="stack"
+        ref={formRef}
+        className="stack product-form"
         noValidate
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submit();
-        }}
+        onSubmit={(e: FormEvent) => e.preventDefault()}
+        onKeyDown={onFormKeyDown}
+        onKeyUp={onFormKeyUp}
       >
         <FormGrid>
           <TextInput label={t('products.name')} required autoFocus {...form.bind('name')} />
@@ -256,7 +354,7 @@ export function ProductFormModal({ product, onClose }: Props) {
             </InlineCreatePanel>
           )}
           <div className="field-with-action">
-            <TextInput label={t('products.barcode')} {...form.bind('barcode')} />
+            <TextInput {...form.bind('barcode')} label={t('products.barcode')} dir="ltr" />
             <Button variant="secondary" size="sm" icon="barcode" onClick={() => form.set('barcode', generateBarcode())}>
               {t('products.generate')}
             </Button>
@@ -300,43 +398,64 @@ export function ProductFormModal({ product, onClose }: Props) {
         </FormGrid>
 
         <h3 className="section-title">{t('products.prices')}</h3>
+        {!rateOk && <p className="field__error">{t('products.lbpRateMissing')}</p>}
+        {rateOk && <p className="field__hint">{t('products.lbpAutoHint')}</p>}
         <FormGrid cols={3}>
-          <MoneyInput label={`${t('products.retail')} ($)`} required {...form.bind('retail')} />
-          <MoneyInput label={`${t('products.wholesale')} ($)`} placeholder={form.values.retail} {...form.bind('wholesale')} />
-          <MoneyInput label={`${t('products.vip')} ($)`} placeholder={form.values.retail} {...form.bind('vip')} />
-          <MoneyInput label={`${t('products.retail')} (LBP)`} hint={t('products.lbpOptional')} {...form.bind('retailLbp')} />
-          <MoneyInput label={`${t('products.wholesale')} (LBP)`} {...form.bind('wholesaleLbp')} />
-          <MoneyInput label={`${t('products.vip')} (LBP)`} {...form.bind('vipLbp')} />
+          <MoneyInput label={`${t('products.retail')} ($)`} required {...form.bind('retail')} onChange={(e) => onUsd('retail', e.target.value)} />
+          <MoneyInput label={`${t('products.wholesale')} ($)`} placeholder={form.values.retail} {...form.bind('wholesale')} onChange={(e) => onUsd('wholesale', e.target.value)} />
+          <MoneyInput label={`${t('products.vip')} ($)`} placeholder={form.values.retail} {...form.bind('vip')} onChange={(e) => onUsd('vip', e.target.value)} />
+          <MoneyInput label={`${t('products.retail')} (LBP)`} {...form.bind('retailLbp')} onChange={(e) => onLbp('retail', e.target.value)} />
+          <MoneyInput label={`${t('products.wholesale')} (LBP)`} {...form.bind('wholesaleLbp')} onChange={(e) => onLbp('wholesale', e.target.value)} />
+          <MoneyInput label={`${t('products.vip')} (LBP)`} {...form.bind('vipLbp')} onChange={(e) => onLbp('vip', e.target.value)} />
         </FormGrid>
 
         <FormGrid cols={3}>
           {canSeeCost && <MoneyInput label={`${t('products.cost')} ($)`} {...form.bind('cost')} />}
           <TextInput label={t('products.minStock')} inputMode="numeric" hint={t('products.minStockHint')} {...form.bind('minStock')} />
           <TextInput label={t('products.expiryDate')} type="date" {...form.bind('expiryDate')} />
-          {!product && !form.values.imeiTracking && (
-            <TextInput label={t('products.initialStock')} inputMode="numeric" {...form.bind('initialStock')} />
-          )}
         </FormGrid>
 
-        <Checkbox label={t('products.imeiTracking')} {...form.bindCheckbox('imeiTracking')} />
-        {!product && form.values.imeiTracking && (
-          <TextArea label={t('products.imeiList')} rows={3} placeholder={t('products.imeiListHint')} {...form.bind('imeis')} />
+        {showInitialStock && (
+          <FormGrid cols={3}>
+            <TextInput
+              label={t('products.initialStock')}
+              inputMode="numeric"
+              {...form.bind('initialStock')}
+              onChange={(e) => {
+                form.set('initialStock', e.target.value);
+                setSerialError(null);
+              }}
+            />
+          </FormGrid>
         )}
 
-        <div className="field">
+        <Checkbox label={t('products.imeiTracking')} {...form.bindCheckbox('imeiTracking')} />
+        {product && form.values.imeiTracking && <p className="field__hint">{t('products.imeiEditHint')}</p>}
+        {showImeiEntry && (
+          <ImeiEntryList
+            serials={serials}
+            onChange={(next) => {
+              setSerials(next);
+              setSerialError(null);
+            }}
+            error={serialError}
+          />
+        )}
+
+        <div className="field product-form__image">
           <label className="field__label" htmlFor="product-image">
             {t('products.image')}
           </label>
           <input
             id="product-image"
-            className="input"
+            name="product-image"
+            className="input input--file"
             type="file"
             accept="image/jpeg,image/png,image/webp"
             onChange={(e) => setImage(e.target.files?.[0] ?? null)}
           />
           {product?.imageUrl && !image && <img className="image-preview" src={product.imageUrl} alt="" />}
         </div>
-        <button type="submit" hidden />
       </form>
     </Modal>
   );

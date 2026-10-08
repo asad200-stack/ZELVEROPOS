@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ZELVERO POS — Production readiness audit — 8 October 2026</title>
+<style>
+  body { font-family: "Segoe UI", Tahoma, sans-serif; color: #111; margin: 28px auto; max-width: 860px; line-height: 1.45; font-size: 12.5px; }
+  h1 { font-size: 22px; margin-bottom: 0; }
+  h2 { font-size: 15px; margin-top: 22px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  .verdict { background: #fde8e8; border: 1px solid #b42318; padding: 10px 12px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; }
+  th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #f4f4f5; }
+  code { font-family: Consolas, monospace; font-size: 11.5px; }
+</style>
+</head>
+<body>
+<h1>ZELVERO POS</h1>
+<p>Complete system audit and production-readiness report<br>8 October 2026 · local emulators, project <code>demo-zelvero</code> · production was not written</p>
+<p class="verdict">RED — not ready for commercial release</p>
+
+<h2>1. Executive summary</h2>
+<p>The money and stock core is server-authoritative, and the security-rules suite passed. That does not make the product ready to sell as a global platform. Catalog screens subscribe to every product, customer, and supplier. A full read of 10,000 product documents took 11.2 seconds on the Firestore emulator. Volumes of 50,000 products, 100,000 products, and 1,000,000 sales were not loaded. Concurrent users were not simulated. No figure in this report was invented.</p>
+
+<h2>2. Cashbox header</h2>
+<p>The chip is centered in the POS header: store name on the left, balances in the center, status, rate, language, and theme on the right. Headless Chrome measured a center offset of 0 px at 1440, 1280, 390, and Arabic 1366. Desktop header height stayed 56 px. There is still one cash drawer, so Transfer was not added.</p>
+
+<h2>3. Tests executed</h2>
+<table>
+<tr><th>Suite</th><th>Result</th></tr>
+<tr><td>Unit tests</td><td>PASS — 21 files, 172 tests</td></tr>
+<tr><td>Security rules</td><td>PASS — 44 tests</td></tr>
+<tr><td>Functions integration</td><td>PARTIAL — 64 passed, 1 timeout (signup burst, not a money assertion)</td></tr>
+<tr><td>Emulator catalog</td><td>1,000 and 10,000 products measured. Larger sizes NOT TESTED</td></tr>
+<tr><td>Header geometry</td><td>PASS — offset 0 px</td></tr>
+<tr><td>Browser end-to-end, concurrency, hours offline, million sales</td><td>NOT TESTED this session</td></tr>
+</table>
+
+<h2>4. Database measurements</h2>
+<p>Environment: Firestore emulator <code>127.0.0.1:8080</code>, project <code>demo-zelvero</code>, small product stubs, <code>firebase-admin</code>.</p>
+<table>
+<tr><th>Dataset</th><th>Writes</th><th>Full read</th><th>Page of 50</th><th>Heap</th></tr>
+<tr><td>1,000 products</td><td>16.8 s</td><td>2,840 ms</td><td>232 ms</td><td>26 MB</td></tr>
+<tr><td>Next 9,000 (10,000 in the collection)</td><td>15.6 s</td><td>11,183 ms</td><td>344 ms</td><td>36 MB</td></tr>
+</table>
+<p>The POS listens to the entire products collection and then shows at most 80 matches. Sales history is paged at 50. That difference is why a large catalog is the scale problem and a long sales list is not, until someone downloads it for backup (limit 50,000).</p>
+
+<h2>5. Financial accuracy</h2>
+<p>A unit test for the live screenshot passed. Due $501, received $555, empty drawer: change is $54 in USD and is allowed, because the payment covers it. Returning 3,040,000 LBP is rejected, because neither the drawer nor the payment has those pounds. The server rejects a drawer balance that would go negative. Credit sales do not add unpaid amounts to the drawer. Transfer between drawers does not exist.</p>
+<p>The empty-drawer fix is in the working tree. It is not deployed.</p>
+
+<h2>6. Security</h2>
+<p>Rules tests passed, including tenant isolation and the ban on client writes to sales, stock, the drawer, and ledgers. Checkout re-reads prices, stock, and the rate in a transaction. App Check is not enforced: this run’s callable logs show <code>app: MISSING</code> and the call still succeeds. Production was not attacked.</p>
+
+<h2>7. Offline and concurrency</h2>
+<p>Unit tests passed for a lost checkout response retried twice producing one sale. A multi-hour offline session and two devices selling the last unit were not run. Checkout is a transaction, which is the right mechanism, and that mechanism was not load-tested.</p>
+
+<h2>8. Cost and international use</h2>
+<p>No billing export was read, so no dollar cost is stated. The visible cost driver is one listener per catalog document per open screen. Server business dates default to Asia/Beirut. The browser date helper uses the laptop’s timezone. Currencies are USD and LBP only.</p>
+
+<h2>9. Priorities</h2>
+<table>
+<tr><th>Priority</th><th>Item</th></tr>
+<tr><td>P0</td><td>None newly proven. No test showed a committed sale that corrupted stock or the drawer.</td></tr>
+<tr><td>P1</td><td>Unbounded catalog listeners. Unrun scale and concurrency tests. App Check off.</td></tr>
+<tr><td>P2</td><td>Cash movements are not idempotent. Signup burst test timed out. Client versus server business date.</td></tr>
+<tr><td>P3</td><td>Header chip no longer repeats the word LBP.</td></tr>
+</table>
+
+<h2>10. Verdict</h2>
+<ol>
+<li>Ready to sell today? No.</li>
+<li>Financial calculations reliable? For the automated cases, yes. A full history replay was not done. The change fix is not deployed.</li>
+<li>Offline safe? Automated idempotency passed. A long disconnection was not run.</li>
+<li>Years of transactions? Paged sales can. Full catalog listeners cannot, once catalogs grow. Not loaded.</li>
+<li>Customer data protected? Emulator rules say yes across tenants. App Check is off. No production penetration test.</li>
+<li>Many employees at once? Not tested.</li>
+<li>UI commercial? Coherent, not signed off. Arabic and low-end devices were not fully rewalked.</li>
+<li>Fix before launch: catalog loading, deploy verification of the change fix, the missing scale tests. Plan App Check separately.</li>
+<li>Can wait: a second drawer, more languages, further visual polish.</li>
+<li>International architecture? Tenant isolation yes. Currency model and catalog listeners no, not without more work.</li>
+</ol>
+<p class="verdict">RED — not ready for commercial release.</p>
+</body>
+</html>

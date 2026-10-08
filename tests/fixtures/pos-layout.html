@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ZELVERO POS layout fixture</title>
+    <link rel="stylesheet" href="../../src/styles/base.css?v=3" />
+    <link rel="stylesheet" href="../../src/styles/components.css?v=3" />
+    <link rel="stylesheet" href="../../src/styles/layout.css?v=3" />
+    <link rel="stylesheet" href="../../src/styles/pages.css?v=3" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" id="app-sidebar">
+        <div class="sidebar__brand">
+          <button type="button" class="sidebar__toggle" id="nav-toggle" aria-expanded="true" aria-label="Collapse menu">☰</button>
+          <span class="sidebar__logo">Z</span>
+          <span class="sidebar__title">ZELVERO POS</span>
+        </div>
+        <nav class="sidebar__nav">
+          <button type="button" class="nav-link" title="Dashboard"><b aria-hidden="true">⌂</b><span>Dashboard</span></button>
+          <button type="button" class="nav-link nav-link--active" title="Point of sale"><b aria-hidden="true">▣</b><span>Point of sale</span></button>
+          <button type="button" class="nav-link" title="Products"><b aria-hidden="true">□</b><span>Products</span></button>
+          <button type="button" class="nav-link" title="Sales"><b aria-hidden="true">☰</b><span>Sales</span></button>
+          <button type="button" class="nav-link" title="Settings"><b aria-hidden="true">⚙</b><span>Settings</span></button>
+        </nav>
+      </aside>
+      <div class="main">
+        <header class="topbar">
+          <div class="topbar__start"><strong class="topbar__title">ZELVERO POS</strong></div>
+          <div class="cash-chip">
+            <span class="cash-chip__name">Cashbox</span>
+            <span class="cash-chip__money">
+              <span class="cash-chip__amt" style="--chars: 10" title="USD $250.00"><span>USD</span><b>$250.00</b></span>
+              <span class="cash-chip__amt" style="--chars: 14" title="LBP 5,500,000"><span>LBP</span><b>5,500,000</b></span>
+            </span>
+            <button type="button" class="cash-chip__more" aria-label="Cash drawer actions">⋮</button>
+          </div>
+          <div class="topbar__actions"><span class="topbar__chip">89,500</span></div>
+        </header>
+        <div class="content">
+          <div class="pos pos--products" id="pos">
+            <div class="pos__tabs-mobile segmented" id="tabs">
+              <button type="button" class="segmented__item segmented__item--active" data-tab="products">Products</button>
+              <button type="button" class="segmented__item" data-tab="cart">Cart (2)</button>
+              <button type="button" class="segmented__item" data-tab="checkout">Checkout</button>
+            </div>
+
+            <section class="pos__products">
+              <div class="picker">
+                <div class="picker__search">
+                  <div class="search-box">
+                    <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+                    <input class="input" type="search" placeholder="Search or scan barcode..." value="" />
+                    <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5v14M7 5v14M10 5v14M14 5v14M17 5v14M21 5v14"></path></svg>
+                  </div>
+                </div>
+                <div class="picker__stage">
+                  <div class="picker__grid">
+                    <button type="button" class="product-tile">
+                      <span class="product-tile__img product-tile__img--empty"></span>
+                      <span class="product-tile__name">Layout Test Item</span>
+                      <span class="product-tile__prices">
+                        <span class="fit-slot"><span class="fit-amount" style="--chars: 5">$1.00</span></span>
+                        <span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars: 10">89,500 LBP</span></span>
+                      </span>
+                      <span class="product-tile__stock">40 in stock</span>
+                    </button>
+                    <button type="button" class="product-tile">
+                      <span class="product-tile__img product-tile__img--empty"></span>
+                      <span class="product-tile__name">Samsung Galaxy S Ultra Enterprise Edition 1TB</span>
+                      <span class="product-tile__prices">
+                        <span class="fit-slot"><span class="fit-amount" style="--chars: 13">$9,999,999.99</span></span>
+                        <span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars: 19">895,000,000,000 LBP</span></span>
+                      </span>
+                      <span class="product-tile__stock">999,999 in stock</span>
+                    </button>
+                  </div>
+                </div>
+                <nav class="picker__cats" id="cats" aria-label="Category">
+                  <button type="button" class="picker__arrow" id="cat-prev" hidden aria-label="Previous categories">‹</button>
+                  <div class="picker__scroller" id="cat-scroller">
+                    <button type="button" class="picker__cat picker__cat--active" title="All"><span>All</span></button>
+                    <button type="button" class="picker__cat" title="Electronics"><span>Electronics</span></button>
+                    <button type="button" class="picker__cat" title="Very Long Category Name For Layout Testing"><span>Very Long Category Name For Layout Testing</span></button>
+                    <button type="button" class="picker__cat" title="Drinks"><span>Drinks</span></button>
+                    <button type="button" class="picker__cat" title="Food"><span>Food</span></button>
+                  </div>
+                  <button type="button" class="picker__arrow" id="cat-next" hidden aria-label="Next categories">›</button>
+                </nav>
+              </div>
+            </section>
+
+            <section class="pos__cart">
+              <header class="cart-head">
+                <h2>Cart (2)</h2>
+                <button type="button" class="btn btn--ghost btn--sm"><span>Clear cart</span></button>
+              </header>
+              <div class="cart-tabs" role="tablist">
+                <div class="cart-tab cart-tab--active"><button type="button"><span class="cart-tab__label" title="Johnny Hanna Delivery Order">Johnny Hanna Delivery Order</span></button></div>
+                <div class="cart-tab"><button type="button"><span class="cart-tab__label" title="#2">#2</span></button></div>
+                <div class="cart-tab"><button type="button"><span class="cart-tab__label" title="Table 4">Table 4</span></button></div>
+                <button type="button" class="cart-tab cart-tab--add" aria-label="New cart">+</button>
+              </div>
+              <div class="cart-options">
+                <div class="field"><label>Price tier</label><select class="input"><option>Retail</option></select></div>
+                <div class="field"><label>Currency</label><select class="input"><option>USD $</option></select></div>
+                <div class="field"><label>Customer</label><select class="input"><option>Very Long Customer Business Name For Layout Testing</option></select></div>
+              </div>
+              <p class="cart-customer">Very Long Customer Business Name For Layout Testing</p>
+              <div class="pos__lines">
+                <div class="cart-lines">
+                  <div class="cart-line">
+                    <span class="cart-line__img cart-line__img--empty"></span>
+                    <div class="cart-line__info">
+                      <div class="cart-line__name">Layout Test Item</div>
+                      <div class="cart-line__meta">
+                        <span class="fit-slot"><span class="fit-amount" style="--chars: 5">$1.00</span></span>
+                        <span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars: 10">89,500 LBP</span></span>
+                      </div>
+                    </div>
+                    <div class="qty">
+                      <button type="button" aria-label="-">−</button>
+                      <input class="qty__input" value="2" />
+                      <button type="button" aria-label="+">+</button>
+                    </div>
+                    <div class="cart-line__total">
+                      <span class="fit-slot"><span class="fit-amount" style="--chars: 5">$2.00</span></span>
+                      <span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars: 10">179,000 LBP</span></span>
+                    </div>
+                    <div class="cart-line__actions"><button type="button" class="btn btn--ghost btn--sm" aria-label="Remove">×</button></div>
+                  </div>
+                  <div class="cart-line">
+                    <span class="cart-line__img cart-line__img--empty"></span>
+                    <div class="cart-line__info">
+                      <div class="cart-line__name">Samsung Galaxy S Ultra Enterprise Edition 1TB</div>
+                      <div class="cart-line__meta">
+                        <span class="fit-slot"><span class="fit-amount" style="--chars: 13">$9,999,999.99</span></span>
+                        <span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars: 19">895,000,000,000 LBP</span></span>
+                      </div>
+                    </div>
+                    <div class="qty">
+                      <button type="button" aria-label="-">−</button>
+                      <input class="qty__input" value="9999" />
+                      <button type="button" aria-label="+">+</button>
+                    </div>
+                    <div class="cart-line__total">
+                      <span class="fit-slot"><span class="fit-amount" style="--chars: 13">$9,999,999.99</span></span>
+                      <span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars: 19">895,000,000,000 LBP</span></span>
+                    </div>
+                    <div class="cart-line__actions"><button type="button" class="btn btn--ghost btn--sm" aria-label="Remove">×</button></div>
+                  </div>
+                </div>
+              </div>
+              <footer class="cart-foot">
+                <div class="cart-foot__row">
+                  <span>Subtotal</span>
+                  <span class="cart-foot__money">
+                    <span class="fit-slot"><span class="fit-amount" style="--chars: 13">$9,999,999.99</span></span>
+                    <span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars: 19">895,000,000,000 LBP</span></span>
+                  </span>
+                </div>
+                <div class="cart-foot__total">
+                  <span>Total</span>
+                  <span class="cart-foot__money">
+                    <span class="fit-slot"><span class="fit-amount" style="--chars: 13">$9,999,999.99</span></span>
+                    <span class="fit-slot"><span class="fit-amount fit-amount--sub" style="--chars: 19">895,000,000,000 LBP</span></span>
+                  </span>
+                </div>
+                <div class="cart-foot__actions">
+                  <button type="button" class="btn btn--secondary btn--md"><span>Save cart</span></button>
+                  <button type="button" class="btn btn--primary btn--md"><span>Checkout</span></button>
+                </div>
+              </footer>
+            </section>
+
+            <section class="pos__checkout">
+              <div class="payment" id="payment">
+                <div class="payment__totals">
+                  <div class="payment__kicker">Total</div>
+                  <div class="payment__total-line">
+                    <span class="fit-slot"><span class="fit-amount" style="--chars: 13">$9,999,999.99</span></span>
+                    <span class="fit-slot"><span class="fit-amount fit-amount--sub" style="--chars: 19">895,000,000,000 LBP</span></span>
+                  </div>
+                </div>
+                <div class="segmented">
+                  <button type="button" class="segmented__item segmented__item--active">Cash</button>
+                  <button type="button" class="segmented__item">Credit</button>
+                </div>
+                <div class="payment__block">
+                  <div class="payment__kicker">Cash received</div>
+                  <div class="payment__pair">
+                    <label class="payment__money"><span>USD</span><input id="received-usd" class="input" dir="ltr" value="10000000.00" style="--chars: 11" /></label>
+                    <label class="payment__money"><span>LBP</span><input id="received-lbp" class="input" dir="ltr" value="895,000,000,000" style="--chars: 15" /></label>
+                  </div>
+                </div>
+                <div class="payment__block payment__block--change">
+                  <div class="payment__change-head">
+                    <div class="payment__kicker">Change</div>
+                    <div class="payment__quick">
+                      <button type="button" title="Return all change in USD">All USD</button>
+                      <button type="button" title="Return all change in LBP">All LBP</button>
+                    </div>
+                  </div>
+                  <div class="payment__change-eq">
+                    <span class="fit-slot"><span class="fit-amount fit-amount--good" style="--chars: 4">$0.01</span></span>
+                    <span class="fit-slot"><span class="fit-amount fit-amount--sub" style="--chars: 15">895,000,000 LBP</span></span>
+                  </div>
+                  <div class="payment__pair">
+                    <label class="payment__money"><span>USD</span><input id="change-usd" class="input" dir="ltr" value="0.01" style="--chars: 4" /></label>
+                    <label class="payment__money"><span>LBP</span><input id="change-lbp" class="input" dir="ltr" value="895,000,000" style="--chars: 11" /></label>
+                  </div>
+                </div>
+                <div class="payment__finish">
+                  <label class="payment__note"><span>Note (optional)</span><input id="sale-note" class="input" placeholder="Add note..." value="Deliver at 5 PM" /></label>
+                  <button type="button" id="complete-sale" class="btn btn--success btn--lg btn--block"><span>Complete sale</span> F9</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const params = new URLSearchParams(location.search);
+      if (params.get('dir') === 'rtl') {
+        document.documentElement.lang = 'ar';
+        document.documentElement.dir = 'rtl';
+        const text = {
+          Products: 'المنتجات',
+          'Cart (2)': 'السلة (2)',
+          Checkout: 'الدفع',
+          All: 'الكل',
+          '40 in stock': 'المتوفر 40',
+          '999,999 in stock': 'المتوفر 999,999',
+          Products: 'المنتجات',
+          Sales: 'المبيعات',
+          Electronics: 'إلكترونيات',
+          'Very Long Category Name For Layout Testing': 'اسم تصنيف طويل جداً لاختبار التخطيط',
+          'Clear cart': 'تفريغ السلة',
+          'Price tier': 'شريحة السعر',
+          Retail: 'تجزئة',
+          Currency: 'العملة',
+          Customer: 'الزبون',
+          Subtotal: 'المجموع الفرعي',
+          Total: 'المجموع',
+          'Save cart': 'حفظ السلة',
+          'Cash received': 'المبلغ المستلم',
+          Change: 'الباقي',
+          Cash: 'نقدي',
+          Credit: 'آجل',
+          'Complete sale': 'إتمام البيع',
+          'All USD': 'كل الدولار',
+          'All LBP': 'كل الليرة',
+          'Note (optional)': 'ملاحظة (اختياري)',
+        };
+        document.querySelectorAll('button span, .picker__cat span, .payment__kicker, .cart-foot span, label, h2, option').forEach((node) => {
+          const value = node.textContent.trim();
+          if (text[value]) node.textContent = text[value];
+        });
+        document.querySelector('[data-tab="cart"]').textContent = 'السلة (2)';
+        document.querySelector('.cart-head h2').textContent = 'السلة (2)';
+      }
+      const scroller = document.getElementById('cat-scroller');
+      const prev = document.getElementById('cat-prev');
+      const next = document.getElementById('cat-next');
+      if (params.get('cats') === 'many') {
+        for (let i = 1; i <= 20; i++) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'picker__cat';
+          button.title = 'Category ' + i;
+          button.innerHTML = '<span>Category ' + i + '</span>';
+          scroller.appendChild(button);
+        }
+      }
+      const catPos = () => {
+        const max = scroller.scrollWidth - scroller.clientWidth;
+        const rtl = getComputedStyle(scroller).direction === 'rtl';
+        const pos = rtl && scroller.scrollLeft <= 0 ? -scroller.scrollLeft : scroller.scrollLeft;
+        return { max, rtl, pos };
+      };
+      const syncArrows = () => {
+        const { max, rtl, pos } = catPos();
+        const overflow = max > 2;
+        prev.hidden = next.hidden = !overflow;
+        prev.disabled = rtl ? pos >= max - 2 : pos <= 2;
+        next.disabled = rtl ? pos <= 2 : pos >= max - 2;
+      };
+      const moveCats = (direction) => {
+        const { max, rtl } = catPos();
+        const step = direction * Math.max(160, scroller.clientWidth * 0.7);
+        const pos = Math.max(0, Math.min(max, catPos().pos + step));
+        scroller.scrollTo({ left: rtl ? -pos : pos, behavior: 'auto' });
+        syncArrows();
+      };
+      prev.addEventListener('click', () => moveCats(getComputedStyle(scroller).direction === 'rtl' ? 1 : -1));
+      next.addEventListener('click', () => moveCats(getComputedStyle(scroller).direction === 'rtl' ? -1 : 1));
+      scroller.addEventListener('scroll', syncArrows);
+      document.getElementById('nav-toggle').addEventListener('click', () => {
+        const app = document.querySelector('.app');
+        const collapsed = app.classList.toggle('app--sidebar-collapsed');
+        document.getElementById('nav-toggle').setAttribute('aria-expanded', String(!collapsed));
+      });
+      requestAnimationFrame(syncArrows);
+      document.querySelectorAll('[data-tab]').forEach((button) => {
+        button.addEventListener('click', () => {
+          document.getElementById('pos').className = 'pos pos--' + button.dataset.tab;
+          document.querySelectorAll('[data-tab]').forEach((item) => item.classList.toggle('segmented__item--active', item === button));
+        });
+      });
+    </script>
+  </body>
+</html>

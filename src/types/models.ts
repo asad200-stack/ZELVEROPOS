@@ -183,9 +183,12 @@ export interface SaleItem {
 export type SaleKind = 'cash' | 'credit';
 
 export interface SalePayment {
-  /** Money physically received into the drawer for this sale. */
+  /** Bills and coins the customer handed over. */
   receivedUsdCents: number;
   receivedLbp: number;
+  /** Change handed back. The drawer moves by received minus these amounts. */
+  changeUsdCents?: number;
+  changeLbp?: number;
   /** Credit sales and debt lines. */
   previousDebtUsdCents: number;
   settledPreviousUsdCents: number;
@@ -209,6 +212,10 @@ export interface Sale {
   costUsdCents: number;
   customerId: string | null;
   customerName: string;
+  /** Cashier label for the order, such as "Johnny" or "Table 4". Separate from the customer. */
+  orderLabel: string;
+  /** Optional sale note. Empty when the cashier left it blank. */
+  note: string;
   payment: SalePayment;
   returnedUsdCents: number;
   returnedDebtUsdCents: number;

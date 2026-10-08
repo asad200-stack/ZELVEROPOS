@@ -19,7 +19,7 @@ import { adjustDrawer, listCashTransactions, recordCashMove, type CashMoveType }
 import { AppError } from '@/services/errors';
 import type { CashTxType } from '@/types/models';
 import { downloadCsv } from '@/utils/csv';
-import { formatDateTime, formatLbp, formatUsd } from '@/utils/format';
+import { formatDateTime, formatLbp, formatNumber, formatUsd } from '@/utils/format';
 
 const CASH_TX_LABEL: Record<CashTxType, TranslationKey> = {
   sale: 'cash.type.sale',
@@ -84,7 +84,7 @@ export default function CashboxPage() {
       <div className="stats">
         <StatCard icon="dollar" tone="success" label={t('cash.balanceUsd')} value={formatUsd(cashbox.data.usdCents)} />
         <StatCard icon="wallet" tone="info" label={t('cash.balanceLbp')} value={formatLbp(cashbox.data.lbp, lang)} />
-        <StatCard icon="chart" label={t('cash.combined')} value={formatUsd(combined)} sub={t('cash.atRate', { rate: settings.exchangeRate.toLocaleString('en-US') })} />
+        <StatCard icon="chart" label={t('cash.combined')} value={formatUsd(combined)} sub={t('cash.atRate', { rate: formatNumber(settings.exchangeRate) })} />
       </div>
 
       <Toolbar>

@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { priceCart, type Cart } from '@/domain/cart';
+import { emptyCartDraft, priceCart, type Cart } from '@/domain/cart';
 import { product } from '@/domain/fixtures.test-utils';
 import { sdkEncode, withoutUndefined } from '@/services/callableData';
 import type { CheckoutCall, CheckoutResponse } from '@/services/functionsClient';
@@ -52,11 +52,14 @@ function fakeServer() {
 function cartOf(saleId: string, lines: Partial<Cart['lines'][number]>[] = [{}]): Cart {
   return {
     id: '1',
+    label: '',
+    note: '',
     tier: 'retail',
     currency: 'USD',
     customerId: null,
     debtLineUsdCents: null,
     saleId,
+    draft: emptyCartDraft(),
     lines: lines.map((l, i) => ({ key: String(i), productId: 'p1', name: 'Phone case', tier: 'retail', quantity: 1, customUsdCents: null, imei: null, ...l })),
   };
 }

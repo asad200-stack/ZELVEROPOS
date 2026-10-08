@@ -18,12 +18,30 @@
 }
 
 .sidebar__brand {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   height: var(--topbar-h);
-  padding: 0 18px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--c-border);
+}
+
+.sidebar__toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--c-text);
+}
+
+.sidebar__toggle:hover {
+  background: var(--c-surface-2);
 }
 
 .sidebar__logo {
@@ -61,6 +79,7 @@
 }
 
 .sidebar__user {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -77,6 +96,7 @@
 }
 
 .nav-link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -96,8 +116,10 @@
   text-decoration: none;
 }
 
-.nav-link .icon {
+.nav-link .icon,
+.nav-link b {
   color: var(--c-text-muted);
+  font-weight: 700;
 }
 
 .nav-link--active {
@@ -106,7 +128,8 @@
   font-weight: 650;
 }
 
-.nav-link--active .icon {
+.nav-link--active .icon,
+.nav-link--active b {
   color: var(--c-primary);
 }
 
@@ -143,6 +166,14 @@
   background: transparent;
 }
 
+.topbar__start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
 .topbar__title {
   flex: 1;
   min-width: 0;
@@ -150,6 +181,121 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.topbar:has(.cash-chip) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  justify-items: center;
+}
+
+.topbar:has(.cash-chip) .topbar__start {
+  justify-self: start;
+  width: 100%;
+}
+
+.topbar:has(.cash-chip) .topbar__actions {
+  justify-self: end;
+}
+
+.cash-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-width: 0;
+  height: 32px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.cash-chip__name {
+  color: var(--c-text-muted);
+  white-space: nowrap;
+}
+
+.cash-chip__money {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.cash-chip__amt {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cash-chip__amt span {
+  color: var(--c-text-muted);
+  font-size: 0.68rem;
+}
+
+.cash-chip__amt b {
+  min-width: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: clamp(0.62rem, calc(10.5rem / var(--chars, 8)), 0.78rem);
+}
+
+.cash-chip__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--c-text-muted);
+}
+
+.cash-chip__more:hover,
+.cash-chip__more[aria-expanded='true'] {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+.cash-chip__menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  inset-inline-end: 0;
+  min-width: 148px;
+  padding: 4px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.cash-chip__menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: start;
+}
+
+.cash-chip__menu button:hover {
+  background: var(--c-surface-2);
 }
 
 .topbar__actions {
@@ -236,7 +382,48 @@ button.topbar__chip {
   gap: 8px;
 }
 
+@media (min-width: 961px) {
+  .sidebar {
+    transition: width 0.18s ease;
+  }
+
+  .app--sidebar-collapsed .sidebar {
+    width: var(--sidebar-rail);
+    overflow: hidden;
+  }
+
+  .app--sidebar-collapsed .sidebar__brand,
+  .app--sidebar-collapsed .nav-link,
+  .app--sidebar-collapsed .sidebar__user {
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+  }
+
+  .app--sidebar-collapsed .sidebar__logo {
+    display: none;
+  }
+
+  .app--sidebar-collapsed .sidebar__title,
+  .app--sidebar-collapsed .nav-link > span,
+  .app--sidebar-collapsed .sidebar__user > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
 @media (max-width: 960px) {
+  .sidebar__toggle {
+    display: none;
+  }
+
   .sidebar {
     position: fixed;
     inset-block: 0;
@@ -275,6 +462,38 @@ button.topbar__chip {
   .topbar {
     padding: 0 12px;
   }
+
+  .topbar:has(.cash-chip) {
+    height: auto;
+    min-height: var(--topbar-h);
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "start actions" "chip chip";
+    row-gap: 6px;
+    padding-block: 8px;
+  }
+
+  .topbar:has(.cash-chip) .topbar__start {
+    grid-area: start;
+  }
+
+  .topbar:has(.cash-chip) .topbar__actions {
+    grid-area: actions;
+  }
+
+  .topbar:has(.cash-chip) .cash-chip {
+    grid-area: chip;
+    justify-self: center;
+    width: auto;
+    max-width: 100%;
+  }
+
+  .cash-chip {
+    gap: 6px;
+    padding-inline-start: 8px;
+  }
+
+  .cash-chip__name {
+    display: none;
 
   .topbar__chip {
     padding: 0 7px;

@@ -64,8 +64,12 @@ export interface SaleSnapshot {
   debtLineUsdCents: number | null;
   customerId: string | null;
   customerName: string;
+  orderLabel?: string;
+  note?: string;
   /** Cash physically taken from the customer (NOT yet in the official drawer until synced). */
   received: { usdCents: number; lbp: number };
+  /** Change handed back. Older queued sales omit it. */
+  change?: { usdCents: number; lbp: number };
   cashierName: string;
 }
 

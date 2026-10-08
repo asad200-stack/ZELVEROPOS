@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { STORAGE_KEYS } from '@/constants/app';
-import type { Cart } from '@/domain/cart';
+import { emptyCartDraft, normalizeCart, type Cart } from '@/domain/cart';
 import { paths } from '@/services/db';
 import type { Currency } from '@/types/models';
 import { PRICE_TIERS } from '@/types/models';
@@ -8,15 +8,18 @@ import { PRICE_TIERS } from '@/types/models';
 export const MAX_CARTS = 10;
 
 function newCart(tenantId: string, currency: Currency, id: string): Cart {
-  return {
+  return normalizeCart({
     id,
+    label: '',
+    note: '',
     tier: 'retail',
     currency,
     customerId: null,
     lines: [],
     debtLineUsdCents: null,
     saleId: paths.newId(tenantId, 'sales'),
-  };
+    draft: emptyCartDraft(),
+  });
 }
 
 function isCart(value: unknown): value is Cart {
@@ -44,7 +47,7 @@ function load(tenantId: string, uid: string, currency: Currency): PosState {
     const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw) as PosState;
-      const carts = Array.isArray(parsed.carts) ? parsed.carts.filter(isCart).slice(0, MAX_CARTS) : [];
+      const carts = Array.isArray(parsed.carts) ? parsed.carts.filter(isCart).slice(0, MAX_CARTS).map(normalizeCart) : [];
       if (carts.length) return { key, carts, active: Math.min(Math.max(0, Number(parsed.active) || 0), carts.length - 1) };
     }
   } catch {
@@ -101,6 +104,11 @@ export function usePosCarts(tenantId: string, uid: string, defaultCurrency: Curr
 
   const setActive = useCallback((index: number) => setState((s) => ({ ...s, active: index })), []);
 
+  const renameCart = useCallback((id: string, label: string) => {
+    const next = label.trim().slice(0, 40);
+    setState((s) => ({ ...s, carts: s.carts.map((c) => (c.id === id ? { ...c, label: next } : c)) }));
+  }, []);
+
   /** Clears the active cart after a completed sale and issues a NEW idempotency key. */
   const resetActive = useCallback(() => {
     setState((s) => {
@@ -116,7 +124,7 @@ export function usePosCarts(tenantId: string, uid: string, defaultCurrency: Curr
    * idempotency key. Returns false (nothing changed) when every cart slot is taken.
    */
   const openInCart = useCallback(
-    (content: Pick<Cart, 'tier' | 'currency' | 'customerId' | 'lines' | 'debtLineUsdCents'>): boolean => {
+    (content: Pick<Cart, 'tier' | 'currency' | 'customerId' | 'lines' | 'debtLineUsdCents'> & Partial<Pick<Cart, 'label' | 'note'>>): boolean => {
       const s = state;
       const current = s.carts[s.active];
       if (current && current.lines.length === 0) {
@@ -135,5 +143,5 @@ export function usePosCarts(tenantId: string, uid: string, defaultCurrency: Curr
     [tenantId, state],
   );
 
-  return { carts: state.carts, active: state.active, cart, update, addCart, removeCart, setActive, resetActive, openInCart };
+  return { carts: state.carts, active: state.active, cart, update, addCart, removeCart, setActive, renameCart, resetActive, openInCart };
 }
