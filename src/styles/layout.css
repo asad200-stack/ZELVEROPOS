@@ -494,6 +494,7 @@ button.topbar__chip {
 
   .cash-chip__name {
     display: none;
+  }
 
   .topbar__chip {
     padding: 0 7px;
