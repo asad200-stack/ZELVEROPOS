@@ -34,6 +34,9 @@ service-account*.json
 .DS_Store
 Thumbs.db
 
+# Migration checkpoints (search-key backfill progress)
+.migrate/
+
 # Build output
 dist/
 build/
