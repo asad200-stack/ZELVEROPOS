@@ -274,11 +274,11 @@ for (const tenantId of tenants) {
       if (!pageToken) break;
     }
   }
-  checkpoint.tenantsDone = [...new Set([...(checkpoint.tenantsDone || []), tenantId])];
+  if (apply) checkpoint.tenantsDone = [...new Set([...(checkpoint.tenantsDone || []), tenantId])];
   checkpoint.tenant = '';
   checkpoint.collection = '';
   checkpoint.pageToken = '';
-  saveCheckpoint(checkpoint);
+  if (apply) saveCheckpoint(checkpoint);
   report.tenants[tenantId] = {
     subdomain: label.subdomain,
     note: label.subdomain === 'techstore01' ? 'production-store-not-test' : label.subdomain === 'zelvero-prod-test' ? 'TEST' : '',
