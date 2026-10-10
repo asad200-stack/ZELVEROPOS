@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useDeferredValue, useState } from 'react';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
 import { initialRange } from '@/domain/dates';
@@ -8,38 +8,46 @@ import { clickableRow } from '@/components/ui/clickableRow';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useTenant } from '@/contexts/session';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { useAsyncData } from '@/hooks/useAsyncData';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
-import { useCustomers } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
+import { pageCustomers } from '@/services/catalogQuery';
 import { AppError } from '@/services/errors';
+import { loadDailyStats, netFigures, sumStats } from '@/services/reportService';
 import { findSaleByInvoice, listSales } from '@/services/salesService';
 import type { Sale, SaleKind } from '@/types/models';
 import { downloadCsv } from '@/utils/csv';
 import { formatDateTime, formatLbp, formatUsd } from '@/utils/format';
 import { SaleDetailsModal } from './SaleDetailsModal';
+import { useSalesWindow } from './useSalesWindow';
 
 export default function SalesPage() {
   const { t, lang } = useI18n();
   const { tenantId } = useTenant();
-  const customers = useCustomers().data;
   const [range, setRange] = useState(() => initialRange('today'));
   const [kind, setKind] = useState<SaleKind | 'all'>('all');
   const [customerId, setCustomerId] = useState('');
   const [invoice, setInvoice] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const deferredCustomer = useDeferredValue(customerSearch);
+  const fetchCustomers = useCallback(
+    (cursor: QueryDocumentSnapshot | null) => pageCustomers(tenantId, { search: deferredCustomer }, cursor),
+    [tenantId, deferredCustomer],
+  );
+  const customers = usePagedQuery(`${tenantId}|sales-customers|${deferredCustomer}`, fetchCustomers);
   const [selected, setSelected] = useState<Sale | null>(null);
   const search = useAsyncAction('sales-search');
 
   const fetchPage = useCallback(
-    (cursor: QueryDocumentSnapshot | null) =>
+    (cursor: { localDate: string; createdAtMs: number; id: string } | null) =>
       listSales(tenantId, { from: range.from, to: range.to, kind, customerId: customerId || null }, cursor),
     [tenantId, range.from, range.to, kind, customerId],
   );
-  const sales = usePagedQuery(`${tenantId}|${range.from}|${range.to}|${kind}|${customerId}`, fetchPage);
-
-  const totals = sales.items.reduce(
-    (acc, s) => ({ total: acc.total + s.totalUsdCents - s.returnedUsdCents, count: acc.count + 1 }),
-    { total: 0, count: 0 },
+  const sales = useSalesWindow(`${tenantId}|${range.from}|${range.to}|${kind}|${customerId}`, fetchPage);
+  const period = useAsyncData(!customerId && kind === 'all' ? `${tenantId}|sales-period|${range.from}|${range.to}` : null, () =>
+    loadDailyStats(tenantId, range.from, range.to),
   );
+  const periodTotal = period.data ? sumStats(period.data) : null;
 
   const exportCsv = () =>
     downloadCsv(
@@ -62,10 +70,14 @@ export default function SalesPage() {
     <div className="page">
       <PageHeader
         title={t('nav.sales')}
-        subtitle={t('sales.summary', { count: totals.count, total: formatUsd(totals.total) })}
+        subtitle={
+          periodTotal
+            ? t('sales.summary', { count: periodTotal.salesCount, total: formatUsd(netFigures(periodTotal).netRevenue) })
+            : t('sales.pageSummary', { count: sales.items.length })
+        }
         actions={
           <Button variant="secondary" icon="download" onClick={exportCsv} disabled={sales.items.length === 0}>
-            {t('common.exportCsv')}
+            {t('sales.exportPage')}
           </Button>
         }
       />
@@ -76,9 +88,10 @@ export default function SalesPage() {
           <option value="cash">{t('pos.cash')}</option>
           <option value="credit">{t('pos.credit')}</option>
         </select>
+        <input className="input" value={customerSearch} placeholder={t('sales.allCustomers')} aria-label={t('pos.customer')} onChange={(e) => setCustomerSearch(e.target.value)} />
         <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} aria-label={t('pos.customer')}>
           <option value="">{t('sales.allCustomers')}</option>
-          {customers.map((c) => (
+          {customers.items.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -101,16 +114,22 @@ export default function SalesPage() {
         </form>
       </Toolbar>
 
-      {sales.error ? (
+      {sales.error && sales.items.length === 0 ? (
         <Alert tone="error" onRetry={sales.reload} retryLabel={t('common.retry')}>
           {t('error.loadFailed')}
         </Alert>
       ) : sales.loading ? (
         <PageLoader />
-      ) : sales.items.length === 0 ? (
+      ) : sales.items.length === 0 && !sales.refreshing ? (
         <EmptyState icon="receipt" title={t('sales.empty')} />
       ) : (
         <>
+          {sales.error && (
+            <Alert tone="error" onRetry={sales.reload} retryLabel={t('common.retry')}>
+              {t('error.loadFailed')}
+            </Alert>
+          )}
+          <div className={sales.refreshing ? 'sales-page sales-page--refresh' : 'sales-page'}>
           <TableWrap>
             <table className="table">
               <thead>
@@ -152,13 +171,15 @@ export default function SalesPage() {
               </tbody>
             </table>
           </TableWrap>
-          {sales.hasMore && (
-            <div className="load-more">
-              <Button variant="secondary" loading={sales.loadingMore} onClick={() => void sales.loadMore()}>
-                {t('common.loadMore')}
-              </Button>
-            </div>
-          )}
+          <div className="load-more">
+            <Button variant="secondary" disabled={sales.refreshing || !sales.hasPrevious} onClick={sales.previous}>
+              {t('sales.previous')}
+            </Button>
+            <Button variant="secondary" disabled={sales.refreshing || !sales.hasMore} onClick={sales.next}>
+              {t('sales.next')}
+            </Button>
+          </div>
+          </div>
         </>
       )}
 

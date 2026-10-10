@@ -11,6 +11,7 @@ import {
 import { PAGE_SIZE } from '@/constants/app';
 import type { CashTransaction, CashTxType } from '@/types/models';
 import { paths, toCashTransaction } from './db';
+import { newClientOperationId, retryOnTransport } from './clientOperation';
 import { AppError } from './errors';
 import { posApi } from './functionsClient';
 import { requireOnline } from './ops';
@@ -32,23 +33,31 @@ export async function recordCashMove(input: CashMoveInput): Promise<void> {
   const usdCents = Math.max(0, Math.round(input.usdCents));
   const lbp = Math.max(0, Math.round(input.lbp));
   if (usdCents === 0 && lbp === 0) throw new AppError('error.invalidAmount');
-  await posApi.cashMove({
-    type: input.type,
-    usdCents,
-    lbp,
-    category: input.category.trim().slice(0, 60),
-    note: input.note.trim().slice(0, 300),
-  });
+  const clientOperationId = newClientOperationId();
+  await retryOnTransport(() =>
+    posApi.cashMove({
+      clientOperationId,
+      type: input.type,
+      usdCents,
+      lbp,
+      category: input.category.trim().slice(0, 60),
+      note: input.note.trim().slice(0, 300),
+    }),
+  );
 }
 
 /** Owner-only: sets the drawer to the counted amounts, recording the difference as an adjustment. */
 export async function adjustDrawer(counted: { usdCents: number; lbp: number }, note: string): Promise<void> {
   requireOnline();
-  await posApi.adjustDrawer({
-    usdCents: Math.max(0, Math.round(counted.usdCents)),
-    lbp: Math.max(0, Math.round(counted.lbp)),
-    note: note.trim().slice(0, 300),
-  });
+  const clientOperationId = newClientOperationId();
+  await retryOnTransport(() =>
+    posApi.adjustDrawer({
+      clientOperationId,
+      usdCents: Math.max(0, Math.round(counted.usdCents)),
+      lbp: Math.max(0, Math.round(counted.lbp)),
+      note: note.trim().slice(0, 300),
+    }),
+  );
 }
 
 export interface CashFilter {
@@ -74,9 +83,3 @@ export async function listCashTransactions(
   };
 }
 
-export async function loadCashRange(tenantId: string, from: string, to: string, type?: CashTxType): Promise<CashTransaction[]> {
-  const constraints: QueryConstraint[] = [where('localDate', '>=', from), where('localDate', '<=', to)];
-  if (type) constraints.push(where('type', '==', type));
-  const snap = await getDocs(query(paths.col(tenantId, 'cashTransactions'), ...constraints, limit(5000)));
-  return snap.docs.map((d) => toCashTransaction(d.id, d.data()));
-}

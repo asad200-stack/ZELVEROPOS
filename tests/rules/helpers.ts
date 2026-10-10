@@ -65,6 +65,9 @@ export async function seedTenant(env: RulesTestEnvironment, t = T) {
     const fs = ctx.firestore() as unknown as Firestore;
     const now = Timestamp.now();
     await setDoc(doc(fs, `users/${t}`), { uid: t, role: 'owner', tenantId: t, isActive: true, fullName: 'Owner', claimsVersion: 1 });
+    for (const uid of ['cashier', 'editor', 'clerk', 'buyer', 'rep', 'deleter', 'staff']) {
+      await setDoc(doc(fs, `users/${uid}`), { uid, role: 'subUser', tenantId: t, isActive: true, fullName: uid, claimsVersion: 1 });
+    }
     await setDoc(doc(fs, `subscriptions/${t}`), { activated: true, lifetime: false, endsAt: Timestamp.fromMillis(Date.now() + 30 * DAY) });
     await setDoc(doc(fs, tp(t, 'settings', 'main')), { storeName: 'Store', updatedAt: now });
     await setDoc(doc(fs, tp(t, 'private', 'telegram')), { botToken: 'secret', chatId: '123' });

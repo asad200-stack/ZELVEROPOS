@@ -38,7 +38,7 @@ export type SubscriptionAction =
   | { action: 'lifetime' }
   | { action: 'deactivate' };
 
-type Ok = { ok: true };
+type Ok = { ok: true; duplicate?: boolean };
 type Tier = 'retail' | 'wholesale' | 'vip';
 type TierPriceInput = { usdCents: number; lbp: number | null };
 type PricesInput = { retail: TierPriceInput; wholesale: TierPriceInput; vip: TierPriceInput };
@@ -102,8 +102,8 @@ export interface ImportRowCall {
 export const posApi = {
   checkout: callable<CheckoutCall, CheckoutResponse>('posCheckout'),
   processReturn: callable<
-    { saleId: string; lines: { index: number; quantity: number }[]; reason: string },
-    { saleReturn: Record<string, unknown> & { id: string } }
+    { clientOperationId: string; saleId: string; lines: { index: number; quantity: number }[]; reason: string },
+    { saleReturn: Record<string, unknown> & { id: string }; duplicate: boolean }
   >('posReturn'),
   createProduct: callable<{ product: ProductFieldsCall; initialStock: number; initialImeis: string[] }, { id: string }>('posCreateProduct'),
   importProducts: callable<{ rows: ImportRowCall[] }, { imported: number }>('posImportProducts'),
@@ -111,6 +111,7 @@ export const posApi = {
   deleteProduct: callable<{ productId: string }, Ok>('posDeleteProduct'),
   adjustStock: callable<
     {
+      clientOperationId: string;
       productId: string;
       mode: 'add' | 'remove' | 'set';
       quantity: number;
@@ -124,19 +125,32 @@ export const posApi = {
   >('posAdjustStock'),
   createCustomer: callable<
     {
+      clientOperationId: string;
       customer: { name: string; phone: string; email: string; address: string; creditLimitUsdCents: number };
       openingDebtUsdCents: number;
     },
-    { id: string }
+    { id: string; duplicate: boolean }
   >('posCreateCustomer'),
-  payDebt: callable<{ customerId: string; usdCents: number; lbp: number; rate: number; note: string }, Ok>('posPayDebt'),
-  adjustDebt: callable<{ customerId: string; newDebtUsdCents: number; note: string }, Ok>('posAdjustDebt'),
-  cashMove: callable<{ type: 'deposit' | 'expense' | 'withdrawal'; usdCents: number; lbp: number; category: string; note: string }, Ok>(
-    'posCashMove',
-  ),
-  adjustDrawer: callable<{ usdCents: number; lbp: number; note: string }, Ok>('posAdjustDrawer'),
+  payDebt: callable<
+    { clientOperationId: string; customerId: string; usdCents: number; lbp: number; rate: number; note: string },
+    Ok
+  >('posPayDebt'),
+  adjustDebt: callable<{ clientOperationId: string; customerId: string; newDebtUsdCents: number; note: string }, Ok>('posAdjustDebt'),
+  cashMove: callable<
+    {
+      clientOperationId: string;
+      type: 'deposit' | 'expense' | 'withdrawal';
+      usdCents: number;
+      lbp: number;
+      category: string;
+      note: string;
+    },
+    Ok
+  >('posCashMove'),
+  adjustDrawer: callable<{ clientOperationId: string; usdCents: number; lbp: number; note: string }, Ok>('posAdjustDrawer'),
   createPurchase: callable<
     {
+      clientOperationId: string;
       supplierId: string;
       date: string;
       dueDate: string | null;
@@ -146,15 +160,24 @@ export const posApi = {
       payFromCashbox: boolean;
       note: string;
     },
-    { id: string }
+    { id: string; duplicate: boolean }
   >('posCreatePurchase'),
   paySupplier: callable<
-    { supplierId: string; currency: 'USD' | 'LBP'; amount: number; rate: number; method: 'cash' | 'card' | 'transfer' | 'other'; note: string },
+    {
+      clientOperationId: string;
+      supplierId: string;
+      currency: 'USD' | 'LBP';
+      amount: number;
+      rate: number;
+      method: 'cash' | 'card' | 'transfer' | 'other';
+      note: string;
+    },
     Ok
   >('posPaySupplier'),
-  returnToSupplier: callable<{ purchaseId: string; lines: { index: number; quantity: number }[]; note: string }, Ok>(
-    'posReturnToSupplier',
-  ),
+  returnToSupplier: callable<
+    { clientOperationId: string; purchaseId: string; lines: { index: number; quantity: number }[]; note: string },
+    Ok
+  >('posReturnToSupplier'),
 };
 
 export const api = {

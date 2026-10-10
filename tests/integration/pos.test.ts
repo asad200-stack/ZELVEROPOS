@@ -1,5 +1,5 @@
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { collection, doc, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   asAdmin,
@@ -14,6 +14,7 @@ import {
   readDoc,
   readWhere,
   seedTenant,
+  settleUntil,
   T,
   tp,
   type SeedProfile,
@@ -222,6 +223,26 @@ describe('posCheckout', () => {
     await seed({ subscriptionEndsAt: Date.now() - DAY });
     expect((await call(tokens.cashier!, 'posCheckout', cashSale())).error?.key).toBe('error.fn.subscriptionInactive');
     expect(await stock()).toBe(10);
+  });
+
+  it('same-id retry recovers a committed sale after disable or subscription end, without a second write', async () => {
+    const sale = cashSale();
+    await callOk(tokens.cashier!, 'posCheckout', sale);
+    await asAdmin(env, (fs) => updateDoc(doc(fs, 'users/cashier'), { isActive: false }));
+    const afterDisable = await callOk<{ duplicate: boolean; sale: { invoiceNumber: string } }>(tokens.cashier!, 'posCheckout', sale);
+    expect(afterDisable.duplicate).toBe(true);
+    expect(afterDisable.sale.invoiceNumber).toBe('INV-005');
+    expect(await stock()).toBe(8);
+    expect((await call(tokens.cashier!, 'posCheckout', cashSale())).error?.key).toBe('error.userInactive');
+
+    await asAdmin(env, async (fs) => {
+      await updateDoc(doc(fs, 'users/cashier'), { isActive: true });
+      await updateDoc(doc(fs, `subscriptions/${T}`), { endsAt: Timestamp.fromMillis(Date.now() - DAY) });
+    });
+    const afterSub = await callOk<{ duplicate: boolean }>(tokens.cashier!, 'posCheckout', sale);
+    expect(afterSub.duplicate).toBe(true);
+    expect(await stock()).toBe(8);
+    expect((await call(tokens.cashier!, 'posCheckout', cashSale())).error?.key).toBe('error.fn.subscriptionInactive');
   });
 
   it('another tenant cannot sell this tenant’s stock (tenant comes from the token, not the request)', async () => {
@@ -566,9 +587,10 @@ async function checkoutBurst(token: string, data: unknown, index: number, saleId
       signal: AbortSignal.timeout(45_000),
     });
     const text = await res.text();
-    let parsed: { result?: { sale?: { invoiceNumber?: string }; duplicate?: boolean }; error?: { status?: string; message?: string; details?: { key?: string } } } | null = null;
+    type CheckoutBody = { result?: { sale?: { invoiceNumber?: string }; duplicate?: boolean }; error?: { status?: string; message?: string; details?: { key?: string } } };
+    let parsed: CheckoutBody | null = null;
     try {
-      parsed = JSON.parse(text) as typeof parsed;
+      parsed = JSON.parse(text) as CheckoutBody;
     } catch {
       parsed = null;
     }
@@ -605,14 +627,37 @@ describe('concurrent checkout', () => {
     const again = await Promise.all(
       first.filter(toldFailed).map((row) => checkoutBurst(tokens.cashier!, payloads[row.index]!, row.index, row.saleId)),
     );
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
-    const committed = await asAdmin(env, async (fs) => {
-      const snap = await getDocs(collection(fs, tp(T, 'sales')));
-      return new Map(snap.docs.map((d) => [d.id, String(d.data().invoiceNumber ?? '')]));
-    });
     const bySale = new Map<string, { first: Omit<BurstRow, 'committed'>; retry?: Omit<BurstRow, 'committed'> }>();
     for (const row of first) bySale.set(row.saleId, { first: row });
     for (const row of again) bySale.get(row.saleId)!.retry = row;
+    const snap = await settleUntil(async () => {
+      return asAdmin(env, async (fs) => {
+        const [salesSnap, productSnap, boxSnap, moves, cash] = await Promise.all([
+          getDocs(collection(fs, tp(T, 'sales'))),
+          getDoc(doc(fs, tp(T, 'products', 'p1'))),
+          getDoc(doc(fs, tp(T, 'cashbox', 'summary'))),
+          getDocs(query(collection(fs, tp(T, 'stockMovements')), where('type', '==', 'sale'))),
+          getDocs(query(collection(fs, tp(T, 'cashTransactions')), where('type', '==', 'sale'))),
+        ]);
+        return {
+          sales: salesSnap.docs.map((d) => [d.id, String(d.data().invoiceNumber ?? '')] as const),
+          stock: Number(productSnap.data()?.stock),
+          usd: Number(boxSnap.data()?.usdCents),
+          moves: moves.size,
+          moveRefs: moves.docs.map((d) => String(d.data().refId ?? '')),
+          cash: cash.size,
+        };
+      });
+    }, (value) => JSON.stringify(value));
+    const committed = new Map(snap.sales);
+    for (const [saleId, invoice] of committed) {
+      const attempts = bySale.get(saleId);
+      const acked = [attempts?.first, attempts?.retry].some((row) => row && !toldFailed(row) && row.invoice === invoice);
+      if (!acked) {
+        const recovered = await checkoutBurst(tokens.cashier!, payloads[first.find((row) => row.saleId === saleId)!.index]!, 0, saleId);
+        if (attempts) attempts.retry = recovered;
+      }
+    }
     const resolved = [...bySale.entries()].map(([saleId, attempts]) => {
       const ok = [attempts.first, attempts.retry].filter((row) => row && !toldFailed(row));
       return { saleId, committed: committed.has(saleId), invoice: committed.get(saleId) ?? null, clientInvoice: ok[0]?.invoice ?? null, ok: ok.length > 0 };
@@ -628,18 +673,18 @@ describe('concurrent checkout', () => {
         committed: committed.size,
         committedButFailed: committedButFailed.length,
         succeededButMissing: succeededButMissing.length,
+        stock: snap.stock,
+        usd: snap.usd,
       },
     }));
     expect(committedButFailed).toEqual([]);
     expect(succeededButMissing).toEqual([]);
     expect(mismatched).toEqual([]);
     expect(committed.size).toBeGreaterThan(0);
-    expect(await stock()).toBe(50 - committed.size);
-    expect((await drawer()).usdCents).toBe(10_000 + 500 * committed.size);
-    const movements = await readWhere(env, tp(T, 'stockMovements'), 'type', 'sale');
-    const cash = await readWhere(env, tp(T, 'cashTransactions'), 'type', 'sale');
-    expect(movements).toHaveLength(committed.size);
-    expect(cash).toHaveLength(committed.size);
-    expect(new Set(movements.map((row) => row.refId)).size).toBe(committed.size);
+    expect(snap.stock).toBe(50 - committed.size);
+    expect(snap.usd).toBe(10_000 + 500 * committed.size);
+    expect(snap.moves).toBe(committed.size);
+    expect(snap.cash).toBe(committed.size);
+    expect(new Set(snap.moveRefs).size).toBe(committed.size);
   }, 180_000);
 });

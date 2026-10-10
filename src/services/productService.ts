@@ -3,19 +3,26 @@ import {
   arrayUnion,
   getDocs,
   limit,
+  documentId,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
+  startAfter,
   updateDoc,
   where,
   writeBatch,
+  type QueryConstraint,
+  type QueryDocumentSnapshot,
 } from 'firebase/firestore';
+import { nameNormalized } from '@/domain/searchKey';
 import { firebase } from '@/firebase/app';
 import type { Product, ProductStatus, StockMovement, TierPrices } from '@/types/models';
 import { paths, toStockMovement, type Actor } from './db';
+import { newClientOperationId, retryOnTransport } from './clientOperation';
 import { AppError } from './errors';
 import { posApi, type ProductFieldsCall } from './functionsClient';
+import { findProductByBarcode } from './catalogQuery';
 import { requireOnline } from './ops';
 import { deleteStorageFile } from './storageService';
 
@@ -35,11 +42,11 @@ export interface ProductInput {
   initialImeis: string[];
 }
 
-export function assertUniqueBarcode(barcode: string, products: Product[], selfId?: string): void {
+export async function assertUniqueBarcode(tenantId: string, barcode: string, selfId?: string): Promise<void> {
   const code = barcode.trim();
   if (!code) return;
-  const dup = products.find((p) => p.id !== selfId && p.barcode.trim() === code);
-  if (dup) throw new AppError('error.barcodeInUse', { name: dup.name });
+  const dup = await findProductByBarcode(tenantId, code);
+  if (dup && dup.id !== selfId) throw new AppError('error.barcodeInUse', { name: dup.name });
 }
 
 function productFields(input: ProductInput): ProductFieldsCall {
@@ -84,7 +91,11 @@ export async function updateProduct(actor: Actor, id: string, input: ProductInpu
   }
   const t = actor.tenantId;
   const batch = writeBatch(firebase.db);
-  batch.update(paths.doc(t, 'products', id), { ...productFields(input), updatedAt: serverTimestamp() });
+  batch.update(paths.doc(t, 'products', id), {
+    ...productFields(input),
+    nameNormalized: nameNormalized(input.name),
+    updatedAt: serverTimestamp(),
+  });
   if (input.category.trim()) batch.set(paths.categories(t), { names: arrayUnion(input.category.trim()) }, { merge: true });
   await commit(batch);
 }
@@ -139,16 +150,20 @@ export async function adjustStock(input: StockAdjustInput): Promise<void> {
   requireOnline();
   const quantity = Math.floor(input.quantity);
   if (!Number.isFinite(quantity) || quantity < 0) throw new AppError('error.invalidQuantity');
-  await posApi.adjustStock({
-    productId: input.productId,
-    mode: input.mode,
-    quantity,
-    unitCostUsdCents: input.unitCostUsdCents === null ? null : Math.max(0, Math.round(input.unitCostUsdCents)),
-    payFromCashbox: input.payFromCashbox,
-    imeisToAdd: [...new Set(input.imeisToAdd.map((s) => s.trim()).filter(Boolean))],
-    imeisToRemove: input.imeisToRemove,
-    note: input.note.trim().slice(0, 300),
-  });
+  const clientOperationId = newClientOperationId();
+  await retryOnTransport(() =>
+    posApi.adjustStock({
+      clientOperationId,
+      productId: input.productId,
+      mode: input.mode,
+      quantity,
+      unitCostUsdCents: input.unitCostUsdCents === null ? null : Math.max(0, Math.round(input.unitCostUsdCents)),
+      payFromCashbox: input.payFromCashbox,
+      imeisToAdd: [...new Set(input.imeisToAdd.map((s) => s.trim()).filter(Boolean))],
+      imeisToRemove: input.imeisToRemove,
+      note: input.note.trim().slice(0, 300),
+    }),
+  );
 }
 
 export async function listMovements(tenantId: string, productId: string): Promise<StockMovement[]> {
@@ -166,23 +181,32 @@ export async function addCategory(tenantId: string, name: string): Promise<void>
   await setDoc(paths.categories(tenantId), { names: arrayUnion(clean) }, { merge: true });
 }
 
-export async function deleteCategory(tenantId: string, name: string, products: Product[]): Promise<void> {
-  if (products.some((p) => p.category === name)) throw new AppError('error.categoryInUse');
+async function categoryPage(tenantId: string, name: string, cursor: QueryDocumentSnapshot | null, size: number) {
+  const constraints: QueryConstraint[] = [where('category', '==', name), orderBy(documentId()), limit(size)];
+  if (cursor) constraints.push(startAfter(cursor));
+  return getDocs(query(paths.col(tenantId, 'products'), ...constraints));
+}
+
+export async function deleteCategory(tenantId: string, name: string): Promise<void> {
+  const used = await categoryPage(tenantId, name, null, 1);
+  if (!used.empty) throw new AppError('error.categoryInUse');
   await setDoc(paths.categories(tenantId), { names: arrayRemove(name) }, { merge: true });
 }
 
-export async function renameCategory(tenantId: string, from: string, to: string, products: Product[]): Promise<void> {
+export async function renameCategory(tenantId: string, from: string, to: string): Promise<void> {
   requireOnline();
   const clean = to.trim();
   if (!clean) throw new AppError('error.required');
   await setDoc(paths.categories(tenantId), { names: arrayUnion(clean) }, { merge: true });
-  const affected = products.filter((p) => p.category === from);
-  for (let i = 0; i < affected.length; i += 400) {
+  let cursor: QueryDocumentSnapshot | null = null;
+  for (;;) {
+    const snap = await categoryPage(tenantId, from, cursor, 400);
+    if (snap.empty) break;
     const batch = writeBatch(firebase.db);
-    for (const p of affected.slice(i, i + 400)) {
-      batch.update(paths.doc(tenantId, 'products', p.id), { category: clean, updatedAt: serverTimestamp() });
-    }
+    for (const docSnap of snap.docs) batch.update(docSnap.ref, { category: clean, updatedAt: serverTimestamp() });
     await batch.commit();
+    if (snap.size < 400) break;
+    cursor = snap.docs[snap.docs.length - 1] ?? null;
   }
   await setDoc(paths.categories(tenantId), { names: arrayRemove(from) }, { merge: true });
 }

@@ -1,9 +1,9 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { db } from '../admin.js';
 import { fail } from '../errors.js';
 import { lbpToUsdCents } from '../shared/money.js';
+import { emailKey, nameNormalized, phoneKey } from '../shared/searchKey.js';
 import { parse } from '../validate.js';
 import {
   auditFields,
@@ -13,13 +13,14 @@ import {
   idField,
   lbpField,
   noteField,
-  posActor,
+  runClientOp,
   tenantPaths,
   toCashbox,
   toCustomer,
 } from './common.js';
 
 const createSchema = z.object({
+  clientOperationId: idField,
   customer: z.object({
     name: z.string().trim().min(1).max(150),
     phone: z.string().trim().max(40),
@@ -33,41 +34,44 @@ const createSchema = z.object({
 /** Creates a customer with an opening debt (recorded in the ledger). Debt-free customers are created client-side. */
 export const posCreateCustomer = onCall(async (request) => {
   const input = parse(createSchema, request.data);
-  const actor = await posActor(request, ['canViewCustomers']);
-  const p = tenantPaths(actor.tenantId);
-  const atMs = Date.now();
-  const audit = auditFields(actor, atMs);
-  const ref = p.newRef('customers');
-  const ledgerRef = p.newRef('customerLedger');
-  const batch = db.batch();
-  batch.set(ledgerRef, {
-    customerId: ref.id,
-    customerName: input.customer.name,
-    type: 'opening',
-    amountUsdCents: input.openingDebtUsdCents,
-    balanceAfterUsdCents: input.openingDebtUsdCents,
-    paidUsdCents: 0,
-    paidLbp: 0,
-    refId: null,
-    refNumber: null,
-    note: '',
-    ...audit,
+  return runClientOp(request, input.clientOperationId, 'posCreateCustomer', ['canViewCustomers'], async (tx, actor) => {
+    const p = tenantPaths(actor.tenantId);
+    const atMs = Date.now();
+    const audit = auditFields(actor, atMs);
+    const ref = p.newRef('customers');
+    const ledgerRef = p.newRef('customerLedger');
+    tx.set(ledgerRef, {
+      customerId: ref.id,
+      customerName: input.customer.name,
+      type: 'opening',
+      amountUsdCents: input.openingDebtUsdCents,
+      balanceAfterUsdCents: input.openingDebtUsdCents,
+      paidUsdCents: 0,
+      paidLbp: 0,
+      refId: null,
+      refNumber: null,
+      note: '',
+      ...audit,
+    });
+    tx.set(ref, {
+      ...input.customer,
+      nameNormalized: nameNormalized(input.customer.name),
+      phoneKey: phoneKey(input.customer.phone),
+      emailKey: emailKey(input.customer.email),
+      debtUsdCents: input.openingDebtUsdCents,
+      totalPurchasesUsdCents: 0,
+      lastLedgerId: ledgerRef.id,
+      createdAt: audit.createdAt,
+      createdAtMs: atMs,
+      createdBy: actor.uid,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { id: ref.id };
   });
-  batch.set(ref, {
-    ...input.customer,
-    debtUsdCents: input.openingDebtUsdCents,
-    totalPurchasesUsdCents: 0,
-    lastLedgerId: ledgerRef.id,
-    createdAt: audit.createdAt,
-    createdAtMs: atMs,
-    createdBy: actor.uid,
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-  await batch.commit();
-  return { id: ref.id };
 });
 
 const payDebtSchema = z.object({
+  clientOperationId: idField,
   customerId: idField,
   usdCents: cents,
   lbp: lbpField,
@@ -78,12 +82,11 @@ const payDebtSchema = z.object({
 /** Receives a debt payment: reduces the debt, writes the ledger and puts the money in the drawer. */
 export const posPayDebt = onCall(async (request) => {
   const input = parse(payDebtSchema, request.data);
-  const actor = await posActor(request, ['canViewCustomers']);
-  const t = actor.tenantId;
-  const p = tenantPaths(t);
-  const atMs = Date.now();
+  return runClientOp(request, input.clientOperationId, 'posPayDebt', ['canViewCustomers'], async (tx, actor) => {
+    const t = actor.tenantId;
+    const p = tenantPaths(t);
+    const atMs = Date.now();
 
-  await db.runTransaction(async (tx) => {
     const ref = p.doc('customers', input.customerId);
     const [snap, cashSnap, settingsSnap] = await Promise.all([tx.get(ref), tx.get(p.cashbox), tx.get(p.settings)]);
     if (!snap.exists) fail('not-found', 'error.notFound');
@@ -129,11 +132,12 @@ export const posPayDebt = onCall(async (request) => {
     });
     tx.set(p.cashbox, { ...after, lastTxId: cashRef.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     bumpDailyStats(tx, t, audit.localDate, { debtCollectedUsdCents: applied });
+    return { ok: true, appliedUsdCents: applied, cashTxId: cashRef.id, ledgerId: ledgerRef.id };
   });
-  return { ok: true };
 });
 
 const adjustDebtSchema = z.object({
+  clientOperationId: idField,
   customerId: idField,
   newDebtUsdCents: cents,
   note: noteField,
@@ -142,12 +146,15 @@ const adjustDebtSchema = z.object({
 /** Owner-only manual correction of a customer's debt (always audited in the ledger). */
 export const posAdjustDebt = onCall(async (request) => {
   const input = parse(adjustDebtSchema, request.data);
-  const actor = await posActor(request, []);
-  if (!actor.isOwner) fail('permission-denied', 'error.fn.notOwner');
-  const p = tenantPaths(actor.tenantId);
-  const atMs = Date.now();
+  return runClientOp(
+    request,
+    input.clientOperationId,
+    'posAdjustDebt',
+    [],
+    async (tx, actor) => {
+      const p = tenantPaths(actor.tenantId);
+      const atMs = Date.now();
 
-  await db.runTransaction(async (tx) => {
     const ref = p.doc('customers', input.customerId);
     const snap = await tx.get(ref);
     if (!snap.exists) fail('not-found', 'error.notFound');
@@ -169,6 +176,10 @@ export const posAdjustDebt = onCall(async (request) => {
       ...auditFields(actor, atMs),
     });
     tx.update(ref, { debtUsdCents: input.newDebtUsdCents, lastLedgerId: ledgerRef.id, updatedAt: FieldValue.serverTimestamp() });
-  });
-  return { ok: true };
+      return { ok: true, ledgerId: ledgerRef.id };
+    },
+    (actor) => {
+      if (!actor.isOwner) fail('permission-denied', 'error.fn.notOwner');
+    },
+  );
 });

@@ -39,6 +39,35 @@ export async function readWhere(env: RulesTestEnvironment, col: string, field: s
   return asAdmin(env, async (fs) => (await getDocs(query(collection(fs, col), where(field, '==', value)))).docs.map((d) => d.data()));
 }
 
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Reads until the snapshot stops changing. Call this only after every request and retry
+ * has settled, then assert against the returned value. A sale that commits between two
+ * separate reads cannot make those reads disagree inside this result.
+ */
+export async function settleUntil<T>(read: () => Promise<T>, key: (value: T) => string, quietMs = 1_500, timeoutMs = 40_000): Promise<T> {
+  const started = Date.now();
+  let previous: string | null = null;
+  let stableSince = 0;
+  while (Date.now() - started < timeoutMs) {
+    const value = await read();
+    const next = key(value);
+    const now = Date.now();
+    if (next === previous) {
+      if (!stableSince) stableSince = now;
+      if (now - stableSince >= quietMs) return value;
+    } else {
+      previous = next;
+      stableSince = 0;
+    }
+    await sleep(200);
+  }
+  throw new Error(`settleUntil timed out after ${timeoutMs}ms`);
+}
+
 /* ------------------------------------------------------------------ auth */
 
 async function authPost(path: string, body: unknown, admin = false) {
@@ -89,11 +118,31 @@ export interface CallError {
   params?: Record<string, unknown>;
 }
 
+const MONEY_FNS = new Set([
+  'posPayDebt',
+  'posCashMove',
+  'posAdjustDrawer',
+  'posPaySupplier',
+  'posReturnToSupplier',
+  'posReturn',
+  'posAdjustStock',
+  'posAdjustDebt',
+  'posCreatePurchase',
+  'posCreateCustomer',
+]);
+
+function withClientOperationId(name: string, data: unknown): unknown {
+  if (!MONEY_FNS.has(name) || !data || typeof data !== 'object') return data;
+  const rec = data as Record<string, unknown>;
+  if (typeof rec.clientOperationId === 'string') return data;
+  return { ...rec, clientOperationId: `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}` };
+}
+
 export async function call<R = Record<string, unknown>>(token: string, name: string, data: unknown): Promise<{ result?: R; error?: CallError }> {
   const res = await fetch(`${FUNCTIONS}/${PROJECT_ID}/europe-west1/${name}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ data }),
+    body: JSON.stringify({ data: withClientOperationId(name, data) }),
   });
   const json = (await res.json()) as { result?: R; error?: { status: string; message: string; details?: { key?: string; params?: Record<string, unknown> } } };
   if (json.error) return { error: { status: json.error.status, key: json.error.details?.key ?? json.error.message, params: json.error.details?.params } };
@@ -139,6 +188,8 @@ export async function seedTenant(env: RulesTestEnvironment, t: string, profiles:
     await setDoc(doc(fs, tp(t, 'cashbox', 'summary')), { usdCents: 10_000, lbp: 0, lastTxId: null });
     const product = (name: string, retail: number, stock: number, extra: Record<string, unknown> = {}) => ({
       name,
+      nameNormalized: name.trim().toLowerCase().replace(/\s+/g, ' '),
+      status: 'active',
       category: 'Accessories',
       barcode: '',
       prices: { retail: { usdCents: retail, lbp: null }, wholesale: { usdCents: 0, lbp: null }, vip: { usdCents: 0, lbp: null } },
@@ -171,6 +222,9 @@ export async function seedTenant(env: RulesTestEnvironment, t: string, profiles:
     );
     await setDoc(doc(fs, tp(t, 'customers', 'c1')), {
       name: 'Ali',
+      nameNormalized: 'ali',
+      phoneKey: '',
+      emailKey: '',
       phone: '',
       email: '',
       address: '',
@@ -184,6 +238,9 @@ export async function seedTenant(env: RulesTestEnvironment, t: string, profiles:
     });
     await setDoc(doc(fs, tp(t, 'suppliers', 'sup1')), {
       name: 'Supplier',
+      nameNormalized: 'supplier',
+      phoneKey: '',
+      emailKey: '',
       contactPerson: '',
       phone: '',
       email: '',

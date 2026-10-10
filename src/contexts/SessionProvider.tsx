@@ -8,6 +8,7 @@ import { paths, toSubscription, toUserProfile } from '@/services/db';
 import { api } from '@/services/functionsClient';
 import type { Subscription, UserProfile } from '@/types/models';
 import { isSubscriptionActive, SessionContext, type Claims, type Session, type SessionStatus } from './session';
+import { shouldRefreshSessionToken, TOKEN_REFRESH_INTERVAL_MS } from './sessionRefresh';
 
 const CLAIMS_CACHE_KEY = 'zelvero.claims.';
 
@@ -53,6 +54,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<Loaded<Subscription> | null>(null);
   const [error, setError] = useState<unknown>(null);
   const claimsRepairAttempted = useRef(false);
+  const lastTokenRefreshMs = useRef(0);
 
   useEffect(
     () =>
@@ -113,6 +115,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         .catch((e) => console.warn('[session] claims repair failed', e));
     }
   }, [user, currentClaims, currentProfile]);
+
+  const refreshAuthToken = useCallback((force = false) => {
+    const u = firebase.auth.currentUser;
+    if (!u) return;
+    const online = typeof navigator === 'undefined' || navigator.onLine;
+    const visible = typeof document === 'undefined' || document.visibilityState === 'visible';
+    const now = Date.now();
+    if (!shouldRefreshSessionToken(now, lastTokenRefreshMs.current, { online, visible, force })) return;
+    lastTokenRefreshMs.current = now;
+    u.getIdToken(true).catch((e) => console.warn('[session] token refresh failed', e));
+  }, []);
+
+  useEffect(() => {
+    if (currentProfile?.isActive === false) refreshAuthToken(true);
+  }, [currentProfile?.isActive, refreshAuthToken]);
+
+  useEffect(() => {
+    const onVis = () => refreshAuthToken(false);
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onVis);
+    const id = window.setInterval(() => refreshAuthToken(false), TOKEN_REFRESH_INTERVAL_MS);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onVis);
+      window.clearInterval(id);
+    };
+  }, [refreshAuthToken]);
 
   // reload() mutates the same User object, so a counter forces the session to be recomputed.
   const [userRevision, setUserRevision] = useState(0);

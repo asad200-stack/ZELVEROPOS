@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useState } from 'react';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/Button';
 import { FormGrid, MoneyInput, SelectInput, TextInput } from '@/components/ui/Form';
-import { Alert, Badge, EmptyState, PageHeader, StatCard, TableWrap } from '@/components/ui/Layout';
+import { Alert, Badge, EmptyState, PageHeader, SearchBox, StatCard, TableWrap, Toolbar } from '@/components/ui/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { PageLoader, Spinner } from '@/components/ui/Spinner';
 import { useFeedback } from '@/contexts/feedback';
@@ -9,7 +10,8 @@ import { useTenant } from '@/contexts/session';
 import { parseLbpInput, parseUsdInput } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useForm } from '@/hooks/useForm';
-import { useSettings, useSuppliers } from '@/hooks/useTenantData';
+import { usePagedQuery } from '@/hooks/usePagedQuery';
+import { useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import {
   createSupplier,
@@ -20,7 +22,7 @@ import {
   paySupplier,
   updateSupplier,
 } from '@/services/supplierService';
-import { retryResource } from '@/stores/tenantStore';
+import { countWhere, pageSuppliers } from '@/services/catalogQuery';
 import type { Currency, PaymentMethod, Purchase, PurchaseReturn, Supplier, SupplierPayment } from '@/types/models';
 import { formatDate, formatDateTime, formatLbp, formatUsd } from '@/utils/format';
 import { supplierSchema } from '@/validation/schemas';
@@ -31,11 +33,29 @@ export default function SuppliersPage() {
   const { t } = useI18n();
   const { tenantId, actor } = useTenant();
   const { confirm, notify } = useFeedback();
-  const state = useSuppliers();
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [search, setSearch] = useState('');
+  const [count, setCount] = useState<number | null>(null);
+  const deferred = useDeferredValue(search);
   const del = useAsyncAction('supplier-delete');
-  const totalBalance = state.data.reduce((s, x) => s + x.balanceUsdCents, 0);
-  const live = (s: Supplier) => state.data.find((x) => x.id === s.id) ?? s;
+  const fetchPage = useCallback(
+    (cursor: QueryDocumentSnapshot | null) => pageSuppliers(tenantId, { search: deferred }, cursor),
+    [tenantId, deferred],
+  );
+  const page = usePagedQuery(`${tenantId}|${deferred}`, fetchPage);
+  const live = (s: Supplier) => page.items.find((x) => x.id === s.id) ?? s;
+
+  useEffect(() => {
+    let cancelled = false;
+    countWhere(tenantId, 'suppliers', [])
+      .then((value) => {
+        if (!cancelled) setCount(value);
+      })
+      .catch((error: unknown) => console.error('[suppliers] count', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   return (
     <div className="page">
@@ -48,17 +68,20 @@ export default function SuppliersPage() {
         }
       />
       <div className="stats">
-        <StatCard icon="truck" label={t('suppliers.count')} value={state.data.length} />
-        <StatCard icon="dollar" tone="danger" label={t('suppliers.totalOwed')} value={formatUsd(totalBalance)} />
+        <StatCard icon="truck" label={t('suppliers.count')} value={count ?? page.items.length} />
+        <StatCard icon="dollar" tone="danger" label={t('suppliers.totalOwed')} value={t('reports.valueUnavailable')} />
       </div>
-      {state.status === 'error' ? (
-        <Alert tone="error" onRetry={() => retryResource(tenantId, 'suppliers')} retryLabel={t('common.retry')}>
+      <Toolbar>
+        <SearchBox value={search} onChange={setSearch} placeholder={t('common.search')} />
+      </Toolbar>
+      {page.error ? (
+        <Alert tone="error" onRetry={page.reload} retryLabel={t('common.retry')}>
           {t('error.loadFailed')}
         </Alert>
-      ) : state.status === 'loading' ? (
+      ) : page.loading ? (
         <PageLoader />
-      ) : state.data.length === 0 ? (
-        <EmptyState icon="truck" title={t('suppliers.empty')} />
+      ) : page.items.length === 0 ? (
+        <EmptyState icon="truck" title={search ? t('common.noResults') : t('suppliers.empty')} />
       ) : (
         <TableWrap>
           <table className="table">
@@ -72,7 +95,7 @@ export default function SuppliersPage() {
               </tr>
             </thead>
             <tbody>
-              {state.data.map((s) => (
+              {page.items.map((s) => (
                 <tr key={s.id}>
                   <td>
                     <strong>{s.name}</strong>
@@ -110,6 +133,13 @@ export default function SuppliersPage() {
           </table>
         </TableWrap>
       )}
+      {page.hasMore && (
+        <div className="load-more">
+          <Button variant="secondary" loading={page.loadingMore} onClick={() => void page.loadMore()}>
+            {t('common.loadMore')}
+          </Button>
+        </div>
+      )}
       {dialog?.type === 'form' && <SupplierFormModal supplier={dialog.supplier} onClose={() => setDialog(null)} />}
       {dialog?.type === 'pay' && <PaySupplierModal supplier={live(dialog.supplier)} onClose={() => setDialog(null)} />}
       {dialog?.type === 'history' && <SupplierHistoryModal supplier={live(dialog.supplier)} onClose={() => setDialog(null)} />}
@@ -121,7 +151,6 @@ function SupplierFormModal({ supplier, onClose }: { supplier: Supplier | null; o
   const { t } = useI18n();
   const { actor } = useTenant();
   const { notify } = useFeedback();
-  const suppliers = useSuppliers().data;
   const { busy, run } = useAsyncAction('supplier-save');
   const form = useForm({
     name: supplier?.name ?? '',
@@ -135,7 +164,7 @@ function SupplierFormModal({ supplier, onClose }: { supplier: Supplier | null; o
       const data = form.validate(supplierSchema);
       if (!data) return;
       if (supplier) await updateSupplier(actor, supplier.id, data);
-      else await createSupplier(actor, data, suppliers);
+      else await createSupplier(actor, data);
       notify('success', t('common.saved'));
       onClose();
     });

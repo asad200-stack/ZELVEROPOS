@@ -1,5 +1,4 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { browserLocalPersistence, connectAuthEmulator, initializeAuth, type Auth } from 'firebase/auth';
 import {
   connectFirestoreEmulator,
@@ -10,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
 import { connectStorageEmulator, getStorage, type FirebaseStorage } from 'firebase/storage';
+import { initAppCheck } from './appCheck';
 import { resolveFirebaseConfig, type ResolvedFirebaseConfig } from './config';
 import { isBlockedProjectId } from './isolation';
 
@@ -38,12 +38,7 @@ export function getFirebase(): FirebaseServices {
     throw new Error('Refusing to connect: the initialised Firebase app targets the OLD CATCH POS project.');
   }
 
-  if (config.appCheckSiteKey && !config.useEmulators) {
-    initializeAppCheck(app, {
-      provider: new ReCaptchaEnterpriseProvider(config.appCheckSiteKey),
-      isTokenAutoRefreshEnabled: true,
-    });
-  }
+  initAppCheck(app, config);
 
   const auth = initializeAuth(app, { persistence: browserLocalPersistence });
   const db = initializeFirestore(app, {

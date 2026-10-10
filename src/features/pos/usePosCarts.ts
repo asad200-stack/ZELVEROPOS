@@ -41,7 +41,7 @@ interface PosState {
   active: number;
 }
 
-function load(tenantId: string, uid: string, currency: Currency): PosState {
+export function load(tenantId: string, uid: string, currency: Currency): PosState {
   const key = STORAGE_KEYS.cart(tenantId, uid);
   try {
     const raw = localStorage.getItem(key);

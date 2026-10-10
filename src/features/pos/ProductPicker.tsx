@@ -1,17 +1,23 @@
-import { memo, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { EmptyState } from '@/components/ui/Layout';
+import { Alert, EmptyState } from '@/components/ui/Layout';
 import { Spinner } from '@/components/ui/Spinner';
+import { catalogLoadProblem } from '@/domain/catalogSession';
+import { emptyProductQuery } from '@/domain/catalogPlan';
 import { tierLbp, tierUsdCents } from '@/domain/pricing';
+import { usePagedQuery } from '@/hooks/usePagedQuery';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useI18n } from '@/i18n/i18n';
+import { findProductByBarcode, pageProducts } from '@/services/catalogQuery';
 import type { PriceTier, Product } from '@/types/models';
-import { formatLbp, formatUsd, normalizeSearch } from '@/utils/format';
+import { formatLbp, formatUsd } from '@/utils/format';
 import { categoryEdges, detectRtlScrollType, scrollFromStart } from './categoryScroll';
 import { FitAmount } from './FitAmount';
 
 interface Props {
-  products: Product[];
-  loading: boolean;
+  tenantId: string;
   categories: string[];
   tier: PriceTier;
   rate: number;
@@ -20,11 +26,8 @@ interface Props {
   onPick: (product: Product) => void;
 }
 
-const MAX_RESULTS = 80;
-
 export const ProductPicker = memo(function ProductPicker({
-  products,
-  loading,
+  tenantId,
   categories,
   tier,
   rate,
@@ -33,23 +36,18 @@ export const ProductPicker = memo(function ProductPicker({
   onPick,
 }: Props) {
   const { t, lang } = useI18n();
+  const online = useOnlineStatus();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const deferred = useDeferredValue(search);
+  const spec = useMemo(() => emptyProductQuery({ category, search: deferred }), [category, deferred]);
+  const fetchPage = useCallback(
+    (cursor: QueryDocumentSnapshot | null) => pageProducts(tenantId, spec, cursor),
+    [tenantId, spec],
+  );
+  const page = usePagedQuery(`${tenantId}|${spec.category}|${spec.search}`, fetchPage, { keepPrevious: true });
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ overflow: false, atStart: true, atEnd: true });
-
-  const results = useMemo(() => {
-    const q = normalizeSearch(deferred);
-    const out: Product[] = [];
-    for (const p of products) {
-      if (category && p.category !== category) continue;
-      if (q && !normalizeSearch(p.name).includes(q) && !p.barcode.includes(deferred.trim())) continue;
-      out.push(p);
-      if (out.length >= MAX_RESULTS) break;
-    }
-    return out;
-  }, [products, deferred, category]);
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -108,22 +106,24 @@ export const ProductPicker = memo(function ProductPicker({
     next.focus();
   };
 
-  /** Barcode scanners type the code followed by Enter: add the exact match immediately. */
+  /** Barcode scanners type the code followed by Enter. The match is an indexed equality query. */
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       const code = search.trim();
       if (!code) return;
-      const exact = products.find((p) => p.barcode && p.barcode === code);
-      const pick = exact ?? (results.length === 1 ? results[0] : null);
-      if (pick) {
+      void findProductByBarcode(tenantId, code, true).then((exact) => {
+        const pick = exact ?? (page.items.length === 1 ? page.items[0] : null);
+        if (!pick) return;
         onPick(pick);
         setSearch('');
-      }
+      });
     } else if (e.key === 'Escape') {
       setSearch('');
     }
   };
+
+  const problem = catalogLoadProblem(online, page.error);
 
   return (
     <div className="picker">
@@ -145,39 +145,50 @@ export const ProductPicker = memo(function ProductPicker({
         </div>
       </div>
       <div className="picker__stage">
-      {loading ? (
-        <div className="page-loader">
-          <Spinner size={28} />
-        </div>
-      ) : results.length === 0 ? (
-        <EmptyState icon="search" title={t('pos.noProducts')} />
-      ) : (
-        <div className="picker__grid">
-          {results.map((p) => {
-            const out = p.stock <= 0;
-            const low = !out && p.stock <= (p.minStock ?? lowStockThreshold);
-            return (
-              <button key={p.id} type="button" className="product-tile" onClick={() => onPick(p)} disabled={out}>
-                {p.imageUrl ? (
-                  <img className="product-tile__img" src={p.imageUrl} alt="" loading="lazy" decoding="async" />
-                ) : (
-                  <span className="product-tile__img product-tile__img--empty">
-                    <Icon name="package" size={22} />
+        {problem ? (
+          <Alert tone="error" onRetry={page.reload} retryLabel={t('common.retry')}>
+            {t(problem === 'offline' ? 'pos.offlineCatalog' : 'error.loadFailed')}
+          </Alert>
+        ) : page.loading ? (
+          <div className="page-loader">
+            <Spinner size={28} />
+          </div>
+        ) : page.items.length === 0 ? (
+          <EmptyState icon="search" title={t('pos.noProducts')} />
+        ) : (
+          <div className={page.refreshing ? 'picker__grid picker__grid--refresh' : 'picker__grid'}>
+            {page.items.map((p) => {
+              const out = p.stock <= 0;
+              const low = !out && p.stock <= (p.minStock ?? lowStockThreshold);
+              return (
+                <button key={p.id} type="button" className="product-tile" onClick={() => onPick(p)} disabled={out}>
+                  {p.imageUrl ? (
+                    <img className="product-tile__img" src={p.imageUrl} alt="" loading="lazy" decoding="async" />
+                  ) : (
+                    <span className="product-tile__img product-tile__img--empty">
+                      <Icon name="package" size={22} />
+                    </span>
+                  )}
+                  <span className="product-tile__name">{p.name}</span>
+                  <span className="product-tile__prices">
+                    <FitAmount value={formatUsd(tierUsdCents(p, tier, rate))} />
+                    <FitAmount value={formatLbp(tierLbp(p, tier, rate), lang)} className="fit-amount--muted" />
                   </span>
-                )}
-                <span className="product-tile__name">{p.name}</span>
-                <span className="product-tile__prices">
-                  <FitAmount value={formatUsd(tierUsdCents(p, tier, rate))} />
-                  <FitAmount value={formatLbp(tierLbp(p, tier, rate), lang)} className="fit-amount--muted" />
-                </span>
-                <span className={out ? 'product-tile__stock product-tile__stock--out' : low ? 'product-tile__stock product-tile__stock--low' : 'product-tile__stock'}>
-                  {out ? t('products.outOfStock') : t('products.stockCount', { count: p.stock })}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+                  <span className={out ? 'product-tile__stock product-tile__stock--out' : low ? 'product-tile__stock product-tile__stock--low' : 'product-tile__stock'}>
+                    {out ? t('products.outOfStock') : t('products.stockCount', { count: p.stock })}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {page.hasMore && !problem && (
+          <div className="load-more">
+            <Button variant="secondary" loading={page.loadingMore} onClick={() => void page.loadMore()}>
+              {t('common.loadMore')}
+            </Button>
+          </div>
+        )}
       </div>
       {categories.length > 0 && (
         <nav className="picker__cats" aria-label={t('products.category')} onKeyDown={onCategoryKey}>

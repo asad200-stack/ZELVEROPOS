@@ -10,6 +10,7 @@ const root = resolve(here, '../..');
 const out = resolve(here, '../src/shared');
 
 const FILES = {
+  'src/domain/searchKey.ts': 'searchKey.ts',
   'src/domain/money.ts': 'money.ts',
   'src/domain/pricing.ts': 'pricing.ts',
   'src/domain/cart.ts': 'cart.ts',

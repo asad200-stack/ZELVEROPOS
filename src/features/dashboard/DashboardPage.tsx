@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { Link } from 'react-router';
 import { Icon } from '@/components/ui/Icon';
 import { Alert, Badge, Card, PageHeader, StatCard } from '@/components/ui/Layout';
 import { Spinner } from '@/components/ui/Spinner';
 import { useSession, useTenant } from '@/contexts/session';
-import { DEFAULTS } from '@/constants/app';
-import { addDays, expiryState, localDate } from '@/domain/dates';
-import { isLowStock } from '@/domain/inventory';
+import { emptyProductQuery } from '@/domain/catalogPlan';
+import { addDays, localDate } from '@/domain/dates';
 import { useAsyncData } from '@/hooks/useAsyncData';
+import { usePagedQuery } from '@/hooks/usePagedQuery';
+import { pageCustomers, pageProducts } from '@/services/catalogQuery';
 import { useResource } from '@/stores/tenantStore';
 import { useI18n } from '@/i18n/i18n';
 import { emptyStats, loadDailyStats, netFigures } from '@/services/reportService';
@@ -111,19 +113,20 @@ function CashboxCard({ tenantId }: { tenantId: string }) {
 
 function StockCard({ tenantId }: { tenantId: string }) {
   const { t } = useI18n();
-  const products = useResource(tenantId, 'products');
   const settings = useResource(tenantId, 'settings').data;
-  const low = products.data.filter((p) => isLowStock(p, settings.lowStockThreshold)).sort((a, b) => a.stock - b.stock);
-  const expiring = products.data.filter((p) => ['expired', 'soon'].includes(expiryState(p.expiryDate, DEFAULTS.expirySoonDays))).length;
+  const spec = emptyProductQuery({ mode: 'low', lowStockAt: settings.lowStockThreshold });
+  const fetchPage = useCallback((cursor: QueryDocumentSnapshot | null) => pageProducts(tenantId, spec, cursor), [tenantId, spec]);
+  const page = usePagedQuery(`${tenantId}|dash-low|${settings.lowStockThreshold}`, fetchPage);
+  const low = page.items.slice(0, 8);
   return (
-    <Card title={t('dashboard.lowStock', { count: low.length })} actions={<Link to="/products">{t('common.viewAll')}</Link>}>
-      {products.status === 'loading' ? (
+    <Card title={t('dashboard.lowStock', { count: page.hasMore ? `${low.length}+` : low.length })} actions={<Link to="/products">{t('common.viewAll')}</Link>}>
+      {page.loading ? (
         <Spinner />
       ) : low.length === 0 ? (
         <p className="muted">{t('dashboard.stockOk')}</p>
       ) : (
         <ul className="plain-list">
-          {low.slice(0, 8).map((p) => (
+          {low.map((p) => (
             <li key={p.id} className="list-row">
               <span>{p.name}</span>
               <Badge tone={p.stock <= 0 ? 'danger' : 'warning'}>{p.stock}</Badge>
@@ -131,28 +134,26 @@ function StockCard({ tenantId }: { tenantId: string }) {
           ))}
         </ul>
       )}
-      {expiring > 0 && (
-        <Link to="/expiry" className="btn btn--ghost btn--sm">
-          <Icon name="calendar" size={15} />
-          <span>{t('dashboard.expiring', { count: expiring })}</span>
-        </Link>
-      )}
+      <Link to="/expiry" className="btn btn--ghost btn--sm">
+        <Icon name="calendar" size={15} />
+        <span>{t('nav.expiry')}</span>
+      </Link>
     </Card>
   );
 }
 
 function DebtorsCard({ tenantId }: { tenantId: string }) {
   const { t } = useI18n();
-  const customers = useResource(tenantId, 'customers');
-  const debtors = customers.data.filter((c) => c.debtUsdCents > 0).sort((a, b) => b.debtUsdCents - a.debtUsdCents);
-  const total = debtors.reduce((s, c) => s + c.debtUsdCents, 0);
+  const fetchPage = useCallback((cursor: QueryDocumentSnapshot | null) => pageCustomers(tenantId, { search: '', debtOnly: true }, cursor), [tenantId]);
+  const page = usePagedQuery(`${tenantId}|dash-debt`, fetchPage);
+  const debtors = page.items.slice(0, 8);
   return (
-    <Card title={t('dashboard.topDebtors', { total: formatUsd(total) })} actions={<Link to="/customers">{t('common.viewAll')}</Link>}>
+    <Card title={t('dashboard.topDebtors', { total: page.hasMore ? `${debtors.length}+` : String(debtors.length) })} actions={<Link to="/customers">{t('common.viewAll')}</Link>}>
       {debtors.length === 0 ? (
         <p className="muted">{t('dashboard.noDebts')}</p>
       ) : (
         <ul className="plain-list">
-          {debtors.slice(0, 8).map((c) => (
+          {debtors.map((c) => (
             <li key={c.id} className="list-row">
               <span>{c.name}</span>
               <strong>{formatUsd(c.debtUsdCents)}</strong>

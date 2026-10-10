@@ -8,7 +8,7 @@ import { cashNetCoversDue, computeCredit, debtLineSettlement, formatDocNumber } 
 import { planReturn, returnStatusAfter } from '../shared/returns.js';
 import type { Product } from '../shared/models.js';
 import { tierUsdCents } from '../shared/pricing.js';
-import { parse } from '../validate.js';
+import { caller, parse } from '../validate.js';
 import {
   auditFields,
   bumpDailyStats,
@@ -21,6 +21,7 @@ import {
   plain,
   posActor,
   requirePerm,
+  runClientOp,
   tenantPaths,
   toCashbox,
   toCustomer,
@@ -77,14 +78,27 @@ const checkoutSchema = z.object({
  * `saleId` (a retry after a lost response returns the already-recorded sale).
  */
 export const posCheckout = onCall(async (request) => {
+  const auth = caller(request);
   const input = parse(checkoutSchema, request.data);
   const atMs = operationTime(input.clientCreatedAtMs);
-  const actor = await posActor(request, ['canSell']);
-  const t = actor.tenantId;
+  if (!auth.tenantId || !auth.emailVerified) fail('permission-denied', 'error.permissionDenied');
+  const t = auth.tenantId;
   const p = tenantPaths(t);
   const saleRef = p.doc('sales', input.saleId);
+  const replay = async () => {
+    const existing = await saleRef.get();
+    if (!existing.exists) return null;
+    const sale = existing.data()!;
+    if (sale.createdBy !== auth.uid) fail('already-exists', 'error.alreadyExists');
+    return { sale: plain(sale, Number(sale.createdAtMs) || atMs), duplicate: true as const };
+  };
+  // Same-id recovery is a read of the canonical sale, not a new mutation, so it runs before
+  // live user/subscription checks. Those checks still block any write of a new sale.
+  const early = await replay();
+  if (early) return early;
 
   try {
+    const actor = await posActor(request, ['canSell']);
     return await db.runTransaction(async (tx) => {
     const existing = await tx.get(saleRef);
     if (existing.exists) {
@@ -346,16 +360,18 @@ export const posCheckout = onCall(async (request) => {
   } catch (error) {
     // A lock timeout or a dropped commit acknowledgement must not look like a new failure
     // when this saleId was already written. The caller retries the same id.
+    const recovered = await replay();
+    if (recovered) return recovered;
     const grpcCode = (error as { code?: unknown }).code;
-    if (typeof grpcCode === 'number' && (grpcCode === 4 || grpcCode === 10 || grpcCode === 14)) {
-      const existing = await saleRef.get();
-      if (existing.exists) {
-        const sale = existing.data()!;
-        if (sale.createdBy !== actor.uid) fail('already-exists', 'error.alreadyExists');
-        return { sale: plain(sale, Number(sale.createdAtMs) || atMs), duplicate: true };
-      }
-      fail('unavailable', 'error.network');
-    }
+    const retryable =
+      grpcCode === 4 ||
+      grpcCode === 10 ||
+      grpcCode === 14 ||
+      grpcCode === 'DEADLINE_EXCEEDED' ||
+      grpcCode === 'ABORTED' ||
+      grpcCode === 'UNAVAILABLE' ||
+      (typeof grpcCode === 'string' && /deadline|aborted|unavailable/i.test(grpcCode));
+    if (retryable) fail('unavailable', 'error.network');
     throw error;
   }
 });
@@ -363,6 +379,7 @@ export const posCheckout = onCall(async (request) => {
 /* ================================================================ returns */
 
 const returnSchema = z.object({
+  clientOperationId: idField,
   saleId: idField,
   lines: z.array(z.object({ index: z.number().int().min(0).max(299), quantity: z.number().int().min(0).max(100_000) })).min(1).max(300),
   reason: z.string().trim().max(500).default(''),
@@ -374,12 +391,11 @@ const returnSchema = z.object({
  */
 export const posReturn = onCall(async (request) => {
   const input = parse(returnSchema, request.data);
-  const actor = await posActor(request, ['canViewSales']);
-  const t = actor.tenantId;
-  const p = tenantPaths(t);
-  const atMs = Date.now();
+  return runClientOp(request, input.clientOperationId, 'posReturn', ['canViewSales'], async (tx, actor) => {
+    const t = actor.tenantId;
+    const p = tenantPaths(t);
+    const atMs = Date.now();
 
-  return db.runTransaction(async (tx) => {
     const saleSnap = await tx.get(p.doc('sales', input.saleId));
     if (!saleSnap.exists) fail('not-found', 'error.notFound');
     const sale = toSale(saleSnap.id, saleSnap.data()!);

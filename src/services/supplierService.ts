@@ -12,8 +12,11 @@ import {
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { PAGE_SIZE } from '@/constants/app';
+import { emailKey, nameNormalized, phoneKey } from '@/domain/searchKey';
+import { findByNormalizedName } from './catalogQuery';
 import type { Currency, PaymentMethod, Purchase, PurchaseReturn, Supplier, SupplierPayment } from '@/types/models';
 import { paths, toPurchase, toPurchaseReturn, toSupplierPayment, type Actor } from './db';
+import { newClientOperationId, retryOnTransport } from './clientOperation';
 import { AppError } from './errors';
 import { posApi } from './functionsClient';
 import { auditFields, requireOnline } from './ops';
@@ -31,17 +34,19 @@ export interface SupplierInput {
 
 const supplierFields = (i: SupplierInput) => ({
   name: i.name.trim(),
+  nameNormalized: nameNormalized(i.name),
   contactPerson: i.contactPerson.trim(),
   phone: i.phone.trim(),
+  phoneKey: phoneKey(i.phone),
   email: i.email.trim(),
+  emailKey: emailKey(i.email),
   address: i.address.trim(),
   updatedAt: serverTimestamp(),
 });
 
-export async function createSupplier(actor: Actor, input: SupplierInput, suppliers: Supplier[]): Promise<string> {
-  if (suppliers.some((s) => s.name.trim().toLowerCase() === input.name.trim().toLowerCase())) {
-    throw new AppError('error.supplierExists');
-  }
+export async function createSupplier(actor: Actor, input: SupplierInput): Promise<string> {
+  const existing = await findByNormalizedName(actor.tenantId, 'suppliers', input.name);
+  if (existing) throw new AppError('error.supplierExists');
   const audit = auditFields(actor);
   const ref = await addDoc(paths.col(actor.tenantId, 'suppliers'), {
     ...supplierFields(input),
@@ -82,12 +87,16 @@ export async function createPurchase(input: PurchaseInput): Promise<string> {
   for (const i of input.items) {
     if (!Number.isInteger(i.quantity) || i.quantity <= 0 || i.unitCostUsdCents < 0) throw new AppError('error.invalidQuantity');
   }
-  const { id } = await posApi.createPurchase({
-    ...input,
-    items: input.items.map((i) => ({ ...i, unitCostUsdCents: Math.round(i.unitCostUsdCents) })),
-    paidNowUsdCents: Math.max(0, Math.round(input.paidNowUsdCents)),
-    note: input.note.trim().slice(0, 500),
-  });
+  const clientOperationId = newClientOperationId();
+  const { id } = await retryOnTransport(() =>
+    posApi.createPurchase({
+      clientOperationId,
+      ...input,
+      items: input.items.map((i) => ({ ...i, unitCostUsdCents: Math.round(i.unitCostUsdCents) })),
+      paidNowUsdCents: Math.max(0, Math.round(input.paidNowUsdCents)),
+      note: input.note.trim().slice(0, 500),
+    }),
+  );
   return id;
 }
 
@@ -106,7 +115,8 @@ export async function paySupplier(input: SupplierPaymentInput): Promise<void> {
   requireOnline();
   const amount = Math.round(input.amount);
   if (!(amount > 0)) throw new AppError('error.invalidAmount');
-  await posApi.paySupplier({ ...input, amount, note: input.note.trim().slice(0, 300) });
+  const clientOperationId = newClientOperationId();
+  await retryOnTransport(() => posApi.paySupplier({ ...input, clientOperationId, amount, note: input.note.trim().slice(0, 300) }));
 }
 
 export interface PurchaseReturnInput {
@@ -123,7 +133,10 @@ export async function returnToSupplier(input: PurchaseReturnInput): Promise<void
   requireOnline();
   const lines = input.lines.map((l) => ({ index: l.index, quantity: Math.floor(l.quantity) })).filter((l) => l.quantity > 0);
   if (!lines.length) throw new AppError('error.return.empty');
-  await posApi.returnToSupplier({ purchaseId: input.purchaseId, lines, note: input.note.trim().slice(0, 300) });
+  const clientOperationId = newClientOperationId();
+  await retryOnTransport(() =>
+    posApi.returnToSupplier({ clientOperationId, purchaseId: input.purchaseId, lines, note: input.note.trim().slice(0, 300) }),
+  );
 }
 
 /* ---------------------------------------------------------------- queries */

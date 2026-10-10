@@ -349,6 +349,82 @@ describe('identity / subscription changed before sync → REJECTED (never retrie
   });
 });
 
+describe('USD/LBP, rate, and two-device online+offline', () => {
+  it('queues mixed USD/LBP tender and posts physical drawer amounts on sync', async () => {
+    await admin((fs) => updateDoc(doc(fs, tp(T, 'cashbox', 'summary')), { lbp: 1_000_000 }));
+    const a = await device('offA');
+    seq += 1;
+    const cart: Cart = {
+      id: '1',
+      label: 'mix',
+      note: '',
+      tier: 'retail',
+      currency: 'USD',
+      customerId: null,
+      debtLineUsdCents: null,
+      saleId: `mix${Date.now()}${seq}`,
+      draft: emptyCartDraft(),
+      lines: [{ key: '0', productId: 'p1', name: 'Phone case', tier: 'retail', quantity: 1, customUsdCents: null, imei: null }],
+    };
+    const totals = priceCart(cart, CATALOG, RATE);
+    const req = {
+      cart,
+      kind: 'cash' as const,
+      rate: RATE,
+      totals,
+      cash: { receivedUsdCents: 250, receivedLbp: 223_750, changeUsdCents: 0, changeLbp: 0 },
+    };
+    const op = newSaleOperation({
+      tenantId: T,
+      uid: 'offA',
+      payload: buildCheckoutCall(req),
+      snapshot: buildSaleSnapshot(req, { tenantId: T, uid: 'offA', cashierName: 'offA', customerName: '' }),
+      now: Date.now(),
+    });
+    await a.store.add(op);
+    expect((await a.sync()).synced).toBe(1);
+    const cash = (await readWhere(env, tp(T, 'cashTransactions'), 'type', 'sale'))[0] as { usdCents: number; lbp: number };
+    expect(cash).toMatchObject({ usdCents: 250, lbp: 223_750 });
+    expect(await drawer()).toBe(10_250);
+    expect(Number((await readDoc(env, tp(T, 'cashbox', 'summary')))?.lbp)).toBe(1_223_750);
+  });
+
+  it('Device B sells online while A is queued; A’s excess sale conflicts and stock never goes negative', async () => {
+    await admin((fs) => updateDoc(doc(fs, tp(T, 'products', 'p1')), { stock: 4 }));
+    const a = await device('offA');
+    await a.sellOffline([{ quantity: 2 }]);
+    await a.sellOffline([{ quantity: 2 }]);
+    await callOk(tokens.offB!, 'posCheckout', {
+      saleId: `bOnline${Date.now()}`,
+      kind: 'cash',
+      currency: 'USD',
+      rate: RATE,
+      customerId: null,
+      debtLineUsdCents: null,
+      lines: [{ productId: 'p1', tier: 'retail', quantity: 2, customUsdCents: null, imei: null }],
+      expectedTotalUsdCents: 1_000,
+      cash: { receivedUsdCents: 1_000, receivedLbp: 0 },
+    });
+    await a.sync();
+    const statuses = (await a.store.list()).map((o) => o.status).sort();
+    expect(statuses).toEqual(['CONFLICT', 'SYNCED']);
+    expect(await stock()).toBe(0);
+  });
+
+  it('syncs a 10-sale reconnect after a simulated hours-old queue', async () => {
+    await admin((fs) => updateDoc(doc(fs, tp(T, 'products', 'p1')), { stock: 50 }));
+    const a = await device('offA');
+    const ids: string[] = [];
+    for (let i = 0; i < 10; i += 1) ids.push((await a.sellOffline([{}])).id);
+    const started = Date.now();
+    const summary = await a.sync();
+    console.info(JSON.stringify({ phaseESync10: { ms: Date.now() - started, synced: summary.synced } }));
+    expect(summary.synced).toBe(10);
+    expect(await stock()).toBe(40);
+    for (const id of ids) expect((await a.op(id))?.status).toBe('SYNCED');
+  });
+});
+
 describe('server-side guards on offline payloads', () => {
   it('a malformed offline reference is refused as invalid', async () => {
     const { error } = await call(tokens.offA!, 'posCheckout', {

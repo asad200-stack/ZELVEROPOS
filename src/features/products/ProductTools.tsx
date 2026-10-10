@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { where } from 'firebase/firestore';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Form';
 import { Alert, TableWrap } from '@/components/ui/Layout';
@@ -8,8 +9,9 @@ import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
 import { parseLbpInput, parseUsdInput } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import { useCategories, useProducts } from '@/hooks/useTenantData';
+import { useCategories } from '@/hooks/useTenantData';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
+import { barcodesInUse, countWhere } from '@/services/catalogQuery';
 import { addCategory, deleteCategory, importProducts, listMovements, renameCategory, type ImportRow } from '@/services/productService';
 import type { MovementType, Product, StockMovement } from '@/types/models';
 import { parseCsv } from '@/utils/csv';
@@ -23,10 +25,22 @@ export function CategoriesModal({ onClose }: { onClose: () => void }) {
   const { tenantId } = useTenant();
   const { confirm } = useFeedback();
   const categories = useCategories();
-  const products = useProducts().data;
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [name, setName] = useState('');
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
   const { busy, run } = useAsyncAction('categories');
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(categories.map(async (category) => [category, await countWhere(tenantId, 'products', [where('category', '==', category)])] as const))
+      .then((rows) => {
+        if (!cancelled) setCounts(Object.fromEntries(rows));
+      })
+      .catch((error: unknown) => console.error('[categories] counts', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, categories]);
 
   return (
     <Modal open title={t('products.categories')} onClose={onClose} busy={busy}>
@@ -54,7 +68,7 @@ export function CategoriesModal({ onClose }: { onClose: () => void }) {
                 onSubmit={(e) => {
                   e.preventDefault();
                   void run(async () => {
-                    await renameCategory(tenantId, c, renaming.to, products);
+                    await renameCategory(tenantId, c, renaming.to);
                     setRenaming(null);
                   });
                 }}
@@ -67,7 +81,7 @@ export function CategoriesModal({ onClose }: { onClose: () => void }) {
             ) : (
               <>
                 <span>
-                  {c} <span className="muted small">({products.filter((p) => p.category === c).length})</span>
+                  {c} <span className="muted small">({counts[c] ?? 0})</span>
                 </span>
                 <span>
                   <Button variant="ghost" size="sm" icon="edit" onClick={() => setRenaming({ from: c, to: c })} aria-label={t('common.edit')} />
@@ -78,7 +92,7 @@ export function CategoriesModal({ onClose }: { onClose: () => void }) {
                     aria-label={t('common.delete')}
                     onClick={async () => {
                       if (await confirm({ title: t('products.deleteCategory', { name: c }), danger: true })) {
-                        void run(() => deleteCategory(tenantId, c, products));
+                        void run(() => deleteCategory(tenantId, c));
                       }
                     }}
                   />
@@ -220,8 +234,8 @@ const IMPORT_HEADERS = ['name', 'barcode', 'category', 'retail', 'wholesale', 'v
 
 export function ImportProductsModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
+  const { tenantId } = useTenant();
   const { notify } = useFeedback();
-  const products = useProducts().data;
   const [rows, setRows] = useState<ImportRow[] | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
@@ -232,7 +246,10 @@ export function ImportProductsModal({ onClose }: { onClose: () => void }) {
     const [header, ...body] = table;
     const idx = (name: string) => header?.findIndex((h) => h.trim().toLowerCase() === name) ?? -1;
     const errs: string[] = [];
-    const existing = new Set(products.map((p) => p.barcode).filter(Boolean));
+    const existing = await barcodesInUse(
+      tenantId,
+      body.map((r) => (idx('barcode') >= 0 ? (r[idx('barcode')] ?? '').trim() : '')),
+    );
     const seen = new Set<string>();
     const parsed: ImportRow[] = [];
     if (idx('name') < 0 || idx('retail') < 0) errs.push(t('products.importMissingColumns'));

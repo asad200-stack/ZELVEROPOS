@@ -1,21 +1,12 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import { onSnapshot, type DocumentData } from 'firebase/firestore';
-import {
-  DEFAULT_SETTINGS,
-  paths,
-  toCashbox,
-  toCustomer,
-  toProduct,
-  toSettings,
-  toSupplier,
-} from '@/services/db';
-import type { CashboxSummary, Customer, Product, StoreSettings, Supplier } from '@/types/models';
+import { onSnapshot } from 'firebase/firestore';
+import { DEFAULT_SETTINGS, paths, toCashbox, toSettings } from '@/services/db';
+import type { CashboxSummary, StoreSettings } from '@/types/models';
 
 /**
- * Shared, ref-counted real-time listeners for the small "master data" sets every screen needs.
- * Each (tenant, resource) pair has at most ONE Firestore listener no matter how many components
- * use it; listeners are kept warm for a short time after the last user unmounts.
- * Large/unbounded collections (sales, ledgers, movements…) are NOT here: they use paged queries.
+ * Realtime listeners only for documents that are one row per store: settings, the cash drawer,
+ * and the category name list. Products, customers and suppliers are paged in catalogQuery.ts.
+ * A listener on the whole product collection was measured at 11.2s for 10,000 documents.
  */
 export interface ResourceState<T> {
   status: 'loading' | 'ready' | 'error';
@@ -29,25 +20,11 @@ interface ResourceDef<T> {
   start: (tenantId: string, emit: (data: T, fromCache: boolean) => void, fail: (e: unknown) => void) => () => void;
 }
 
-const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(b.name);
-
-const collectionResource = <T extends { name: string }>(
-  name: 'products' | 'customers' | 'suppliers',
-  convert: (id: string, d: DocumentData) => T,
-): ResourceDef<T[]> => ({
-  initial: [],
-  start: (tenantId, emit, fail) =>
-    onSnapshot(
-      paths.col(tenantId, name),
-      (snap) => emit(snap.docs.map((d) => convert(d.id, d.data())).sort(byName), snap.metadata.fromCache),
-      fail,
-    ),
-});
+export function realtimeResources(): string[] {
+  return Object.keys(RESOURCES);
+}
 
 const RESOURCES = {
-  products: collectionResource<Product>('products', toProduct),
-  customers: collectionResource<Customer>('customers', toCustomer),
-  suppliers: collectionResource<Supplier>('suppliers', toSupplier),
   settings: {
     initial: DEFAULT_SETTINGS,
     start: (tenantId, emit, fail) =>

@@ -1,20 +1,23 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { where, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/Button';
 import { Alert, Badge, EmptyState, PageHeader, SearchBox, TableWrap, Toolbar } from '@/components/ui/Layout';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
 import { expiryState } from '@/domain/dates';
-import { isLowStock, stockValue } from '@/domain/inventory';
+import { emptyProductQuery, type ProductListMode } from '@/domain/catalogPlan';
+import { isLowStock } from '@/domain/inventory';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import { useCategories, useProducts, useSettings } from '@/hooks/useTenantData';
+import { usePagedQuery } from '@/hooks/usePagedQuery';
+import { useCategories, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { DEFAULTS } from '@/constants/app';
+import { countWhere, pageProducts } from '@/services/catalogQuery';
 import { deleteProductPermanently, setProductStatus } from '@/services/productService';
-import { retryResource } from '@/stores/tenantStore';
 import type { Product } from '@/types/models';
 import { downloadCsv } from '@/utils/csv';
-import { formatDate, formatUsd, normalizeSearch } from '@/utils/format';
+import { formatDate, formatUsd } from '@/utils/format';
 import { ProductFormModal } from './ProductFormModal';
 import { CategoriesModal, ImportProductsModal, LabelsModal, MovementsModal } from './ProductTools';
 import { StockAdjustModal } from './StockAdjustModal';
@@ -29,45 +32,50 @@ type Dialog =
   | { type: 'import' }
   | null;
 
-const PAGE = 100;
+const MODE: Record<Filter, ProductListMode> = { all: 'browse', low: 'low', out: 'out', archived: 'archived' };
 
 export default function ProductsPage() {
   const { t, lang } = useI18n();
   const { tenantId, can } = useTenant();
   const { confirm, notify } = useFeedback();
-  const state = useProducts();
   const categories = useCategories();
   const settings = useSettings();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
-  const [limit, setLimit] = useState(PAGE);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [counts, setCounts] = useState<{ active: number; archived: number } | null>(null);
   const deferred = useDeferredValue(search);
   const del = useAsyncAction('product-delete');
   const canSeeCost = can('canViewCosts');
+  const spec = useMemo(
+    () => emptyProductQuery({ mode: MODE[filter], category, search: deferred, lowStockAt: settings.lowStockThreshold }),
+    [filter, category, deferred, settings.lowStockThreshold],
+  );
+  const fetchPage = useCallback((cursor: QueryDocumentSnapshot | null) => pageProducts(tenantId, spec, cursor), [tenantId, spec]);
+  const page = usePagedQuery(`${tenantId}|${spec.mode}|${spec.category}|${spec.search}|${spec.lowStockAt}`, fetchPage);
+  const visible = page.items;
 
-  const active = useMemo(() => state.data.filter((p) => p.status === 'active'), [state.data]);
-  const archivedCount = state.data.length - active.length;
-
-  const filtered = useMemo(() => {
-    const q = normalizeSearch(deferred);
-    return state.data.filter((p) => {
-      if ((filter === 'archived') !== (p.status === 'archived')) return false;
-      if (category && p.category !== category) return false;
-      if (filter === 'low' && !(p.stock > 0 && isLowStock(p, settings.lowStockThreshold))) return false;
-      if (filter === 'out' && p.stock > 0) return false;
-      return !q || normalizeSearch(p.name).includes(q) || p.barcode.includes(deferred.trim());
-    });
-  }, [state.data, deferred, category, filter, settings.lowStockThreshold]);
-
-  const visible = filtered.slice(0, limit);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      countWhere(tenantId, 'products', [where('status', '==', 'active')]),
+      countWhere(tenantId, 'products', [where('status', '==', 'archived')]),
+    ])
+      .then(([active, archived]) => {
+        if (!cancelled) setCounts({ active, archived });
+      })
+      .catch((error: unknown) => console.error('[products] counts', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   const exportCsv = () =>
     downloadCsv(
       'products.csv',
       ['name', 'barcode', 'category', 'retail', 'wholesale', 'vip', 'retail_lbp', ...(canSeeCost ? ['cost'] : []), 'stock', 'min_stock', 'expiry_date'],
-      filtered.map((p) => [
+      visible.map((p) => [
         p.name,
         p.barcode,
         p.category,
@@ -110,8 +118,8 @@ export default function ProductsPage() {
         title={t('nav.products')}
         subtitle={
           canSeeCost
-            ? t('products.summaryWithValue', { count: active.length, value: formatUsd(stockValue(state.data)) })
-            : t('products.summary', { count: active.length })
+            ? t('products.summary', { count: counts?.active ?? visible.length })
+            : t('products.summary', { count: counts?.active ?? visible.length })
         }
         actions={
           <>
@@ -126,11 +134,11 @@ export default function ProductsPage() {
               </Button>
             )}
             {can('canExportProducts') && (
-              <Button variant="secondary" icon="download" onClick={exportCsv} disabled={!filtered.length}>
+              <Button variant="secondary" icon="download" onClick={exportCsv} disabled={!visible.length}>
                 {t('common.exportCsv')}
               </Button>
             )}
-            <Button variant="secondary" icon="barcode" onClick={() => setDialog({ type: 'labels', products: filtered.slice(0, 200) })} disabled={!filtered.length}>
+            <Button variant="secondary" icon="barcode" onClick={() => setDialog({ type: 'labels', products: visible.slice(0, 200) })} disabled={!visible.length}>
               {t('products.printLabels')}
             </Button>
             {can('canAddProducts') && (
@@ -155,22 +163,22 @@ export default function ProductsPage() {
           <option value="all">{t('products.filterAll')}</option>
           <option value="low">{t('products.filterLow')}</option>
           <option value="out">{t('products.filterOut')}</option>
-          <option value="archived">{t('products.filterArchived', { count: archivedCount })}</option>
+          <option value="archived">{t('products.filterArchived', { count: counts?.archived ?? 0 })}</option>
         </select>
       </Toolbar>
 
-      {state.status === 'error' ? (
-        <Alert tone="error" onRetry={() => retryResource(tenantId, 'products')} retryLabel={t('common.retry')}>
+      {page.error ? (
+        <Alert tone="error" onRetry={page.reload} retryLabel={t('common.retry')}>
           {t('error.loadFailed')}
         </Alert>
-      ) : state.status === 'loading' ? (
+      ) : page.loading ? (
         <PageLoader />
-      ) : filtered.length === 0 ? (
+      ) : visible.length === 0 ? (
         <EmptyState
           icon="box"
-          title={state.data.length ? t('common.noResults') : t('products.empty')}
+          title={search || category || filter !== 'all' ? t('common.noResults') : t('products.empty')}
           action={
-            !state.data.length && can('canAddProducts') ? (
+            !search && !category && filter === 'all' && can('canAddProducts') ? (
               <Button icon="plus" onClick={() => setDialog({ type: 'form', product: null })}>
                 {t('products.add')}
               </Button>
@@ -250,10 +258,10 @@ export default function ProductsPage() {
               </tbody>
             </table>
           </TableWrap>
-          {filtered.length > limit && (
+          {page.hasMore && (
             <div className="load-more">
-              <Button variant="secondary" onClick={() => setLimit((l) => l + PAGE)}>
-                {t('common.showMore', { count: filtered.length - limit })}
+              <Button variant="secondary" loading={page.loadingMore} onClick={() => void page.loadMore()}>
+                {t('common.loadMore')}
               </Button>
             </div>
           )}

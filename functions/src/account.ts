@@ -17,7 +17,7 @@ const availabilitySchema = z.object({ subdomain: subdomainField });
  * Store subdomains are public; account e-mails are not: nothing here may depend on an e-mail
  * address, or the endpoint would defeat Firebase Auth e-mail enumeration protection.
  */
-export const checkSignupAvailability = onCall({ region: REGION }, async (request) => {
+export const checkSignupAvailability = onCall({ region: REGION, enforceAppCheck: false }, async (request) => {
   const input = parse(availabilitySchema, request.data);
   const sub = await db.doc(`storeSubdomains/${input.subdomain}`).get();
   return { subdomainAvailable: !sub.exists };

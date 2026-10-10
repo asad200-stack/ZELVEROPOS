@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { db, storage } from '../admin.js';
 import { fail } from '../errors.js';
 import { weightedAverageCost } from '../shared/inventory.js';
+import { nameNormalized } from '../shared/searchKey.js';
 import { parse } from '../validate.js';
-import { auditFields, bumpDailyStats, cents, idField, lbpField, posActor, tenantPaths, toCashbox, toProduct } from './common.js';
+import { auditFields, bumpDailyStats, cents, idField, lbpField, posActor, runClientOp, tenantPaths, toCashbox, toProduct } from './common.js';
 
 const tierPrice = z.object({ usdCents: cents, lbp: lbpField.nullable() });
 const prices = z.object({ retail: tierPrice, wholesale: tierPrice, vip: tierPrice });
@@ -85,6 +86,7 @@ export const posCreateProduct = onCall(async (request) => {
   }
   batch.set(ref, {
     ...f,
+    nameNormalized: nameNormalized(f.name),
     stock,
     imeis,
     imageUrl: null,
@@ -148,6 +150,7 @@ export const posImportProducts = onCall(async (request) => {
     }
     batch.set(ref, {
       ...row,
+      nameNormalized: nameNormalized(row.name),
       supplierId: null,
       supplierName: '',
       imeiTracking: false,
@@ -229,6 +232,7 @@ export const posDeleteProduct = onCall(async (request) => {
 });
 
 const adjustSchema = z.object({
+  clientOperationId: idField,
   productId: idField,
   mode: z.enum(['add', 'remove', 'set']),
   quantity: z.number().int().min(0).max(1_000_000),
@@ -242,13 +246,16 @@ const adjustSchema = z.object({
 /** Manual stock correction: always recorded as a movement; stock never goes below zero. */
 export const posAdjustStock = onCall(async (request) => {
   const input = parse(adjustSchema, request.data);
-  const actor = await posActor(request, ['canEditProducts']);
-  if (input.payFromCashbox && !actor.can('canManageCashDrawer')) fail('permission-denied', 'error.permissionDenied');
-  const t = actor.tenantId;
-  const p = tenantPaths(t);
-  const atMs = Date.now();
+  return runClientOp(
+    request,
+    input.clientOperationId,
+    'posAdjustStock',
+    ['canEditProducts'],
+    async (tx, actor) => {
+      const t = actor.tenantId;
+      const p = tenantPaths(t);
+      const atMs = Date.now();
 
-  await db.runTransaction(async (tx) => {
     const ref = p.doc('products', input.productId);
     const [snap, cashSnap] = await Promise.all([tx.get(ref), input.payFromCashbox ? tx.get(p.cashbox) : Promise.resolve(null)]);
     if (!snap.exists) fail('not-found', 'error.notFound');
@@ -315,6 +322,10 @@ export const posAdjustStock = onCall(async (request) => {
       tx.set(p.cashbox, { ...after, lastTxId: cashRef.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       bumpDailyStats(tx, t, audit.localDate, { expensesUsdCents: amount });
     }
-  });
-  return { ok: true };
+      return { ok: true, movementId: movementRef.id, stock: newStock };
+    },
+    (actor) => {
+      if (input.payFromCashbox && !actor.can('canManageCashDrawer')) fail('permission-denied', 'error.permissionDenied');
+    },
+  );
 });

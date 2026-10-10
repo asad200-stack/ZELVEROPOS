@@ -17,6 +17,8 @@ describe('service worker request policy', () => {
     expect(get(`${ORIGIN}/assets/PosPage-xyz.js`)).toBe('asset');
     expect(get(`${ORIGIN}/manifest.webmanifest`)).toBe('asset');
     expect(get(`${ORIGIN}/icons/icon-192.png`)).toBe('asset');
+    expect(get(`${ORIGIN}/boot.js`)).toBe('network');
+    expect(routeRequest({ url: `${ORIGIN}/boot.js`, method: 'GET', mode: 'no-cors' }, ORIGIN, new Set([...PRECACHE, '/boot.js']))).toBe('asset');
   });
 
   it('never intercepts Firebase, Google or any other cross-origin traffic', () => {
@@ -28,6 +30,7 @@ describe('service worker request policy', () => {
       'https://firebasestorage.googleapis.com/v0/b/zelvoropos.appspot.com/o/logo.png?alt=media&token=t',
       'https://www.googleapis.com/anything',
       'https://www.google.com/recaptcha/api.js',
+      'https://content-firebaseappcheck.googleapis.com/v1/projects/zelvoropos/apps/1:exchangeAppCheckToken',
       'http://127.0.0.1:8080/google.firestore.v1.Firestore/Listen',
       'http://127.0.0.1:5001/demo-zelvero/europe-west1/posCheckout',
       'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword',

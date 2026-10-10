@@ -12,6 +12,8 @@ export function safeUrl(url: string | null | undefined): string {
 
 /**
  * Prints an HTML document through a hidden iframe (no pop-up blockers, no global CSS leakage).
+ * `document.write` is used only inside that iframe, and only with HTML the caller already built
+ * through `escapeHtml` / `safeUrl` (see `receipt.ts`). Never pass raw user strings here.
  */
 export function printHtml(html: string): void {
   const iframe = document.createElement('iframe');

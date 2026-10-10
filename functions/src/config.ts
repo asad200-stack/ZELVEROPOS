@@ -50,4 +50,5 @@ export const BUSINESS_COLLECTIONS = [
   'stockMovements',
   'cashTransactions',
   'dailyStats',
+  'clientOps',
 ] as const;

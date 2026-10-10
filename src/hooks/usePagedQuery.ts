@@ -1,30 +1,29 @@
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { applyLoadedPage, type HeldPage } from '@/domain/catalogSession';
 import type { Page } from '@/services/salesService';
 
-interface State<T> {
-  key: string;
-  items: T[];
-  cursor: QueryDocumentSnapshot | null;
-  hasMore: boolean;
-  error: unknown;
-  loadingMore: boolean;
-}
+type PagedState<T> = HeldPage<T, QueryDocumentSnapshot>;
 
 /**
  * Cursor-paginated one-shot query (no live listener → bounded reads). Re-runs when `key` changes.
  */
-export function usePagedQuery<T>(key: string, fetchPage: (cursor: QueryDocumentSnapshot | null) => Promise<Page<T>>) {
+export function usePagedQuery<T>(
+  key: string,
+  fetchPage: (cursor: QueryDocumentSnapshot | null) => Promise<Page<T>>,
+  options?: { keepPrevious?: boolean },
+) {
+  const keepPrevious = options?.keepPrevious ?? false;
   const [reloadToken, setReloadToken] = useState(0);
   const fullKey = `${key}#${reloadToken}`;
-  const [state, setState] = useState<State<T> | null>(null);
+  const [state, setState] = useState<PagedState<T> | null>(null);
   const fetchFirst = useEffectEvent(() => fetchPage(null));
 
   useEffect(() => {
     let cancelled = false;
     fetchFirst().then(
       (page) => {
-        if (!cancelled) setState({ key: fullKey, items: page.items, cursor: page.cursor, hasMore: page.hasMore, error: null, loadingMore: false });
+        if (!cancelled) setState(applyLoadedPage(null, fullKey, page, false));
       },
       (error: unknown) => {
         console.error('[usePagedQuery]', error);
@@ -37,17 +36,14 @@ export function usePagedQuery<T>(key: string, fetchPage: (cursor: QueryDocumentS
   }, [fullKey]);
 
   const current = state && state.key === fullKey ? state : null;
+  const visible = current ?? (keepPrevious ? state : null);
 
   const loadMore = useCallback(async () => {
     if (!current || !current.hasMore || current.loadingMore) return;
     setState({ ...current, loadingMore: true });
     try {
       const page = await fetchPage(current.cursor);
-      setState((s) =>
-        s && s.key === current.key
-          ? { ...s, items: [...s.items, ...page.items], cursor: page.cursor, hasMore: page.hasMore, loadingMore: false }
-          : s,
-      );
+      setState((s) => applyLoadedPage(s, current.key, page, true));
     } catch (error) {
       console.error('[usePagedQuery] loadMore', error);
       setState((s) => (s && s.key === current.key ? { ...s, loadingMore: false, error } : s));
@@ -57,8 +53,9 @@ export function usePagedQuery<T>(key: string, fetchPage: (cursor: QueryDocumentS
   const reload = useCallback(() => setReloadToken((n) => n + 1), []);
 
   return {
-    items: current?.items ?? [],
-    loading: !current,
+    items: visible?.items ?? [],
+    loading: !visible,
+    refreshing: !current && visible !== null,
     loadingMore: current?.loadingMore ?? false,
     hasMore: current?.hasMore ?? false,
     error: current?.error ?? null,

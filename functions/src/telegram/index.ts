@@ -3,6 +3,7 @@ import { onCall } from 'firebase-functions/v2/https';
 import { db } from '../admin.js';
 import { REGION, TELEGRAM_TIMEZONE } from '../config.js';
 import { fail } from '../errors.js';
+import { assertLiveTenantUser } from '../liveUser.js';
 import { caller } from '../validate.js';
 import { cashMessage, crossedLowStock, lowStockMessage, NOTIFIED_CASH_TYPES, returnMessage, saleMessage } from './format.js';
 
@@ -98,6 +99,7 @@ export const onProductStockChanged = onDocumentUpdated(
 /** Sends a test message with the stored credentials (the bot token never reaches the browser). */
 export const testTelegram = onCall({ region: REGION }, async (request) => {
   const c = caller(request);
+  await assertLiveTenantUser(c);
   const allowed = c.tenantId && c.active && (c.role === 'owner' || c.perms.canEditSettings === true);
   if (!allowed || !c.tenantId) fail('permission-denied', 'error.fn.notAllowed');
   const secrets = await loadSecrets(c.tenantId);

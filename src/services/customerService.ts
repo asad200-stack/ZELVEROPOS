@@ -13,9 +13,12 @@ import {
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { lbpToUsdCents } from '@/domain/money';
+import { emailKey, nameNormalized, phoneKey } from '@/domain/searchKey';
+import { findByNormalizedName } from './catalogQuery';
 import { PAGE_SIZE } from '@/constants/app';
 import type { Customer, CustomerLedgerEntry } from '@/types/models';
 import { paths, toLedgerEntry, type Actor } from './db';
+import { newClientOperationId, retryOnTransport } from './clientOperation';
 import { AppError } from './errors';
 import { posApi } from './functionsClient';
 import { auditFields, requireOnline } from './ops';
@@ -29,19 +32,23 @@ export interface CustomerInput {
   creditLimitUsdCents: number;
 }
 
-export function assertUniqueCustomer(input: CustomerInput, customers: Customer[], selfId?: string): void {
-  const name = input.name.trim().toLowerCase();
-  const phone = input.phone.replace(/\D/g, '');
-  const dup = customers.find(
-    (c) => c.id !== selfId && (c.name.trim().toLowerCase() === name || (!!phone && c.phone.replace(/\D/g, '') === phone)),
-  );
-  if (dup) throw new AppError('error.customerExists', { name: dup.name });
+export async function assertUniqueCustomer(tenantId: string, input: CustomerInput, selfId?: string): Promise<void> {
+  const byName = await findByNormalizedName(tenantId, 'customers', input.name);
+  if (byName && byName.id !== selfId) throw new AppError('error.customerExists', { name: byName.name });
+  const phone = phoneKey(input.phone);
+  if (!phone) return;
+  const snap = await getDocs(query(paths.col(tenantId, 'customers'), where('phoneKey', '==', phone), limit(1)));
+  const hit = snap.docs[0];
+  if (hit && hit.id !== selfId) throw new AppError('error.customerExists', { name: String(hit.data().name ?? '') });
 }
 
 const fields = (input: CustomerInput) => ({
   name: input.name.trim(),
+  nameNormalized: nameNormalized(input.name),
   phone: input.phone.trim(),
+  phoneKey: phoneKey(input.phone),
   email: input.email.trim(),
+  emailKey: emailKey(input.email),
   address: input.address.trim(),
   creditLimitUsdCents: Math.max(0, Math.round(input.creditLimitUsdCents)),
   updatedAt: serverTimestamp(),
@@ -56,7 +63,8 @@ export async function createCustomer(actor: Actor, input: CustomerInput, opening
   if (opening > 0) {
     requireOnline();
     const { updatedAt: _updatedAt, ...customer } = fields(input);
-    const { id } = await posApi.createCustomer({ customer, openingDebtUsdCents: opening });
+    const clientOperationId = newClientOperationId();
+    const { id } = await retryOnTransport(() => posApi.createCustomer({ clientOperationId, customer, openingDebtUsdCents: opening }));
     return id;
   }
   const ref = doc(paths.col(actor.tenantId, 'customers'));
@@ -100,13 +108,31 @@ export async function payDebt(input: DebtPaymentInput): Promise<void> {
   const usdCents = Math.max(0, Math.round(input.usdCents));
   const lbp = Math.max(0, Math.round(input.lbp));
   if (usdCents + lbpToUsdCents(lbp, input.rate) <= 0) throw new AppError('error.invalidAmount');
-  await posApi.payDebt({ customerId: input.customerId, usdCents, lbp, rate: input.rate, note: input.note.trim().slice(0, 300) });
+  const clientOperationId = newClientOperationId();
+  await retryOnTransport(() =>
+    posApi.payDebt({
+      clientOperationId,
+      customerId: input.customerId,
+      usdCents,
+      lbp,
+      rate: input.rate,
+      note: input.note.trim().slice(0, 300),
+    }),
+  );
 }
 
 /** Owner-only manual correction of a customer's debt (always audited in the ledger). */
 export async function adjustDebt(customerId: string, newDebtUsdCents: number, note: string): Promise<void> {
   requireOnline();
-  await posApi.adjustDebt({ customerId, newDebtUsdCents: Math.max(0, Math.round(newDebtUsdCents)), note: note.trim().slice(0, 300) });
+  const clientOperationId = newClientOperationId();
+  await retryOnTransport(() =>
+    posApi.adjustDebt({
+      clientOperationId,
+      customerId,
+      newDebtUsdCents: Math.max(0, Math.round(newDebtUsdCents)),
+      note: note.trim().slice(0, 300),
+    }),
+  );
 }
 
 export async function listLedger(

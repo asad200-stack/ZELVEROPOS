@@ -10,9 +10,9 @@ import { useTenant } from '@/contexts/session';
 import { DEFAULTS } from '@/constants/app';
 import { centsToInput, lbpToUsdCents, parseLbpInput, parseUsdInput } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import { useForm } from '@/hooks/useForm';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
-import { useCustomers, useSettings } from '@/hooks/useTenantData';
+import { useForm } from '@/hooks/useForm';
+import { useSettings } from '@/hooks/useTenantData';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
 import { adjustDebt, assertUniqueCustomer, createCustomer, listLedger, payDebt, updateCustomer } from '@/services/customerService';
 import type { Customer, LedgerType } from '@/types/models';
@@ -21,9 +21,8 @@ import { customerSchema } from '@/validation/schemas';
 
 export function CustomerFormModal({ customer, onClose }: { customer: Customer | null; onClose: () => void }) {
   const { t } = useI18n();
-  const { actor } = useTenant();
+  const { actor, tenantId } = useTenant();
   const { notify } = useFeedback();
-  const customers = useCustomers().data;
   const { busy, run } = useAsyncAction('customer-save');
   const form = useForm({
     name: customer?.name ?? '',
@@ -39,7 +38,7 @@ export function CustomerFormModal({ customer, onClose }: { customer: Customer | 
       const data = form.validate(customerSchema);
       if (!data) return;
       const input = { name: data.name, phone: data.phone, email: data.email, address: data.address, creditLimitUsdCents: data.creditLimit ?? 0 };
-      assertUniqueCustomer(input, customers, customer?.id);
+      await assertUniqueCustomer(tenantId, input, customer?.id);
       if (customer) await updateCustomer(actor, customer.id, input);
       else await createCustomer(actor, input, data.openingDebt ?? 0);
       notify('success', t('common.saved'));

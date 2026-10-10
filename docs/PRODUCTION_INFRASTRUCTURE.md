@@ -12,7 +12,7 @@ Firebase project `zelvoropos`, project number `185652618374`. The old CATCH POS 
 | Cloud Storage | `zelvoropos.firebasestorage.app` | `EUROPE-WEST1` |
 | Authentication | Firebase Auth, Email/Password only, email enumeration protection on | global |
 | Hosting (classic) | site `zelvoropos` (`zelvoropos.web.app`) | global CDN |
-| App Check | not configured yet (reCAPTCHA Enterprise planned) | — |
+| App Check | web app registered with reCAPTCHA Enterprise; Firestore/Storage/Auth **UNENFORCED** (monitoring). Do not enforce. | — |
 
 Previous configuration (replaced on 2026-10-01 before any data existed): Firestore `nam5` and
 Functions `us-central1`. An unrelated App Hosting backend (`viv`) and its resources were removed.

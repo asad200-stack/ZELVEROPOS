@@ -12,16 +12,19 @@ import { computeCredit, planCashTender, type CashTenderPlan } from '@/domain/che
 import { parseLbpInput, parseUsdInput, usdCentsToLbp } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { useCashbox, useCategories, useCustomerMap, useCustomers, useProductMap, useProducts, useSettings } from '@/hooks/useTenantData';
+import { mergeKnown } from '@/domain/catalogSession';
+import { useCashbox, useCategories, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { takeReopenRequest, useOfflineQueue } from '@/offline/queue';
 import type { OfflineOperation } from '@/offline/types';
+import { getCustomer, getProductsByIds } from '@/services/catalogQuery';
 import { checkout, type CheckoutResult } from '@/services/salesService';
-import type { Currency, PriceTier, Product } from '@/types/models';
+import type { Currency, Customer, PriceTier, Product } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { printOfflineReceipt, printSaleReceipt } from '@/features/sales/receipt';
 import { CartPanel } from './CartPanel';
 import { FitAmount } from './FitAmount';
+import { CustomerSelect } from './CustomerSelect';
 import { PaymentPanel, type PaymentDraft } from './PaymentPanel';
 import { ProductPicker } from './ProductPicker';
 import { MAX_CARTS, usePosCarts } from './usePosCarts';
@@ -56,15 +59,45 @@ export default function PosPage() {
   const cashbox = useCashbox();
   const rate = settings.exchangeRate;
   const categories = useCategories();
-  const productsState = useProducts();
-  const sellable = useMemo(() => productsState.data.filter((p) => p.status === 'active'), [productsState.data]);
-  const productMap = useProductMap();
-  const customers = useCustomers().data;
-  const customerMap = useCustomerMap();
   const pos = usePosCarts(tenantId, actor.uid, settings.defaultCurrency);
+  const [knownProducts, setKnownProducts] = useState<Map<string, Product>>(() => new Map());
+  const [knownCustomer, setKnownCustomer] = useState<Customer | null>(null);
   const { cart, update } = pos;
-  const customer = cart.customerId ? customerMap.get(cart.customerId) ?? null : null;
   const draft = cart.draft;
+  const customer = cart.customerId && knownCustomer?.id === cart.customerId ? knownCustomer : null;
+  const productMap = knownProducts;
+  const lineKey = cart.lines.map((line) => line.productId).join('\n');
+
+  useEffect(() => {
+    const missing = [...new Set(cart.lines.map((line) => line.productId))].filter((id) => !knownProducts.has(id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    getProductsByIds(tenantId, missing)
+      .then((found) => {
+        if (!cancelled && found.length > 0) setKnownProducts((known) => mergeKnown(known, found));
+      })
+      .catch((error: unknown) => console.error('[pos] cart products', error));
+    return () => {
+      cancelled = true;
+    };
+    // knownProducts is read to skip ids already held. A missing deleted id is not retried this session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineKey, tenantId]);
+
+  useEffect(() => {
+    const id = cart.customerId;
+    if (!id) return;
+    if (knownCustomer?.id === id) return;
+    let cancelled = false;
+    getCustomer(tenantId, id)
+      .then((found) => {
+        if (!cancelled) setKnownCustomer(found);
+      })
+      .catch((error: unknown) => console.error('[pos] customer', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [cart.customerId, tenantId, knownCustomer?.id]);
   const setDraft = (patch: Partial<PaymentDraft>) => update((c) => ({ ...c, draft: { ...c.draft, ...patch } }));
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -118,6 +151,7 @@ export default function PosPage() {
 
   const pick = useCallback(
     (product: Product) => {
+      setKnownProducts((known) => mergeKnown(known, [product]));
       if (product.imeiTracking) {
         setImeiProduct(product);
         return;
@@ -127,9 +161,14 @@ export default function PosPage() {
     [update],
   );
 
-  const setCustomer = (id: string) => update((c) => ({ ...c, customerId: id || null, debtLineUsdCents: null }));
-  const toggleDebtLine = (on: boolean) =>
+  const setCustomer = (next: Customer | null) => {
+    setKnownCustomer(next);
+    update((c) => ({ ...c, customerId: next?.id ?? null, debtLineUsdCents: null }));
+  };
+
+  const toggleDebtLine = (on: boolean) => {
     update((c) => ({ ...c, debtLineUsdCents: on && customer && customer.debtUsdCents > 0 ? customer.debtUsdCents : null }));
+  };
 
   const complete = () =>
     run(async () => {
@@ -240,8 +279,7 @@ export default function PosPage() {
 
       <section className="pos__products">
         <ProductPicker
-          products={sellable}
-          loading={productsState.status === 'loading'}
+          tenantId={tenantId}
           categories={categories}
           tier={cart.tier}
           rate={rate}
@@ -378,23 +416,15 @@ export default function PosPage() {
               { value: 'LBP', label: lang === 'ar' ? 'ليرة ل.ل' : 'LBP' },
             ]}
           />
-          <SelectInput
-            label={t('pos.customer')}
-            value={cart.customerId ?? ''}
-            onChange={(e) => setCustomer(e.target.value)}
-            options={[
-              { value: '', label: t('pos.walkIn') },
-              ...customers.map((c) => ({ value: c.id, label: c.debtUsdCents > 0 ? `${c.name} (${formatUsd(c.debtUsdCents)})` : c.name })),
-            ]}
-          />
-        </div>
-        {customer && customer.debtUsdCents > 0 && (
+          <CustomerSelect tenantId={tenantId} selected={customer} onSelect={setCustomer} />
+          {customer && customer.debtUsdCents > 0 && (
           <Checkbox
             label={t('pos.addPreviousBalance', { amount: formatUsd(customer.debtUsdCents) })}
             checked={cart.debtLineUsdCents !== null}
             onChange={(e) => toggleDebtLine(e.target.checked)}
           />
-        )}
+          )}
+        </div>
 
         {customer && <p className="cart-customer">{customer.name}</p>}
 

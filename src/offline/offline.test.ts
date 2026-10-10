@@ -431,6 +431,99 @@ describe('shared-device isolation', () => {
   });
 });
 
+describe('long offline session and large reconnect', () => {
+  it('keeps 150 queued sales for a several-hour simulated shift, then syncs each id once', async () => {
+    const store = await open();
+    const started = clock;
+    for (let i = 0; i < 150; i += 1) {
+      clock = started + i * 90_000;
+      await store.add(saleOp(`long${i}`, clock));
+    }
+    clock = started + 4 * 3_600_000;
+    store.close();
+    const reopened = await open();
+    expect((await reopened.list()).filter((o) => o.status === 'PENDING_SYNC')).toHaveLength(150);
+    const loadStarted = Date.now();
+    await reopened.list();
+    const loadMs = Date.now() - loadStarted;
+    const server = fakeServer();
+    const syncStarted = Date.now();
+    const summary = await engine(reopened, server).syncNow();
+    const syncMs = Date.now() - syncStarted;
+    expect(summary.synced).toBe(150);
+    expect(server.recorded.size).toBe(150);
+    expect(new Set(server.calls.map((c) => c.saleId)).size).toBe(150);
+    console.info(JSON.stringify({ phaseEPerf: { queue: 150, loadMs, syncMs } }));
+  });
+
+  it('measures reconnect of 10 / 50 / 100 queued operations without double replay', async () => {
+    const rows: { n: number; ms: number }[] = [];
+    for (const n of [10, 50, 100]) {
+      factory = new IDBFactory();
+      const store = await open();
+      for (let i = 0; i < n; i += 1) await store.add(saleOp(`q${n}-${i}`, clock + i));
+      clock += n + 10;
+      const server = fakeServer();
+      const started = Date.now();
+      const summary = await engine(store, server).syncNow();
+      rows.push({ n, ms: Date.now() - started });
+      expect(summary.synced).toBe(n);
+      expect(server.calls).toHaveLength(n);
+    }
+    console.info(JSON.stringify({ phaseEReconnect: rows }));
+  });
+
+  it('a conflict in the middle of the queue does not drop later valid sales', async () => {
+    const store = await open();
+    await store.add(saleOp('ok1', clock));
+    await store.add(saleOp('stalePrice', clock + 1));
+    await store.add(saleOp('ok2', clock + 2));
+    await store.add(saleOp('archived', clock + 3));
+    await store.add(saleOp('ok3', clock + 4));
+    clock += 10;
+    const server = fakeServer();
+    server.next(
+      server.ok,
+      () => Promise.reject(businessError('error.pricesChanged')),
+      server.ok,
+      () => Promise.reject(businessError('error.productArchived')),
+      server.ok,
+    );
+    const s = await engine(store, server).syncNow();
+    expect(s).toMatchObject({ synced: 3, conflicts: 2, rejected: 0 });
+    expect((await store.get('ok1'))?.status).toBe('SYNCED');
+    expect((await store.get('stalePrice'))?.status).toBe('CONFLICT');
+    expect((await store.get('ok2'))?.status).toBe('SYNCED');
+    expect((await store.get('archived'))?.status).toBe('CONFLICT');
+    expect((await store.get('ok3'))?.status).toBe('SYNCED');
+  });
+
+  it('reconnect that drops mid-sync, then reconnects again, still commits each sale once', async () => {
+    const store = await open();
+    for (let i = 0; i < 8; i += 1) await store.add(saleOp(`dup${i}`, clock + i));
+    clock += 20;
+    const server = fakeServer();
+    server.next(server.ok, server.ok, () => Promise.reject(networkError()));
+    const e = engine(store, server);
+    await e.syncNow();
+    clock += 60_000;
+    await e.syncNow();
+    expect(server.recorded.size).toBe(8);
+    expect((await store.list()).filter((o) => o.status === 'SYNCED')).toHaveLength(8);
+  });
+
+  it('operations several days old are not auto-deleted and still conflict correctly', async () => {
+    const store = await open();
+    await store.add(saleOp('stale-day', clock));
+    clock += 3 * 86_400_000;
+    const server = fakeServer();
+    server.next(() => Promise.reject(businessError('error.insufficientStock')));
+    await engine(store, server).syncNow();
+    expect(await store.get('stale-day')).toMatchObject({ status: 'CONFLICT', reason: 'OUT_OF_STOCK' });
+    expect(await store.list()).toHaveLength(1);
+  });
+});
+
 describe('callable payload encoding', () => {
   it('a stored cash sale reaches the server with no null placeholders for absent fields', () => {
     const op = saleOp('wire1');

@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { db, storage } from './admin.js';
 import { BUSINESS_COLLECTIONS, REGION } from './config.js';
 import { fail } from './errors.js';
-import { caller, parse, requireOwner } from './validate.js';
+import { requireLiveOwner } from './liveUser.js';
+import { caller, parse } from './validate.js';
 
 /**
  * Owner-only reset of the store's business data. Settings, Telegram credentials, users and the
@@ -12,7 +13,7 @@ import { caller, parse, requireOwner } from './validate.js';
  */
 export const clearTenantData = onCall({ region: REGION, timeoutSeconds: 540, memory: '512MiB' }, async (request) => {
   const c = caller(request);
-  const tenantId = requireOwner(c);
+  const tenantId = await requireLiveOwner(c);
   const { confirm } = parse(z.object({ confirm: z.string() }), request.data);
   if (confirm !== 'DELETE') fail('invalid-argument', 'error.fn.confirmMismatch');
 

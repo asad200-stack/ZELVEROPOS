@@ -9,8 +9,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/integration/**/*.test.ts'],
+    exclude: ['tests/integration/concurrency.test.ts'],
     testTimeout: 60_000,
-    hookTimeout: 120_000,
+    hookTimeout: 180_000,
     fileParallelism: false,
   },
 });

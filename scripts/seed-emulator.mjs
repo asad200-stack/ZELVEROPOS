@@ -74,6 +74,7 @@ async function seedStore(fs, { T, storeName, drawerUsdCents, users, ids, custome
   const product = (id, name, retail, stock, extra = {}) =>
     setDoc(doc(fs, `tenants/${T}/products/${id}`), {
       name,
+      nameNormalized: name.trim().toLowerCase().replace(/\s+/g, ' '),
       category: 'Accessories',
       barcode: id.toUpperCase(),
       prices: { retail: { usdCents: retail, lbp: null }, wholesale: { usdCents: 0, lbp: null }, vip: { usdCents: 0, lbp: null } },
@@ -107,6 +108,9 @@ async function seedStore(fs, { T, storeName, drawerUsdCents, users, ids, custome
   });
   await setDoc(doc(fs, `tenants/${T}/customers/${customerId}`), {
     name: customerName,
+    nameNormalized: customerName.trim().toLowerCase().replace(/\s+/g, ' '),
+    phoneKey: '',
+    emailKey: '',
     phone: '',
     email: '',
     address: '',

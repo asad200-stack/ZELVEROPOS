@@ -1,4 +1,5 @@
 import {
+  documentId,
   getDoc,
   getDocs,
   limit,
@@ -17,6 +18,7 @@ import { buildCheckoutCall, buildSaleSnapshot, type CheckoutContext, type Checko
 import type { OfflineOperation } from '@/offline/types';
 import type { Sale, SaleKind, SaleReturn } from '@/types/models';
 import { paths, toSale, toSaleReturn } from './db';
+import { newClientOperationId, retryOnTransport } from './clientOperation';
 import { posApi } from './functionsClient';
 import { isOnline, requireOnline } from './ops';
 
@@ -75,11 +77,15 @@ export interface ReturnRequest {
  */
 export async function processReturn(req: ReturnRequest): Promise<SaleReturn> {
   requireOnline();
-  const { saleReturn } = await posApi.processReturn({
-    saleId: req.saleId,
-    lines: req.lines.filter((l) => l.quantity > 0),
-    reason: req.reason.trim().slice(0, 500),
-  });
+  const clientOperationId = newClientOperationId();
+  const { saleReturn } = await retryOnTransport(() =>
+    posApi.processReturn({
+      clientOperationId,
+      saleId: req.saleId,
+      lines: req.lines.filter((l) => l.quantity > 0),
+      reason: req.reason.trim().slice(0, 500),
+    }),
+  );
   return toSaleReturn(saleReturn.id, saleReturn);
 }
 
@@ -98,23 +104,40 @@ export interface Page<T> {
   hasMore: boolean;
 }
 
-export async function listSales(tenantId: string, filter: SalesFilter, cursor: QueryDocumentSnapshot | null): Promise<Page<Sale>> {
+/** Cursor fields only. The page does not keep Firestore snapshots from earlier pages. */
+export interface SalesCursor {
+  localDate: string;
+  createdAtMs: number;
+  id: string;
+}
+
+export interface SalesList {
+  items: Sale[];
+  cursor: SalesCursor | null;
+  hasMore: boolean;
+}
+
+export async function listSales(tenantId: string, filter: SalesFilter, cursor: SalesCursor | null): Promise<SalesList> {
   const constraints: QueryConstraint[] = [
     where('localDate', '>=', filter.from),
     where('localDate', '<=', filter.to),
   ];
   if (filter.kind && filter.kind !== 'all') constraints.push(where('kind', '==', filter.kind));
   if (filter.customerId) constraints.push(where('customerId', '==', filter.customerId));
-  constraints.push(orderBy('localDate', 'desc'), orderBy('createdAtMs', 'desc'), limit(PAGE_SIZE));
-  if (cursor) constraints.push(startAfter(cursor));
+  constraints.push(orderBy('localDate', 'desc'), orderBy('createdAtMs', 'desc'), orderBy(documentId(), 'desc'), limit(PAGE_SIZE));
+  if (cursor) constraints.push(startAfter(cursor.localDate, cursor.createdAtMs, cursor.id));
   const snap = await getDocs(query(paths.col(tenantId, 'sales'), ...constraints));
+  const last = snap.docs[snap.docs.length - 1];
   return {
     items: snap.docs.map((d) => toSale(d.id, d.data())),
-    cursor: snap.docs[snap.docs.length - 1] ?? null,
+    cursor: last
+      ? { localDate: String(last.get('localDate') ?? ''), createdAtMs: Number(last.get('createdAtMs')) || 0, id: last.id }
+      : null,
     hasMore: snap.docs.length === PAGE_SIZE,
   };
 }
 
+/** Exact invoice match. This does not load a page and search it. */
 export async function findSaleByInvoice(tenantId: string, invoiceNumber: string): Promise<Sale | null> {
   const snap = await getDocs(
     query(paths.col(tenantId, 'sales'), where('invoiceNumber', '==', invoiceNumber.trim().toUpperCase()), limit(1)),
@@ -128,34 +151,15 @@ export async function getSale(tenantId: string, saleId: string): Promise<Sale | 
   return snap.exists() ? toSale(snap.id, snap.data()) : null;
 }
 
+/** Returns that belong to one sale. Repeated-return checks use the sale document, not this list. */
 export async function listReturnsForSale(tenantId: string, saleId: string): Promise<SaleReturn[]> {
-  const snap = await getDocs(query(paths.col(tenantId, 'returns'), where('saleId', '==', saleId), limit(100)));
-  return snap.docs.map((d) => toSaleReturn(d.id, d.data())).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-}
-
-/** Loads every sale in a date range for reports (bounded to protect cost and memory). */
-export const REPORT_MAX_DOCS = 5000;
-
-export async function loadSalesRange(tenantId: string, from: string, to: string): Promise<{ sales: Sale[]; truncated: boolean }> {
-  const snap = await getDocs(
-    query(
-      paths.col(tenantId, 'sales'),
-      where('localDate', '>=', from),
-      where('localDate', '<=', to),
-      orderBy('localDate', 'desc'),
-      limit(REPORT_MAX_DOCS),
-    ),
-  );
-  return { sales: snap.docs.map((d) => toSale(d.id, d.data())), truncated: snap.docs.length === REPORT_MAX_DOCS };
-}
-
-export async function loadReturnsRange(tenantId: string, from: string, to: string): Promise<SaleReturn[]> {
   const snap = await getDocs(
     query(
       paths.col(tenantId, 'returns'),
-      where('localDate', '>=', from),
-      where('localDate', '<=', to),
-      limit(REPORT_MAX_DOCS),
+      where('saleId', '==', saleId),
+      orderBy('createdAtMs', 'desc'),
+      orderBy(documentId(), 'desc'),
+      limit(50),
     ),
   );
   return snap.docs.map((d) => toSaleReturn(d.id, d.data()));

@@ -29,11 +29,21 @@ service cloud.firestore {
       return signedIn() && claim('superAdmin', false) == true && claim('email_verified', false) == true;
     }
 
+    // Live profile (not only the ID token). Closes the window where a disabled user's token
+    // can still read tenant data until the next refresh. Extra document get per request.
+    function liveActive(t) {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path)
+        && get(path).data.isActive == true
+        && get(path).data.tenantId == t;
+    }
+
     function member(t) {
       return signedIn()
         && claim('tenantId', '') == t
         && claim('active', false) == true
-        && claim('email_verified', false) == true;
+        && claim('email_verified', false) == true
+        && liveActive(t);
     }
 
     function isOwner(t) { return member(t) && claim('role', '') == 'owner'; }
@@ -109,6 +119,10 @@ service cloud.firestore {
           ])
           && (!('exchangeRate' in incoming()) || (incoming().exchangeRate is int && incoming().exchangeRate > 0))
           && (!('storeName' in incoming()) || str(incoming().storeName, 120))
+          && (!('storeAddress' in incoming()) || str(incoming().storeAddress, 300))
+          && (!('storePhone' in incoming()) || str(incoming().storePhone, 40))
+          && (!('logoUrl' in incoming()) || str(incoming().logoUrl, 2000))
+          && (!('logoPath' in incoming()) || str(incoming().logoPath, 500))
           && (!('receiptFooter' in incoming()) || str(incoming().receiptFooter, 500));
         allow delete: if false;
       }
@@ -191,6 +205,10 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /clientOps/{id} {
+        allow read, write: if false;
+      }
+
       // ---------------------------------------------------------- products (master data only)
 
       function productFieldsValid(d) {
@@ -206,7 +224,7 @@ service cloud.firestore {
         // Created by posCreateProduct / posImportProducts (initial stock needs a movement).
         allow create: if false;
         allow update: if canW(t, 'canEditProducts')
-          && changed().hasOnly(['name', 'category', 'barcode', 'prices', 'costUsdCents', 'minStock', 'supplierId',
+          && changed().hasOnly(['name', 'nameNormalized', 'category', 'barcode', 'prices', 'costUsdCents', 'minStock', 'supplierId',
                                 'supplierName', 'expiryDate', 'imeiTracking', 'imageUrl', 'imagePath', 'updatedAt'])
           && productFieldsValid(incoming())
           && (!changed().hasAny(['imeiTracking']) || (existing().stock == 0 && existing().imeis.size() == 0));
@@ -226,12 +244,12 @@ service cloud.firestore {
         allow read: if member(t);
         // A customer with an opening debt is created by posCreateCustomer (with its ledger entry).
         allow create: if canW(t, 'canViewCustomers') && stamped() && customerFieldsValid(incoming())
-          && incoming().keys().hasOnly(['name', 'phone', 'email', 'address', 'creditLimitUsdCents', 'debtUsdCents',
+          && incoming().keys().hasOnly(['name', 'nameNormalized', 'phone', 'phoneKey', 'email', 'emailKey', 'address', 'creditLimitUsdCents', 'debtUsdCents',
                                         'totalPurchasesUsdCents', 'lastLedgerId', 'createdAt', 'createdAtMs',
                                         'createdBy', 'updatedAt'])
           && incoming().debtUsdCents == 0 && incoming().totalPurchasesUsdCents == 0 && incoming().lastLedgerId == null;
         allow update: if canW(t, 'canViewCustomers')
-          && changed().hasOnly(['name', 'phone', 'email', 'address', 'creditLimitUsdCents', 'updatedAt'])
+          && changed().hasOnly(['name', 'nameNormalized', 'phone', 'phoneKey', 'email', 'emailKey', 'address', 'creditLimitUsdCents', 'updatedAt'])
           && customerFieldsValid(incoming());
         allow delete: if canW(t, 'canViewCustomers') && existing().debtUsdCents == 0;
       }
@@ -245,11 +263,11 @@ service cloud.firestore {
       match /suppliers/{id} {
         allow read: if can(t, 'canViewSuppliers') || can(t, 'canAddProducts') || can(t, 'canEditProducts') || fullRead(t);
         allow create: if canW(t, 'canViewSuppliers') && stamped() && supplierFieldsValid(incoming())
-          && incoming().keys().hasOnly(['name', 'contactPerson', 'phone', 'email', 'address', 'balanceUsdCents',
+          && incoming().keys().hasOnly(['name', 'nameNormalized', 'contactPerson', 'phone', 'phoneKey', 'email', 'emailKey', 'address', 'balanceUsdCents',
                                         'createdAt', 'createdAtMs', 'createdBy', 'updatedAt'])
           && incoming().balanceUsdCents == 0;
         allow update: if canW(t, 'canViewSuppliers')
-          && changed().hasOnly(['name', 'contactPerson', 'phone', 'email', 'address', 'updatedAt'])
+          && changed().hasOnly(['name', 'nameNormalized', 'contactPerson', 'phone', 'phoneKey', 'email', 'emailKey', 'address', 'updatedAt'])
           && supplierFieldsValid(incoming());
         allow delete: if canW(t, 'canViewSuppliers') && existing().balanceUsdCents == 0;
       }

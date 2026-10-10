@@ -8,7 +8,8 @@ import { useTenant } from '@/contexts/session';
 import { planReturn } from '@/domain/returns';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { useCustomerMap, useSettings } from '@/hooks/useTenantData';
+import { useSettings } from '@/hooks/useTenantData';
+import { getCustomer } from '@/services/catalogQuery';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
 import { getSale, listReturnsForSale, processReturn } from '@/services/salesService';
 import type { Sale, SaleReturn } from '@/types/models';
@@ -199,13 +200,27 @@ interface ReturnFormProps {
 function ReturnForm({ sale, action, onCancel, onDone }: ReturnFormProps) {
   const { t, lang } = useI18n();
   const { confirm } = useFeedback();
-  const customerMap = useCustomerMap();
+  const { tenantId } = useTenant();
+  const [debtUsdCents, setDebtUsdCents] = useState(0);
   const [qty, setQty] = useState<Record<number, string>>({});
   const [reason, setReason] = useState('');
   const { busy, run } = action;
 
   const request = sale.items.map((_, index) => ({ index, quantity: Number(qty[index] || 0) }));
-  const debt = sale.customerId ? customerMap.get(sale.customerId)?.debtUsdCents ?? 0 : 0;
+  useEffect(() => {
+    const id = sale.customerId;
+    if (!id) return;
+    let cancelled = false;
+    getCustomer(tenantId, id)
+      .then((customer) => {
+        if (!cancelled && customer) setDebtUsdCents(customer.debtUsdCents);
+      })
+      .catch((error: unknown) => console.error('[return] customer', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, sale.customerId]);
+  const debt = debtUsdCents;
   const plan = planReturn(sale, request, debt);
 
   const submit = () =>

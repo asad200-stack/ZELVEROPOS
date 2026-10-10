@@ -1114,7 +1114,12 @@ input.qty__input {
 .load-more {
   display: flex;
   justify-content: center;
+  gap: 8px;
   padding: 8px 0;
+}
+
+.sales-page--refresh {
+  opacity: 0.72;
 }
 
 /* Detail blocks */

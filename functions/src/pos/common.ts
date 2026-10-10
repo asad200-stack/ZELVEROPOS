@@ -88,6 +88,83 @@ export const tenantPaths = (t: string) => ({
   dailyStats: (date: string) => db.doc(`tenants/${t}/dailyStats/${date}`),
 });
 
+/* ============================================================ idempotency */
+
+export type ClientOpResult = Record<string, unknown>;
+
+export function isRetryableCommitError(error: unknown): boolean {
+  const grpcCode = (error as { code?: unknown }).code;
+  return (
+    grpcCode === 4 ||
+    grpcCode === 10 ||
+    grpcCode === 14 ||
+    grpcCode === 'DEADLINE_EXCEEDED' ||
+    grpcCode === 'ABORTED' ||
+    grpcCode === 'UNAVAILABLE' ||
+    (typeof grpcCode === 'string' && /deadline|aborted|unavailable/i.test(grpcCode) && grpcCode !== 'failed-precondition')
+  );
+}
+
+async function replayClientOp(
+  tenantId: string,
+  opId: string,
+  uid: string,
+  kind: string,
+): Promise<(ClientOpResult & { duplicate: true }) | null> {
+  const snap = await tenantPaths(tenantId).doc('clientOps', opId).get();
+  if (!snap.exists) return null;
+  const data = snap.data()!;
+  if (data.createdBy !== uid || data.kind !== kind) fail('already-exists', 'error.alreadyExists');
+  const result = data.result && typeof data.result === 'object' ? (data.result as ClientOpResult) : { ok: true };
+  return { ...result, duplicate: true };
+}
+
+/**
+ * Runs a money mutation at most once per `clientOperationId`. A retry after a lost response
+ * returns the stored canonical result (including after the user/subscription later becomes inactive).
+ */
+export async function runClientOp(
+  request: CallableRequest,
+  opId: string,
+  kind: string,
+  anyOf: PermissionKey[],
+  run: (tx: Transaction, actor: PosActor) => Promise<ClientOpResult>,
+  extraAuth?: (actor: PosActor) => void,
+): Promise<ClientOpResult & { duplicate: boolean }> {
+  const auth = caller(request);
+  if (!auth.tenantId || !auth.emailVerified) fail('permission-denied', 'error.permissionDenied');
+  const early = await replayClientOp(auth.tenantId, opId, auth.uid, kind);
+  if (early) return early;
+  const opRef = tenantPaths(auth.tenantId).doc('clientOps', opId);
+  try {
+    const actor = await posActor(request, anyOf);
+    extraAuth?.(actor);
+    return await db.runTransaction(async (tx) => {
+      const existing = await tx.get(opRef);
+      if (existing.exists) {
+        const data = existing.data()!;
+        if (data.createdBy !== actor.uid || data.kind !== kind) fail('already-exists', 'error.alreadyExists');
+        const result = data.result && typeof data.result === 'object' ? (data.result as ClientOpResult) : { ok: true };
+        return { ...result, duplicate: true };
+      }
+      const result = await run(tx, actor);
+      tx.set(opRef, {
+        kind,
+        result,
+        createdBy: actor.uid,
+        createdAtMs: Date.now(),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return { ...result, duplicate: false };
+    });
+  } catch (error) {
+    const recovered = await replayClientOp(auth.tenantId, opId, auth.uid, kind);
+    if (recovered) return recovered;
+    if (isRetryableCommitError(error)) fail('unavailable', 'error.network');
+    throw error;
+  }
+}
+
 /* ================================================================= audit */
 
 /** Business date (YYYY-MM-DD) in the store's time zone. */

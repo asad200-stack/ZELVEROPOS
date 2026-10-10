@@ -229,6 +229,58 @@ describe('server-only ledgers (written exclusively by Cloud Functions)', () => {
     await assertFails(setDoc(doc(owner(), tp(T, 'counters', 'purchases')), { nextId: 1 }, { merge: true }));
   });
 
+  it('clientOps records are server-only', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore() as unknown as Firestore, tp(T, 'clientOps', 'op1')), { kind: 'posPayDebt', result: { ok: true } });
+    });
+    await assertFails(setDoc(doc(owner(), tp(T, 'clientOps', 'op1')), { kind: 'posPayDebt', result: { ok: true } }));
+    await assertFails(getDoc(doc(cashier(), tp(T, 'clientOps', 'op1'))));
+    await assertFails(getDocs(collection(owner(), tp(T, 'clientOps'))));
+    await assertFails(deleteDoc(doc(owner(), tp(T, 'clientOps', 'op1'))));
+    await assertFails(updateDoc(doc(owner(), tp(T, 'clientOps', 'op1')), { kind: 'hacked' }));
+  });
+
+  it('a disabled user cannot read tenant data even with a still-active ID token', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fs = ctx.firestore() as unknown as Firestore;
+      await setDoc(doc(fs, 'users/disabledCashier'), {
+        uid: 'disabledCashier',
+        role: 'subUser',
+        tenantId: T,
+        isActive: false,
+        fullName: 'Disabled',
+        claimsVersion: 1,
+      });
+    });
+    const stale = db(env, 'disabledCashier', { role: 'subUser', perms: { canSell: true, canViewCustomers: true, canViewSuppliers: true, canViewReports: true, canManageCashDrawer: true, canViewSales: true } });
+    await assertFails(getDoc(doc(stale, tp(T, 'products', 'p1'))));
+    await assertFails(getDoc(doc(stale, tp(T, 'customers', 'c1'))));
+    await assertFails(getDocs(collection(stale, tp(T, 'suppliers'))));
+    await assertFails(getDocs(collection(stale, tp(T, 'sales'))));
+    await assertFails(getDoc(doc(stale, tp(T, 'settings', 'main'))));
+    await assertFails(getDoc(doc(stale, tp(T, 'cashbox', 'summary'))));
+    await assertFails(getDocs(collection(stale, tp(T, 'dailyStats'))));
+  });
+
+  it('cross-tenant reads are denied for remaining ledgers', async () => {
+    const other = db(env, OTHER, { tenantId: OTHER });
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fs = ctx.firestore() as unknown as Firestore;
+      await setDoc(doc(fs, `users/${OTHER}`), { uid: OTHER, role: 'owner', tenantId: OTHER, isActive: true, fullName: 'B', claimsVersion: 1 });
+      for (const name of ['returns', 'purchases', 'customerLedger', 'supplierPayments', 'cashTransactions', 'dailyStats', 'clientOps']) {
+        await setDoc(doc(fs, tp(T, name, 'x')), { n: 1 });
+      }
+    });
+    await assertFails(getDoc(doc(other, tp(T, 'returns', 'x'))));
+    await assertFails(getDoc(doc(other, tp(T, 'purchases', 'x'))));
+    await assertFails(getDoc(doc(other, tp(T, 'customerLedger', 'x'))));
+    await assertFails(getDoc(doc(other, tp(T, 'supplierPayments', 'x'))));
+    await assertFails(getDoc(doc(other, tp(T, 'cashTransactions', 'x'))));
+    await assertFails(getDoc(doc(other, tp(T, 'dailyStats', 'x'))));
+    await assertFails(getDoc(doc(other, tp(T, 'clientOps', 'x'))));
+    await assertFails(getDoc(doc(other, tp(T, 'lists', 'categories'))));
+  });
+
   it('read access still follows permissions', async () => {
     await assertFails(getDocs(collection(cashier(), tp(T, 'cashTransactions'))));
     await assertFails(getDocs(collection(cashier(), tp(T, 'purchases'))));

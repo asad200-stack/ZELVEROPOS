@@ -5,8 +5,9 @@ import { auth, db } from './admin.js';
 import { subUntilOf, syncUserClaims } from './claims.js';
 import { fail } from './errors.js';
 import { REGION } from './config.js';
+import { requireLiveOwner } from './liveUser.js';
 import { normalizePermissions } from './permissions.js';
-import { caller, parse, requireOwner, trimmed, type Caller } from './validate.js';
+import { caller, parse, trimmed, type Caller } from './validate.js';
 
 const MAX_SUB_USERS = 50;
 
@@ -22,7 +23,7 @@ function authErrorKey(e: unknown): string | null {
 }
 
 async function requireActiveOwner(c: Caller): Promise<string> {
-  const tenantId = requireOwner(c);
+  const tenantId = await requireLiveOwner(c);
   const sub = (await db.doc(`subscriptions/${tenantId}`).get()).data();
   if (subUntilOf(sub) <= Date.now()) fail('failed-precondition', 'error.fn.subscriptionInactive');
   return tenantId;
@@ -107,7 +108,7 @@ const updateSchema = z.object({
 
 export const updateSubUser = onCall({ region: REGION }, async (request) => {
   const c = caller(request);
-  const tenantId = requireOwner(c);
+  const tenantId = await requireActiveOwner(c);
   const input = parse(updateSchema, request.data);
   const { ref } = await ownedSubUser(tenantId, input.uid);
 
@@ -137,7 +138,7 @@ export const updateSubUser = onCall({ region: REGION }, async (request) => {
 
 export const deleteSubUser = onCall({ region: REGION }, async (request) => {
   const c = caller(request);
-  const tenantId = requireOwner(c);
+  const tenantId = await requireActiveOwner(c);
   const { uid } = parse(z.object({ uid: z.string().min(1).max(128) }), request.data);
   const { ref } = await ownedSubUser(tenantId, uid);
   try {

@@ -1,17 +1,18 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useState } from 'react';
+import { where, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/Button';
 import { Alert, Badge, EmptyState, PageHeader, SearchBox, StatCard, TableWrap, Toolbar } from '@/components/ui/Layout';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import { useCustomers } from '@/hooks/useTenantData';
+import { usePagedQuery } from '@/hooks/usePagedQuery';
 import { useI18n } from '@/i18n/i18n';
+import { countWhere, pageCustomers } from '@/services/catalogQuery';
 import { deleteCustomer } from '@/services/customerService';
-import { retryResource } from '@/stores/tenantStore';
 import type { Customer } from '@/types/models';
 import { downloadCsv } from '@/utils/csv';
-import { formatUsd, normalizeSearch } from '@/utils/format';
+import { formatUsd } from '@/utils/format';
 import { AdjustDebtModal, CustomerFormModal, CustomerHistoryModal, PayDebtModal } from './CustomerModals';
 
 type Dialog =
@@ -25,24 +26,30 @@ export default function CustomersPage() {
   const { t } = useI18n();
   const { tenantId, actor, isOwner } = useTenant();
   const { confirm, notify } = useFeedback();
-  const state = useCustomers();
   const [search, setSearch] = useState('');
   const [debtOnly, setDebtOnly] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [counts, setCounts] = useState<{ customers: number; debtors: number } | null>(null);
   const deferred = useDeferredValue(search);
   const del = useAsyncAction('customer-delete');
+  const fetchPage = useCallback(
+    (cursor: QueryDocumentSnapshot | null) => pageCustomers(tenantId, { search: deferred, debtOnly }, cursor),
+    [tenantId, deferred, debtOnly],
+  );
+  const page = usePagedQuery(`${tenantId}|${deferred}|${debtOnly}`, fetchPage);
+  const live = (c: Customer) => page.items.find((x) => x.id === c.id) ?? c;
 
-  const filtered = useMemo(() => {
-    const q = normalizeSearch(deferred);
-    return state.data.filter(
-      (c) => (!debtOnly || c.debtUsdCents > 0) && (!q || normalizeSearch(c.name).includes(q) || c.phone.includes(deferred.trim())),
-    );
-  }, [state.data, deferred, debtOnly]);
-
-  const totalDebt = state.data.reduce((s, c) => s + c.debtUsdCents, 0);
-  const debtors = state.data.filter((c) => c.debtUsdCents > 0).length;
-  // Customer objects in dialogs must stay live (debt changes after a payment).
-  const live = (c: Customer) => state.data.find((x) => x.id === c.id) ?? c;
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([countWhere(tenantId, 'customers', []), countWhere(tenantId, 'customers', [where('debtUsdCents', '>', 0)])])
+      .then(([customers, debtors]) => {
+        if (!cancelled) setCounts({ customers, debtors });
+      })
+      .catch((error: unknown) => console.error('[customers] counts', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   return (
     <div className="page">
@@ -53,12 +60,12 @@ export default function CustomersPage() {
             <Button
               variant="secondary"
               icon="download"
-              disabled={!filtered.length}
+              disabled={!page.items.length}
               onClick={() =>
                 downloadCsv(
                   'customers.csv',
                   [t('customers.name'), t('auth.phone'), t('auth.email'), t('customers.address'), t('customers.debt'), t('customers.creditLimit'), t('customers.totalPurchases')],
-                  filtered.map((c) => [c.name, c.phone, c.email, c.address, (c.debtUsdCents / 100).toFixed(2), (c.creditLimitUsdCents / 100).toFixed(2), (c.totalPurchasesUsdCents / 100).toFixed(2)]),
+                  page.items.map((c) => [c.name, c.phone, c.email, c.address, (c.debtUsdCents / 100).toFixed(2), (c.creditLimitUsdCents / 100).toFixed(2), (c.totalPurchasesUsdCents / 100).toFixed(2)]),
                 )
               }
             >
@@ -71,8 +78,8 @@ export default function CustomersPage() {
         }
       />
       <div className="stats">
-        <StatCard icon="users" label={t('customers.count')} value={state.data.length} />
-        <StatCard icon="dollar" tone="danger" label={t('customers.totalDebt')} value={formatUsd(totalDebt)} sub={t('customers.debtorsCount', { count: debtors })} />
+        <StatCard icon="users" label={t('customers.count')} value={counts?.customers ?? page.items.length} />
+        <StatCard icon="dollar" tone="danger" label={t('customers.debtorsCount', { count: counts?.debtors ?? 0 })} value={counts?.debtors ?? 0} />
       </div>
       <Toolbar>
         <SearchBox value={search} onChange={setSearch} placeholder={t('customers.searchPlaceholder')} />
@@ -82,14 +89,14 @@ export default function CustomersPage() {
         </label>
       </Toolbar>
 
-      {state.status === 'error' ? (
-        <Alert tone="error" onRetry={() => retryResource(tenantId, 'customers')} retryLabel={t('common.retry')}>
+      {page.error ? (
+        <Alert tone="error" onRetry={page.reload} retryLabel={t('common.retry')}>
           {t('error.loadFailed')}
         </Alert>
-      ) : state.status === 'loading' ? (
+      ) : page.loading ? (
         <PageLoader />
-      ) : filtered.length === 0 ? (
-        <EmptyState icon="users" title={state.data.length ? t('common.noResults') : t('customers.empty')} />
+      ) : page.items.length === 0 ? (
+        <EmptyState icon="users" title={search || debtOnly ? t('common.noResults') : t('customers.empty')} />
       ) : (
         <TableWrap>
           <table className="table">
@@ -104,7 +111,7 @@ export default function CustomersPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => (
+              {page.items.map((c) => (
                 <tr key={c.id}>
                   <td>
                     <strong>{c.name}</strong>
@@ -153,6 +160,13 @@ export default function CustomersPage() {
             </tbody>
           </table>
         </TableWrap>
+      )}
+      {page.hasMore && (
+        <div className="load-more">
+          <Button variant="secondary" loading={page.loadingMore} onClick={() => void page.loadMore()}>
+            {t('common.loadMore')}
+          </Button>
+        </div>
       )}
 
       {dialog?.type === 'form' && <CustomerFormModal customer={dialog.customer} onClose={() => setDialog(null)} />}

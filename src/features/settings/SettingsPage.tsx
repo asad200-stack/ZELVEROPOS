@@ -7,7 +7,6 @@ import { PageLoader } from '@/components/ui/Spinner';
 import { APP_NAME, APP_VERSION, SUPPORT_PHONE } from '@/constants/app';
 import { useFeedback } from '@/contexts/feedback';
 import { useSession, useTenant } from '@/contexts/session';
-import { localDate } from '@/domain/dates';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { useEmailCooldown } from '@/hooks/useEmailCooldown';
@@ -15,11 +14,10 @@ import { useSettingsState } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { sendPasswordReset } from '@/services/authService';
 import { api } from '@/services/functionsClient';
-import { exportBackup, loadTelegramSecrets, saveSettings, saveTelegramSecrets } from '@/services/settingsService';
+import { loadTelegramSecrets, saveSettings, saveTelegramSecrets } from '@/services/settingsService';
 import { deleteStorageFile, uploadTenantImage } from '@/services/storageService';
 import { updateOwnName } from '@/services/userService';
 import type { StoreSettings, TelegramEvents } from '@/types/models';
-import { downloadBlob } from '@/utils/csv';
 import { formatDate } from '@/utils/format';
 
 export default function SettingsPage() {
@@ -416,30 +414,15 @@ function AccountCard() {
 
 function DataCard() {
   const { t } = useI18n();
-  const { tenantId, isOwner } = useTenant();
-  const { notify } = useFeedback();
-  const [progress, setProgress] = useState('');
+  const { isOwner } = useTenant();
   const [clearing, setClearing] = useState(false);
-  const backup = useAsyncAction('settings-backup');
   return (
     <Card title={t('settings.data')}>
       <div className="stack">
         <p className="muted small">{t('settings.backupHint')}</p>
         <div className="row-gap">
-          <Button
-            variant="secondary"
-            icon="download"
-            loading={backup.busy}
-            onClick={() =>
-              void backup.run(async () => {
-                const blob = await exportBackup(tenantId, setProgress);
-                downloadBlob(blob, `zelvero-backup-${localDate()}.json`);
-                setProgress('');
-                notify('success', t('settings.backupDone'));
-              })
-            }
-          >
-            {backup.busy && progress ? t('settings.backupProgress', { name: progress }) : t('settings.backup')}
+          <Button variant="secondary" icon="download" disabled>
+            {t('settings.backup')}
           </Button>
           {isOwner && (
             <Button variant="danger" icon="trash" onClick={() => setClearing(true)}>

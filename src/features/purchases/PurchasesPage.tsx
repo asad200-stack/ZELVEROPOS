@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useState } from 'react';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/Button';
 import { Checkbox, FormGrid, MoneyInput, SelectInput, TextInput } from '@/components/ui/Form';
@@ -12,11 +12,12 @@ import { localDate } from '@/domain/dates';
 import { centsToInput, parseUsdInput } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
-import { useProducts, useSuppliers } from '@/hooks/useTenantData';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
+import { pageProducts, pageSuppliers } from '@/services/catalogQuery';
+import { emptyProductQuery } from '@/domain/catalogPlan';
 import { createPurchase, listPurchases, returnToSupplier } from '@/services/supplierService';
 import type { BillStatus, Purchase } from '@/types/models';
-import { formatDate, formatUsd, normalizeSearch } from '@/utils/format';
+import { formatDate, formatUsd } from '@/utils/format';
 
 const STATUS_LABEL: Record<BillStatus, TranslationKey> = { unpaid: 'purchases.unpaid', partial: 'purchases.partial', paid: 'purchases.paid' };
 const STATUS_TONE: Record<BillStatus, 'danger' | 'warning' | 'success'> = { unpaid: 'danger', partial: 'warning', paid: 'success' };
@@ -24,7 +25,13 @@ const STATUS_TONE: Record<BillStatus, 'danger' | 'warning' | 'success'> = { unpa
 export default function PurchasesPage() {
   const { t, lang } = useI18n();
   const { tenantId } = useTenant();
-  const suppliers = useSuppliers().data;
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const deferredSupplier = useDeferredValue(supplierSearch);
+  const fetchSuppliers = useCallback(
+    (cursor: QueryDocumentSnapshot | null) => pageSuppliers(tenantId, { search: deferredSupplier }, cursor),
+    [tenantId, deferredSupplier],
+  );
+  const suppliers = usePagedQuery(`${tenantId}|purchase-suppliers|${deferredSupplier}`, fetchSuppliers);
   const [supplierId, setSupplierId] = useState('');
   const [status, setStatus] = useState<BillStatus | 'all'>('all');
   const [creating, setCreating] = useState(false);
@@ -41,15 +48,16 @@ export default function PurchasesPage() {
       <PageHeader
         title={t('nav.purchases')}
         actions={
-          <Button icon="plus" onClick={() => setCreating(true)} disabled={!suppliers.length} title={!suppliers.length ? t('purchases.needSupplier') : undefined}>
+          <Button icon="plus" onClick={() => setCreating(true)}>
             {t('purchases.new')}
           </Button>
         }
       />
       <Toolbar>
+        <input className="input" value={supplierSearch} placeholder={t('purchases.allSuppliers')} aria-label={t('products.supplier')} onChange={(e) => setSupplierSearch(e.target.value)} />
         <select className="input" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} aria-label={t('products.supplier')}>
           <option value="">{t('purchases.allSuppliers')}</option>
-          {suppliers.map((s) => (
+          {suppliers.items.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
             </option>
@@ -134,17 +142,23 @@ export default function PurchasesPage() {
 
 interface DraftLine {
   productId: string;
+  name: string;
   quantity: string;
   unitCost: string;
 }
 
 function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
   const { t } = useI18n();
-  const { can } = useTenant();
+  const { can, tenantId } = useTenant();
   const { notify } = useFeedback();
-  const suppliers = useSuppliers().data;
-  const products = useProducts().data;
-  const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? '');
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const deferredSupplier = useDeferredValue(supplierSearch);
+  const fetchSuppliers = useCallback(
+    (cursor: QueryDocumentSnapshot | null) => pageSuppliers(tenantId, { search: deferredSupplier }, cursor),
+    [tenantId, deferredSupplier],
+  );
+  const suppliers = usePagedQuery(`${tenantId}|purchase-form-suppliers|${deferredSupplier}`, fetchSuppliers);
+  const [supplierId, setSupplierId] = useState('');
   const [date, setDate] = useState(localDate());
   const [dueDate, setDueDate] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -155,11 +169,15 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
   const [note, setNote] = useState('');
   const { busy, run } = useAsyncAction('purchase-create');
 
-  const matches = useMemo(() => {
-    const q = normalizeSearch(search);
-    if (!q) return [];
-    return products.filter((p) => p.status === 'active').filter((p) => normalizeSearch(p.name).includes(q) || p.barcode === search.trim()).slice(0, 8);
-  }, [products, search]);
+  const deferredSearch = useDeferredValue(search);
+  const fetchMatches = useCallback(
+    (cursor: QueryDocumentSnapshot | null) => pageProducts(tenantId, emptyProductQuery({ search: deferredSearch }), cursor),
+    [tenantId, deferredSearch],
+  );
+  const matchesPage = usePagedQuery(`${tenantId}|purchase-products|${deferredSearch}`, fetchMatches);
+  const matches = deferredSearch.trim() ? matchesPage.items.slice(0, 8) : [];
+
+  const selectedSupplierId = supplierId || suppliers.items[0]?.id || '';
 
   const parsed = lines.map((l) => ({ productId: l.productId, quantity: Math.floor(Number(l.quantity)), unitCostUsdCents: parseUsdInput(l.unitCost) }));
   const valid = parsed.length > 0 && parsed.every((l) => l.quantity > 0 && l.unitCostUsdCents !== null);
@@ -170,7 +188,7 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
     run(async () => {
       if (!valid || paid === null) return;
       await createPurchase({
-        supplierId,
+        supplierId: selectedSupplierId,
         date,
         dueDate: dueDate || null,
         items: parsed.map((l) => ({ productId: l.productId, quantity: l.quantity, unitCostUsdCents: l.unitCostUsdCents ?? 0 })),
@@ -195,7 +213,7 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
           <span className="modal-footer__total">
             {t('pos.total')}: <strong>{formatUsd(total)}</strong>
           </span>
-          <Button loading={busy} disabled={!valid || !supplierId || paid === null || paid > total} onClick={() => void submit()}>
+          <Button loading={busy} disabled={!valid || !selectedSupplierId || paid === null || paid > total} onClick={() => void submit()}>
             {t('common.save')}
           </Button>
         </>
@@ -203,7 +221,8 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
     >
       <div className="stack">
         <FormGrid cols={3}>
-          <SelectInput label={t('products.supplier')} value={supplierId} onChange={(e) => setSupplierId(e.target.value)} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
+          <TextInput label={t('common.search')} value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} />
+          <SelectInput label={t('products.supplier')} value={selectedSupplierId} onChange={(e) => setSupplierId(e.target.value)} options={suppliers.items.map((s) => ({ value: s.id, label: s.name }))} />
           <TextInput label={t('common.date')} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <TextInput label={t('purchases.dueDate')} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         </FormGrid>
@@ -217,7 +236,7 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
                   type="button"
                   className="dropdown__item"
                   onClick={() => {
-                    setLines((ls) => (ls.some((l) => l.productId === p.id) ? ls : [...ls, { productId: p.id, quantity: '1', unitCost: centsToInput(p.costUsdCents) }]));
+                    setLines((ls) => (ls.some((l) => l.productId === p.id) ? ls : [...ls, { productId: p.id, name: p.name, quantity: '1', unitCost: centsToInput(p.costUsdCents) }]));
                     setSearch('');
                   }}
                 >
@@ -241,11 +260,10 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
               </thead>
               <tbody>
                 {lines.map((l, i) => {
-                  const p = products.find((x) => x.id === l.productId);
                   const cost = parseUsdInput(l.unitCost) ?? 0;
                   return (
                     <tr key={l.productId}>
-                      <td>{p?.name ?? l.productId}</td>
+                      <td>{l.name}</td>
                       <td className="num">
                         <input className="input input--qty" dir="ltr" inputMode="numeric" value={l.quantity} onChange={(e) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
                       </td>

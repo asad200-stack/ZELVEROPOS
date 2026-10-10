@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/Button';
 import { Checkbox, FormGrid, MoneyInput, SelectInput, TextInput } from '@/components/ui/Form';
 import { Modal } from '@/components/ui/Modal';
@@ -7,10 +8,12 @@ import { useTenant } from '@/contexts/session';
 import { isValidExchangeRate } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useForm } from '@/hooks/useForm';
-import { useCategories, useProducts, useSettings, useSuppliers } from '@/hooks/useTenantData';
+import { usePagedQuery } from '@/hooks/usePagedQuery';
+import { useCategories, useSettings } from '@/hooks/useTenantData';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
 import { AppError, logError, toUserMessage } from '@/services/errors';
 import { requireOnline } from '@/services/ops';
+import { findByNormalizedName, pageSuppliers } from '@/services/catalogQuery';
 import { addCategory, assertUniqueBarcode, createProduct, setProductImage, updateProduct } from '@/services/productService';
 import { uploadTenantImage } from '@/services/storageService';
 import { createSupplier } from '@/services/supplierService';
@@ -103,9 +106,16 @@ export function ProductFormModal({ product, onClose }: Props) {
   const { t } = useI18n();
   const { actor, tenantId, can } = useTenant();
   const { notify } = useFeedback();
-  const products = useProducts().data;
-  const suppliers = useSuppliers().data;
   const categories = useCategories();
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const fetchSuppliers = useCallback(
+    (cursor: QueryDocumentSnapshot | null) => pageSuppliers(tenantId, { search: supplierSearch }, cursor),
+    [tenantId, supplierSearch],
+  );
+  const suppliersPage = usePagedQuery(`${tenantId}|product-suppliers|${supplierSearch}`, fetchSuppliers);
+  const [heldSupplier] = useState<{ id: string; name: string } | null>(
+    product?.supplierId ? { id: product.supplierId, name: product.supplierName } : null,
+  );
   const rate = useSettings().exchangeRate;
   const { busy, run } = useAsyncAction('product-save');
   const [image, setImage] = useState<File | null>(null);
@@ -162,7 +172,10 @@ export function ProductFormModal({ product, onClose }: Props) {
   const [categoryError, setCategoryError] = useState<TranslationKey | null>(null);
   const [supplierErrors, setSupplierErrors] = useState<FieldErrors>({});
   const [createdSuppliers, setCreatedSuppliers] = useState<{ id: string; name: string }[]>([]);
-  const allSuppliers = mergeSuppliers(suppliers, createdSuppliers);
+  const allSuppliers = mergeSuppliers(
+    mergeSuppliers(suppliersPage.items, heldSupplier ? [heldSupplier] : []),
+    createdSuppliers,
+  );
   const canCreateSupplier = can('canViewSuppliers');
   const showInitialStock = !product;
   const showImeiEntry = !product && form.values.imeiTracking;
@@ -214,8 +227,16 @@ export function ProductFormModal({ product, onClose }: Props) {
       setSupplierErrors(parsed.success ? {} : toFieldErrors(parsed.error));
       if (!parsed.success) return;
       requireOnline();
-      const outcome = await resolveSupplier(parsed.data, suppliers, (input) =>
-        createSupplier(actor, { ...input, contactPerson: '', email: '', address: '' }, suppliers),
+      const remote = await findByNormalizedName(tenantId, 'suppliers', parsed.data.name);
+      if (remote && !allSuppliers.some((supplier) => supplier.id === remote.id)) {
+        setCreatedSuppliers((list) => [...list, remote]);
+        form.set('supplierId', remote.id);
+        notify('info', t('products.supplierExists', { name: remote.name }));
+        supplierPanel.close();
+        return;
+      }
+      const outcome = await resolveSupplier(parsed.data, allSuppliers, (input) =>
+        createSupplier(actor, { ...input, contactPerson: '', email: '', address: '' }),
       );
       if (outcome.kind === 'invalid') return;
       if (outcome.kind === 'created') setCreatedSuppliers((list) => [...list, outcome.value]);
@@ -235,7 +256,7 @@ export function ProductFormModal({ product, onClose }: Props) {
         return;
       }
       setSerialError(null);
-      assertUniqueBarcode(data.barcode, products, product?.id);
+      await assertUniqueBarcode(tenantId, data.barcode, product?.id);
       const retail = data.retail ?? 0;
       const supplier = allSuppliers.find((s) => s.id === data.supplierId) ?? null;
       const tier = (name: PriceTierName, usd: number | null) => ({
@@ -359,6 +380,7 @@ export function ProductFormModal({ product, onClose }: Props) {
               {t('products.generate')}
             </Button>
           </div>
+          <TextInput label={t('common.search')} value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} />
           <SelectInput
             ref={supplierSelect}
             label={t('products.supplier')}

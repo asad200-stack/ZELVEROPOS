@@ -1,4 +1,5 @@
-import { getDocs, limit, query, where } from 'firebase/firestore';
+import { getDocs, limit, orderBy, query, where } from 'firebase/firestore';
+import { DAILY_STATS_LIMIT } from '@/domain/salesPlan';
 import { paths } from './db';
 
 /** Per-day aggregates maintained atomically with every sale/return/expense (cheap dashboards). */
@@ -41,7 +42,13 @@ export function emptyStats(date = ''): DailyStats {
 
 export async function loadDailyStats(tenantId: string, from: string, to: string): Promise<DailyStats[]> {
   const snap = await getDocs(
-    query(paths.col(tenantId, 'dailyStats'), where('date', '>=', from), where('date', '<=', to), limit(1000)),
+    query(
+      paths.col(tenantId, 'dailyStats'),
+      where('date', '>=', from),
+      where('date', '<=', to),
+      orderBy('date', 'asc'),
+      limit(DAILY_STATS_LIMIT),
+    ),
   );
   return snap.docs
     .map((d) => {

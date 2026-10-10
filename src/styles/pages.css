@@ -210,6 +210,10 @@
   color: var(--c-on-primary);
 }
 
+.picker__grid--refresh {
+  opacity: 0.55;
+}
+
 .picker__grid {
   flex: 1;
   min-height: 0;

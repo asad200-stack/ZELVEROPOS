@@ -12,7 +12,7 @@ export function findCategory(categories: string[], name: string): string | null 
 }
 
 /** Same duplicate rule as createSupplier (trimmed, case-insensitive name). */
-export function findSupplier(suppliers: Supplier[], name: string): Supplier | null {
+export function findSupplier<T extends { id: string; name: string }>(suppliers: T[], name: string): T | null {
   const k = name.trim().toLowerCase();
   return k ? (suppliers.find((s) => s.name.trim().toLowerCase() === k) ?? null) : null;
 }
@@ -54,7 +54,7 @@ export async function resolveCategory(name: string, categories: string[], add: (
 /** Supplier: reuse an existing one, otherwise create it through the normal suppliers service. */
 export async function resolveSupplier(
   input: { name: string; phone: string },
-  suppliers: Supplier[],
+  suppliers: Pick<Supplier, 'id' | 'name'>[],
   create: (input: { name: string; phone: string }) => Promise<string>,
 ): Promise<InlineOutcome<{ id: string; name: string }>> {
   const name = input.name.trim();

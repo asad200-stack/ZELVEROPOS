@@ -1,7 +1,6 @@
 import { FieldValue, type DocumentData } from 'firebase-admin/firestore';
 import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
-import { db } from '../admin.js';
 import { fail } from '../errors.js';
 import { formatDocNumber } from '../shared/checkout.js';
 import { weightedAverageCost } from '../shared/inventory.js';
@@ -15,7 +14,7 @@ import {
   exchangeRateOf,
   idField,
   noteField,
-  posActor,
+  runClientOp,
   tenantPaths,
   toCashbox,
   toProduct,
@@ -25,6 +24,7 @@ import {
 const dateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 const purchaseSchema = z.object({
+  clientOperationId: idField,
   supplierId: idField,
   date: dateField,
   dueDate: dateField.nullable(),
@@ -41,14 +41,15 @@ const purchaseSchema = z.object({
 /** Records a supplier bill: adds stock (optionally re-averaging cost) and the supplier balance. */
 export const posCreatePurchase = onCall(async (request) => {
   const input = parse(purchaseSchema, request.data);
-  const actor = await posActor(request, ['canViewSuppliers']);
-  if (input.payFromCashbox && input.paidNowUsdCents > 0 && !actor.can('canManageCashDrawer')) {
-    fail('permission-denied', 'error.permissionDenied');
-  }
-  const p = tenantPaths(actor.tenantId);
-  const atMs = Date.now();
+  return runClientOp(
+    request,
+    input.clientOperationId,
+    'posCreatePurchase',
+    ['canViewSuppliers'],
+    async (tx, actor) => {
+      const p = tenantPaths(actor.tenantId);
+      const atMs = Date.now();
 
-  const id = await db.runTransaction(async (tx) => {
     const ids = [...new Set(input.items.map((i) => i.productId))];
     const [supplierSnap, counterSnap, cashSnap, ...productSnaps] = await Promise.all([
       tx.get(p.doc('suppliers', input.supplierId)),
@@ -155,12 +156,18 @@ export const posCreatePurchase = onCall(async (request) => {
         tx.set(p.cashbox, { ...after, lastTxId: cashRef.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       }
     }
-    return purchaseRef.id;
-  });
-  return { id };
+      return { id: purchaseRef.id };
+    },
+    (actor) => {
+      if (input.payFromCashbox && input.paidNowUsdCents > 0 && !actor.can('canManageCashDrawer')) {
+        fail('permission-denied', 'error.permissionDenied');
+      }
+    },
+  );
 });
 
 const paySchema = z.object({
+  clientOperationId: idField,
   supplierId: idField,
   currency: z.enum(['USD', 'LBP']),
   /** In the payment currency (cents for USD, pounds for LBP). */
@@ -173,12 +180,15 @@ const paySchema = z.object({
 /** Pays a supplier: applied to open bills oldest first; cash payments come out of the drawer. */
 export const posPaySupplier = onCall(async (request) => {
   const input = parse(paySchema, request.data);
-  const actor = await posActor(request, ['canViewSuppliers']);
-  if (input.method === 'cash' && !actor.can('canManageCashDrawer')) fail('permission-denied', 'error.permissionDenied');
-  const p = tenantPaths(actor.tenantId);
-  const atMs = Date.now();
+  return runClientOp(
+    request,
+    input.clientOperationId,
+    'posPaySupplier',
+    ['canViewSuppliers'],
+    async (tx, actor) => {
+      const p = tenantPaths(actor.tenantId);
+      const atMs = Date.now();
 
-  await db.runTransaction(async (tx) => {
     const supplierRef = p.doc('suppliers', input.supplierId);
     const [supplierSnap, cashSnap, settingsSnap, billsSnap] = await Promise.all([
       tx.get(supplierRef),
@@ -246,11 +256,16 @@ export const posPaySupplier = onCall(async (request) => {
       });
       tx.set(p.cashbox, { ...after, lastTxId: cashRef.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
-  });
-  return { ok: true };
+      return { ok: true, paymentId: paymentRef.id };
+    },
+    (actor) => {
+      if (input.method === 'cash' && !actor.can('canManageCashDrawer')) fail('permission-denied', 'error.permissionDenied');
+    },
+  );
 });
 
 const returnSchema = z.object({
+  clientOperationId: idField,
   purchaseId: idField,
   lines: z.array(z.object({ index: z.number().int().min(0).max(299), quantity: z.number().int().min(0).max(1_000_000) })).min(1).max(300),
   note: noteField,
@@ -262,11 +277,10 @@ const returnSchema = z.object({
  */
 export const posReturnToSupplier = onCall(async (request) => {
   const input = parse(returnSchema, request.data);
-  const actor = await posActor(request, ['canViewSuppliers']);
-  const p = tenantPaths(actor.tenantId);
-  const atMs = Date.now();
+  return runClientOp(request, input.clientOperationId, 'posReturnToSupplier', ['canViewSuppliers'], async (tx, actor) => {
+    const p = tenantPaths(actor.tenantId);
+    const atMs = Date.now();
 
-  await db.runTransaction(async (tx) => {
     const purchaseSnap = await tx.get(p.doc('purchases', input.purchaseId));
     if (!purchaseSnap.exists) fail('not-found', 'error.notFound');
     const purchase = toPurchase(purchaseSnap.id, purchaseSnap.data()!);
@@ -359,6 +373,6 @@ export const posReturnToSupplier = onCall(async (request) => {
       });
       tx.set(p.cashbox, { ...after, lastTxId: cashRef.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
+    return { ok: true, returnId: returnRef.id };
   });
-  return { ok: true };
 });
