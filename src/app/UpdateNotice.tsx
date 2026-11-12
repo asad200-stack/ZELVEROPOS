@@ -7,18 +7,22 @@ import { activateAssignedVersion, canActivateUpdate } from '@/features/releases/
 import { useReleaseAssignment } from '@/features/releases/useReleaseAssignment';
 import { useI18n } from '@/i18n/i18n';
 import { useOfflineQueue } from '@/offline/queue';
-import { applyUpdate, useUpdateReady } from './serviceWorker';
+import { applyUpdate } from './serviceWorker';
 
-/** Optional banner. Never reloads on its own. Carts and the offline queue stay on this origin. */
+/**
+ * Release-managed update banner only (required or admin-published optional updates).
+ * The generic, auto-detected "a new build is on the server" toast was removed: it fired on
+ * every hosting deploy regardless of whether the change mattered to this store, which was
+ * noisy. Carts and the offline queue stay on this origin; this never reloads on its own.
+ */
 export function UpdateNotice() {
   const { t } = useI18n();
   const { notify } = useFeedback();
-  const swReady = useUpdateReady();
   const queue = useOfflineQueue();
   const release = useReleaseAssignment();
   const [installing, setInstalling] = useState(false);
   const showRelease = release.showOptional || release.force;
-  if (!swReady && !showRelease) return null;
+  if (!showRelease) return null;
 
   const run = async (assigned: string | null) => {
     const gate = canActivateUpdate(queue.operations, queue.syncing);
@@ -76,13 +80,5 @@ export function UpdateNotice() {
     );
   }
 
-  return (
-    <div className="update-notice" role="status" data-testid="update-notice">
-      <Icon name="refresh" size={16} />
-      <span>{t('update.available')}</span>
-      <Button size="sm" onClick={() => void run(null)}>
-        {t('update.refresh')}
-      </Button>
-    </div>
-  );
+  return null;
 }
