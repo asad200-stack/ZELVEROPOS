@@ -1,13 +1,16 @@
 /**
- * Zelvero AI copilot — server-enforced, internal-only data access.
+ * Zelvero AI copilot — server-enforced data access, scoped per tenant.
  *
- * Rollout policy (hard-coded, no flag, no subscription switch):
- *   only a verified platform Super Admin, and only their own internal demo tenant.
+ * Rollout policy (hard-coded, no flag, no subscription switch): two paths, both fail closed.
+ *   1. The platform Super Admin's own internal demo tenant (unchanged, for internal testing).
+ *   2. A real tenant's owner (or a sub-user explicitly granted canUseZelveroAI), only while that
+ *      tenant holds a live, active Feature Center entitlement for 'zelvero_ai' (set by Publish +
+ *      the customer's own Update action), the platform-wide feature kill switch is off, and the
+ *      tenant's subscription is active.
  *
- * Every call re-checks, live: the Auth record (superAdmin claim, verified e-mail, not disabled),
- * the profile (internal demo, tenant = own uid, owner, active), the subscription (internal demo,
- * not expired) and the tenant document. The tenant is resolved here; any tenant/store/uid the
- * client sends is rejected by the strict input schema. Reads only; this module writes nothing.
+ * Every call re-checks, live, against Firestore and the Auth token claims. The tenant is resolved
+ * here from the caller's own token, never from the request body; any tenant/store/uid the client
+ * sends is rejected by the strict input schema. Reads only; this module writes nothing.
  *
  * Customer POS functions, Firestore rules, and the existing live AI functions are untouched.
  */
@@ -19,7 +22,7 @@ import { subUntilOf } from './claims.js';
 import { REGION } from './config.js';
 import { fail } from './errors.js';
 import { toCashbox, toCustomer, toProduct, toPurchase } from './pos/common.js';
-import { caller, parse, requireSuperAdmin, type Caller } from './validate.js';
+import { caller, parse, type Caller } from './validate.js';
 
 export const AI_MAX_RANGE_DAYS = 400;
 export const AI_SALES_RANGE_DAYS = 93;
@@ -52,15 +55,12 @@ export interface AiPrincipal {
   tenantId: string;
 }
 
-/**
- * Throws permission-denied unless the caller is, right now, a verified platform Super Admin whose
- * own internal demo store is active. Nothing from the request body is consulted.
- */
-export async function resolveAiPrincipal(c: Caller): Promise<AiPrincipal> {
-  requireSuperAdmin(c);
+/** True for the platform super admin's own internal demo tenant, re-checked live. */
+async function internalDemoPrincipal(c: Caller): Promise<AiPrincipal | null> {
+  if (!c.superAdmin) return null;
   const record = await auth.getUser(c.uid);
   if (record.customClaims?.superAdmin !== true || record.emailVerified !== true || record.disabled === true) {
-    fail('permission-denied', 'error.fn.notAllowed');
+    return null;
   }
   const tenantId = c.uid;
   const [user, subscription, tenant] = await Promise.all([
@@ -74,12 +74,47 @@ export async function resolveAiPrincipal(c: Caller): Promise<AiPrincipal> {
     user.get('role') !== 'owner' ||
     user.get('isActive') === false ||
     subscription.get('internalDemo') !== true ||
-    !tenant.exists
+    !tenant.exists ||
+    subUntilOf(subscription.data()) <= Date.now()
   ) {
-    fail('permission-denied', 'error.fn.notAllowed');
+    return null;
   }
-  if (subUntilOf(subscription.data()) <= Date.now()) fail('failed-precondition', 'error.fn.subscriptionInactive');
   return { uid: c.uid, tenantId };
+}
+
+/**
+ * True for a real tenant's owner (or a sub-user explicitly granted canUseZelveroAI), only while
+ * that tenant's own Feature Center entitlement for 'zelvero_ai' is active, the platform kill
+ * switch is off, and the tenant's subscription is active. Re-checked live on every call.
+ */
+async function customerAiPrincipal(c: Caller): Promise<AiPrincipal | null> {
+  const hasAiPermission = c.role === 'owner' || (c.role === 'subUser' && c.perms.canUseZelveroAI === true);
+  if (!c.tenantId || !hasAiPermission || !c.active || !c.emailVerified) return null;
+  const tenantId = c.tenantId;
+  const [subscription, control, entitlement] = await Promise.all([
+    db.doc(`subscriptions/${tenantId}`).get(),
+    db.doc('platformFeatureControl/global').get(),
+    db.doc(`platformFeatureEntitlements/${tenantId}__zelvero_ai`).get(),
+  ]);
+  if (
+    subUntilOf(subscription.data()) <= Date.now() ||
+    control.get('killed') === true ||
+    entitlement.get('status') !== 'active'
+  ) {
+    return null;
+  }
+  return { uid: c.uid, tenantId };
+}
+
+/**
+ * Resolves the caller to an AI principal via the internal-demo path or the real-customer path,
+ * trying the internal-demo path first. Fails closed (permission-denied) if neither matches.
+ * Nothing from the request body is consulted; the tenant always comes from the caller's own token.
+ */
+export async function resolveAiPrincipal(c: Caller): Promise<AiPrincipal> {
+  const principal = (await internalDemoPrincipal(c)) ?? (await customerAiPrincipal(c));
+  if (!principal) fail('permission-denied', 'error.fn.notAllowed');
+  return principal;
 }
 
 const hits = new Map<string, number[]>();
