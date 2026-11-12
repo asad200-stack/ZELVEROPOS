@@ -133,16 +133,27 @@ function unavailableFeatureText(lang: AiLang): string {
     : 'That feature is not part of this system. Ask about a Zelvero POS screen or workflow (products, customers, sales, purchases, cashbox…).';
 }
 
-function clarifyText(lang: AiLang): string {
+/** Concrete example questions the rule engine does understand, shown so an unmatched question isn't a dead end. */
+function exampleQuestionsText(lang: AiLang): string {
   return lang === 'ar'
-    ? 'وضّح شو بدك: شرح خطوات، فتح صفحة، أرقام المتجر، ولا عملية مسموحة (مثل إضافة منتج أو تحضير السلة)؟'
-    : 'What do you need: how-to steps, open a page, store figures, or an allowed action (like add product or prepare the cart)?';
+    ? 'جرّب مثلاً: "كم المبيعات اليوم؟"، "شو الربح اليوم؟"، "شو المنتجات يلي الكمية فيها قليلة؟"، "في ديون؟"، "قارن مبيعات هالاسبوع مع يلي فات".'
+    : 'Try asking: "sales today", "profit today", "which products are low on stock", "any debts", or "compare this week vs last week".';
+}
+
+function clarifyText(lang: AiLang): string {
+  const base =
+    lang === 'ar'
+      ? 'ما قدرت افهم سؤالك تمامًا. وضّح شو بدك: شرح خطوات، فتح صفحة، أرقام المتجر، ولا عملية مسموحة (مثل إضافة منتج أو تحضير السلة)؟'
+      : "I didn't quite catch that. What do you need: how-to steps, open a page, store figures, or an allowed action (like add product or prepare the cart)?";
+  return `${base}\n\n${exampleQuestionsText(lang)}`;
 }
 
 function scopedHelpText(lang: AiLang): string {
-  return lang === 'ar'
-    ? 'بساعد ضمن Zelvero POS: الشاشات، الصلاحيات، خطوات العمل، والتنقّل، وأرقام المتجر المسموحة. شو بدك تعمل أو تعرف؟'
-    : 'I help with Zelvero POS: screens, permissions, workflows, navigation, and allowed store figures. What do you want to do or know?';
+  const base =
+    lang === 'ar'
+      ? 'ما قدرت افهم سؤالك هيك. بساعد ضمن Zelvero POS: الشاشات، الصلاحيات، خطوات العمل، والتنقّل، وأرقام المتجر المسموحة.'
+      : "I didn't quite catch that. I help with Zelvero POS: screens, permissions, workflows, navigation, and allowed store figures.";
+  return `${base}\n\n${exampleQuestionsText(lang)}`;
 }
 
 function pageContextText(card: KnowledgeItem, lang: AiLang): string {
