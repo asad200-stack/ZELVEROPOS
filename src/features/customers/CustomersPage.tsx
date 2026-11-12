@@ -13,6 +13,7 @@ import { deleteCustomer } from '@/services/customerService';
 import type { Customer } from '@/types/models';
 import { downloadCsv } from '@/utils/csv';
 import { formatUsd } from '@/utils/format';
+import { registerPageUiHost, unregisterPageUiHost } from '@/features/ai/actions/pageUiBridge';
 import { AdjustDebtModal, CustomerFormModal, CustomerHistoryModal, PayDebtModal } from './CustomerModals';
 
 type Dialog =
@@ -32,6 +33,18 @@ export default function CustomersPage() {
   const [counts, setCounts] = useState<{ customers: number; debtors: number } | null>(null);
   const deferred = useDeferredValue(search);
   const del = useAsyncAction('customer-delete');
+
+  useEffect(() => {
+    const host = {
+      openCreateForm: () => {
+        setDialog({ type: 'form', customer: null });
+        return true;
+      },
+    };
+    registerPageUiHost('/customers', host);
+    return () => unregisterPageUiHost('/customers', host);
+  }, []);
+
   const fetchPage = useCallback(
     (cursor: QueryDocumentSnapshot | null) => pageCustomers(tenantId, { search: deferred, debtOnly }, cursor),
     [tenantId, deferred, debtOnly],

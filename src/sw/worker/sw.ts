@@ -10,11 +10,15 @@ import { cachesToDelete, routeRequest, SHELL_CACHE_PREFIX, shellCacheName } from
 declare const self: ServiceWorkerGlobalScope;
 declare const __SW_VERSION__: string;
 declare const __SW_PRECACHE__: string[];
+declare const __SW_ISOLATED__: boolean;
 
 const VERSION = __SW_VERSION__;
 const CACHE = shellCacheName(VERSION);
 const PRECACHE = new Set(__SW_PRECACHE__);
-const META_CACHE = 'zelvero-sw-meta';
+const ISOLATED = __SW_ISOLATED__ === true;
+const META_CACHE = ISOLATED ? `zelvero-sw-meta-${VERSION}` : 'zelvero-sw-meta';
+/** Isolated trees fall back to their own index. The customer worker keeps the root shell. */
+const SHELL_INDEX = ISOLATED ? ([...PRECACHE].find((url) => url.endsWith('/index.html')) ?? '/index.html') : '/index.html';
 const META_KEY = '/__sw-state';
 /** On a very slow connection the cached shell is served instead of waiting forever. */
 const NAVIGATION_TIMEOUT_MS = 4000;
@@ -51,7 +55,8 @@ self.addEventListener('activate', (event) => {
       const meta = await caches.open(META_CACHE);
       const saved = await readState();
       const previous = saved && saved.current !== CACHE ? saved.current : (saved?.previous ?? null);
-      for (const name of cachesToDelete(await caches.keys(), CACHE, previous)) await caches.delete(name);
+      const names = ISOLATED ? (previous && previous !== CACHE ? [previous] : []) : cachesToDelete(await caches.keys(), CACHE, previous);
+      for (const name of names) await caches.delete(name);
       await meta.put(META_KEY, new Response(JSON.stringify({ current: CACHE, previous } satisfies SwState)));
       await self.clients.claim();
     })(),
@@ -77,7 +82,7 @@ const MATCH: CacheQueryOptions = { ignoreVary: true };
 
 async function fromShellCaches(request: Request | string): Promise<Response | undefined> {
   const hit = await (await caches.open(CACHE)).match(request, MATCH);
-  if (hit) return hit;
+  if (hit || ISOLATED) return hit;
   for (const name of await caches.keys()) {
     if (name === CACHE || !name.startsWith(SHELL_CACHE_PREFIX)) continue;
     const old = await (await caches.open(name)).match(request, MATCH);
@@ -97,7 +102,7 @@ async function shell(request: Request): Promise<Response> {
   } catch {
     /* offline: fall back to the cached shell */
   }
-  const cached = await fromShellCaches('/index.html');
+  const cached = await fromShellCaches(SHELL_INDEX);
   // Never loaded before: no shell to offer, so the browser shows its normal offline page.
   return cached ?? network;
 }

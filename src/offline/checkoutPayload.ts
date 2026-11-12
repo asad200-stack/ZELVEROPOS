@@ -28,6 +28,7 @@ export function buildCheckoutCall(req: CheckoutRequest): CheckoutCall {
     saleId: cart.saleId,
     kind: req.kind,
     currency: cart.currency,
+    tier: cart.tier,
     rate: req.rate,
     customerId: cart.customerId,
     debtLineUsdCents: cart.customerId ? cart.debtLineUsdCents : null,

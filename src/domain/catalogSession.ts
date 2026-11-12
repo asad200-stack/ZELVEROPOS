@@ -36,3 +36,25 @@ export function catalogLoadProblem(online: boolean, error: unknown): 'offline' |
   if (!error) return null;
   return online ? 'failed' : 'offline';
 }
+
+export type CatalogViewMode = 'problem' | 'loading' | 'empty' | 'ready';
+
+/**
+ * POS catalog stage. "No products" only after the active query has settled.
+ * keepPrevious can hold a prior empty page while a clearer search/category reloads —
+ * that must look like loading, not a false empty flash.
+ */
+export function catalogViewMode(opts: {
+  hasProblem: boolean;
+  loading: boolean;
+  refreshing: boolean;
+  /** True when the search box is ahead of the deferred query key. */
+  pendingInput: boolean;
+  itemCount: number;
+}): CatalogViewMode {
+  if (opts.hasProblem) return 'problem';
+  const unsettled = opts.loading || opts.refreshing || opts.pendingInput;
+  if (opts.itemCount > 0) return 'ready';
+  if (unsettled) return 'loading';
+  return 'empty';
+}

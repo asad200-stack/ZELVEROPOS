@@ -24,6 +24,10 @@ export interface CartDraft {
   changeManual: ChangeManual;
   creditUsd: string;
   creditLbp: string;
+  /** Cashier typed USD received (auto-fill must not overwrite it). */
+  tenderUsdManual: boolean;
+  /** Cashier typed LBP received (auto-fill must not overwrite it). */
+  tenderLbpManual: boolean;
 }
 
 export interface Cart {
@@ -44,6 +48,16 @@ export interface Cart {
   draft: CartDraft;
 }
 
+/** Credit sale needs a real customer. Walk-in cannot open checkout in credit mode. */
+export function creditRequiresCustomer(kind: SaleKind, customerId: string | null): boolean {
+  return kind === 'credit' && !customerId;
+}
+
+/** Products or a selected previous-balance line — either is enough to collect. */
+export function cartCanCheckout(cart: Pick<Cart, 'lines' | 'customerId' | 'debtLineUsdCents'>): boolean {
+  return cart.lines.length > 0 || Boolean(cart.customerId && cart.debtLineUsdCents && cart.debtLineUsdCents > 0);
+}
+
 export function emptyCartDraft(): CartDraft {
   return {
     kind: 'cash',
@@ -54,6 +68,8 @@ export function emptyCartDraft(): CartDraft {
     changeManual: null,
     creditUsd: '',
     creditLbp: '',
+    tenderUsdManual: false,
+    tenderLbpManual: false,
   };
 }
 
@@ -73,6 +89,8 @@ export function normalizeCart(cart: Cart): Cart {
       changeManual: d?.changeManual === 'usd' || d?.changeManual === 'lbp' ? d.changeManual : null,
       creditUsd: typeof d?.creditUsd === 'string' ? d.creditUsd : '',
       creditLbp: typeof d?.creditLbp === 'string' ? d.creditLbp : '',
+      tenderUsdManual: d?.tenderUsdManual === true,
+      tenderLbpManual: d?.tenderLbpManual === true,
     },
   };
 }

@@ -22,6 +22,19 @@ interface Option {
   label: string;
 }
 
+/** Keep the blank row, the current value, and "add new" visible while a typed filter narrows the list. */
+export function filterSelectOptions(options: Option[], query: string, selected: string): Option[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return options;
+  return options.filter(
+    (option) =>
+      option.value === '' ||
+      option.value === NEW_OPTION ||
+      option.value === selected ||
+      option.label.toLowerCase().includes(q),
+  );
+}
+
 /** Category options; keeps a value that is not (yet) in the list visible instead of silently dropping it. */
 export function categoryOptions(categories: string[], current: string, newLabel: string | null): Option[] {
   const names = [...categories].sort((a, b) => a.localeCompare(b));

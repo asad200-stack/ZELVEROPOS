@@ -1,0 +1,24 @@
+{
+  "$comment": "Local-only isolated emulator harness defaults. Never used by production/staging. Ports must stay off the primary Emulator Suite (8080/9099/5001/9199/4000/4400).",
+  "projectId": "demo-zelvero",
+  "host": "127.0.0.1",
+  "ports": {
+    "auth": 19099,
+    "firestore": 18080,
+    "functions": 15001,
+    "storage": 19199,
+    "ui": 14000,
+    "hub": 14400,
+    "pubsub": 18085
+  },
+  "blockedPrimaryPorts": {
+    "auth": 9099,
+    "firestore": 8080,
+    "functions": 5001,
+    "storage": 9199,
+    "ui": 4000,
+    "hub": 4400,
+    "pubsub": 8085
+  },
+  "blockedCloudProjectIds": ["zelvoropos", "zelvoropos-stage"]
+}

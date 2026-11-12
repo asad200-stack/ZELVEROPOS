@@ -20,6 +20,7 @@ import {
   operationTime,
   plain,
   posActor,
+  posWriteTenant,
   requirePerm,
   runClientOp,
   tenantPaths,
@@ -35,6 +36,8 @@ const checkoutSchema = z.object({
   saleId: idField,
   kind: z.enum(['cash', 'credit']),
   currency: z.enum(['USD', 'LBP']),
+  /** Cart price tier; required when collecting previous debt with no product lines. */
+  tier: tier.optional(),
   /** Rate the cashier saw; refused if the store rate changed meanwhile. */
   rate: z.number().int().positive(),
   customerId: idField.nullable(),
@@ -52,7 +55,6 @@ const checkoutSchema = z.object({
         expectedUnitLbp: lbpField.optional(),
       }),
     )
-    .min(1)
     .max(300),
   /** Product total the cashier confirmed; refused if prices changed meanwhile. */
   expectedTotalUsdCents: cents,
@@ -81,8 +83,7 @@ export const posCheckout = onCall(async (request) => {
   const auth = caller(request);
   const input = parse(checkoutSchema, request.data);
   const atMs = operationTime(input.clientCreatedAtMs);
-  if (!auth.tenantId || !auth.emailVerified) fail('permission-denied', 'error.permissionDenied');
-  const t = auth.tenantId;
+  const t = posWriteTenant(request);
   const p = tenantPaths(t);
   const saleRef = p.doc('sales', input.saleId);
   const replay = async () => {
@@ -116,6 +117,12 @@ export const posCheckout = onCall(async (request) => {
       ...productIds.map((id) => tx.get(p.doc('products', id))),
     ]);
 
+    if (input.lines.length === 0) {
+      if (!input.customerId || !input.debtLineUsdCents || input.debtLineUsdCents <= 0) {
+        fail('invalid-argument', 'error.cartEmpty');
+      }
+    }
+
     const rate = exchangeRateOf(settingsSnap.data());
     if (rate !== input.rate) fail('failed-precondition', 'error.rateChanged');
 
@@ -140,7 +147,7 @@ export const posCheckout = onCall(async (request) => {
       id: 'server',
       label: input.orderLabel ?? '',
       note: input.note ?? '',
-      tier: input.lines[0]!.tier,
+      tier: input.lines[0]?.tier ?? input.tier ?? 'retail',
       currency: input.currency,
       customerId: customer?.id ?? null,
       debtLineUsdCents: input.debtLineUsdCents,
@@ -161,6 +168,10 @@ export const posCheckout = onCall(async (request) => {
     if (badImei) fail('failed-precondition', 'error.imeiUnavailable', { imei: badImei });
 
     const debtBefore = customer?.debtUsdCents ?? 0;
+    if (input.debtLineUsdCents !== null) {
+      if (!customer) fail('invalid-argument', 'error.creditNeedsCustomer');
+      if (input.debtLineUsdCents > debtBefore) fail('failed-precondition', 'error.debtChanged');
+    }
     let receivedUsdCents: number;
     let receivedLbp: number;
     let changeUsdCents = 0;
@@ -176,7 +187,6 @@ export const posCheckout = onCall(async (request) => {
       changeUsdCents = input.cash?.changeUsdCents ?? 0;
       changeLbp = input.cash?.changeLbp ?? 0;
       if (totals.debtLineUsdCents > 0) {
-        if (totals.debtLineUsdCents > debtBefore) fail('failed-precondition', 'error.debtChanged');
         settledPrevious = debtLineSettlement(totals.debtLineUsdCents, debtBefore);
       }
       const matches = cashNetCoversDue(
@@ -203,7 +213,7 @@ export const posCheckout = onCall(async (request) => {
         rate,
         customerDebtUsdCents: debtBefore,
         creditLimitUsdCents: customer.creditLimitUsdCents || 500_00,
-        includePreviousDebt: input.debtLineUsdCents !== null,
+        previousUsdCents: input.debtLineUsdCents ?? 0,
       });
       if (!credit.ok) fail('failed-precondition', `error.credit.${credit.error ?? 'invalidAmount'}`);
       settledPrevious = credit.settledFromPreviousUsdCents;
@@ -346,7 +356,7 @@ export const posCheckout = onCall(async (request) => {
     }
 
     bumpDailyStats(tx, t, audit.localDate, {
-      salesCount: 1,
+      salesCount: input.lines.length > 0 ? 1 : 0,
       revenueUsdCents: totals.productsUsdCents,
       costUsdCents: totals.costUsdCents,
       discountUsdCents: totals.discountUsdCents,
@@ -391,7 +401,12 @@ const returnSchema = z.object({
  */
 export const posReturn = onCall(async (request) => {
   const input = parse(returnSchema, request.data);
-  return runClientOp(request, input.clientOperationId, 'posReturn', ['canViewSales'], async (tx, actor) => {
+  return runClientOp(
+    request,
+    input.clientOperationId,
+    'posReturn',
+    ['canSell', 'canManageCashDrawer'],
+    async (tx, actor) => {
     const t = actor.tenantId;
     const p = tenantPaths(t);
     const atMs = Date.now();
@@ -528,5 +543,7 @@ export const posReturn = onCall(async (request) => {
     });
 
     return { saleReturn: { id: returnRef.id, ...plain(returnDoc, atMs) } };
-  });
+  },
+    (actor) => requirePerm(actor, 'canViewSales'),
+  );
 });

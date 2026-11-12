@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Alert, EmptyState } from '@/components/ui/Layout';
 import { Spinner } from '@/components/ui/Spinner';
-import { catalogLoadProblem } from '@/domain/catalogSession';
+import { catalogLoadProblem, catalogViewMode } from '@/domain/catalogSession';
 import { emptyProductQuery } from '@/domain/catalogPlan';
 import { tierLbp, tierUsdCents } from '@/domain/pricing';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
@@ -14,7 +14,7 @@ import { findProductByBarcode, pageProducts } from '@/services/catalogQuery';
 import type { PriceTier, Product } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { categoryEdges, detectRtlScrollType, scrollFromStart } from './categoryScroll';
-import { FitAmount } from './FitAmount';
+import { ProductTile } from './ProductTile';
 
 interface Props {
   tenantId: string;
@@ -24,6 +24,11 @@ interface Props {
   lowStockThreshold: number;
   searchRef: RefObject<HTMLInputElement | null>;
   onPick: (product: Product) => void;
+  /**
+   * Bumped after an online checkout so the one-shot page re-reads stock from Firestore.
+   * Kept out of search/category so a refresh does not clear the cashier's filters or cart.
+   */
+  catalogRevision?: number;
 }
 
 export const ProductPicker = memo(function ProductPicker({
@@ -34,6 +39,7 @@ export const ProductPicker = memo(function ProductPicker({
   lowStockThreshold,
   searchRef,
   onPick,
+  catalogRevision = 0,
 }: Props) {
   const { t, lang } = useI18n();
   const online = useOnlineStatus();
@@ -45,7 +51,7 @@ export const ProductPicker = memo(function ProductPicker({
     (cursor: QueryDocumentSnapshot | null) => pageProducts(tenantId, spec, cursor),
     [tenantId, spec],
   );
-  const page = usePagedQuery(`${tenantId}|${spec.category}|${spec.search}`, fetchPage, { keepPrevious: true });
+  const page = usePagedQuery(`${tenantId}|${spec.category}|${spec.search}|${catalogRevision}`, fetchPage, { keepPrevious: true });
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ overflow: false, atStart: true, atEnd: true });
 
@@ -124,6 +130,14 @@ export const ProductPicker = memo(function ProductPicker({
   };
 
   const problem = catalogLoadProblem(online, page.error);
+  const pendingInput = search !== deferred;
+  const view = catalogViewMode({
+    hasProblem: problem !== null,
+    loading: page.loading,
+    refreshing: page.refreshing,
+    pendingInput,
+    itemCount: page.items.length,
+  });
 
   return (
     <div className="picker">
@@ -145,44 +159,38 @@ export const ProductPicker = memo(function ProductPicker({
         </div>
       </div>
       <div className="picker__stage">
-        {problem ? (
+        {view === 'problem' ? (
           <Alert tone="error" onRetry={page.reload} retryLabel={t('common.retry')}>
             {t(problem === 'offline' ? 'pos.offlineCatalog' : 'error.loadFailed')}
           </Alert>
-        ) : page.loading ? (
+        ) : view === 'loading' ? (
           <div className="page-loader">
             <Spinner size={28} />
           </div>
-        ) : page.items.length === 0 ? (
+        ) : view === 'empty' ? (
           <EmptyState icon="search" title={t('pos.noProducts')} />
         ) : (
-          <div className={page.refreshing ? 'picker__grid picker__grid--refresh' : 'picker__grid'}>
+          <div className={page.refreshing || pendingInput ? 'picker__grid picker__grid--refresh' : 'picker__grid'}>
             {page.items.map((p) => {
               const out = p.stock <= 0;
               const low = !out && p.stock <= (p.minStock ?? lowStockThreshold);
               return (
-                <button key={p.id} type="button" className="product-tile" onClick={() => onPick(p)} disabled={out}>
-                  {p.imageUrl ? (
-                    <img className="product-tile__img" src={p.imageUrl} alt="" loading="lazy" decoding="async" />
-                  ) : (
-                    <span className="product-tile__img product-tile__img--empty">
-                      <Icon name="package" size={22} />
-                    </span>
-                  )}
-                  <span className="product-tile__name">{p.name}</span>
-                  <span className="product-tile__prices">
-                    <FitAmount value={formatUsd(tierUsdCents(p, tier, rate))} />
-                    <FitAmount value={formatLbp(tierLbp(p, tier, rate), lang)} className="fit-amount--muted" />
-                  </span>
-                  <span className={out ? 'product-tile__stock product-tile__stock--out' : low ? 'product-tile__stock product-tile__stock--low' : 'product-tile__stock'}>
-                    {out ? t('products.outOfStock') : t('products.stockCount', { count: p.stock })}
-                  </span>
-                </button>
+                <ProductTile
+                  key={p.id}
+                  name={p.name}
+                  imageUrl={p.imageUrl}
+                  usd={formatUsd(tierUsdCents(p, tier, rate))}
+                  lbp={formatLbp(tierLbp(p, tier, rate), lang)}
+                  stockLabel={out ? t('products.outOfStock') : t('products.stockCount', { count: p.stock })}
+                  tone={out ? 'out' : low ? 'low' : 'ok'}
+                  disabled={out}
+                  onPick={() => onPick(p)}
+                />
               );
             })}
           </div>
         )}
-        {page.hasMore && !problem && (
+        {page.hasMore && view !== 'problem' && (
           <div className="load-more">
             <Button variant="secondary" loading={page.loadingMore} onClick={() => void page.loadMore()}>
               {t('common.loadMore')}

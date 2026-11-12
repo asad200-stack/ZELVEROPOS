@@ -19,6 +19,8 @@ const productFields = z.object({
   barcode: z.string().trim().max(100),
   prices,
   costUsdCents: cents,
+  /** False when $0.00 is stored only because the purchase cost was not provided. */
+  costKnown: z.boolean().optional(),
   minStock: z.number().int().min(0).max(1_000_000).nullable(),
   supplierId: idField.nullable(),
   supplierName: z.string().trim().max(200),
@@ -27,27 +29,26 @@ const productFields = z.object({
 });
 
 const createSchema = z.object({
+  clientOperationId: idField,
+  /** Test-only pause. Honored only inside the Functions emulator; ignored in production. */
+  emulatorDelayMs: z.number().int().min(0).max(20_000).optional(),
   product: productFields,
   initialStock: z.number().int().min(0).max(1_000_000),
   initialImeis: z.array(imeiField).max(5000),
 });
 
-async function assertBarcodeFree(t: string, barcode: string): Promise<void> {
-  if (!barcode) return;
-  const dup = await tenantPaths(t).col('products').where('barcode', '==', barcode).limit(1).get();
-  const hit = dup.docs[0];
-  if (hit) fail('already-exists', 'error.barcodeInUse', { name: String(hit.data().name ?? '') });
+async function emulatorDelay(ms: number | undefined): Promise<void> {
+  if (process.env.FUNCTIONS_EMULATOR !== 'true' || !ms) return;
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Creates a product; initial stock is recorded as an 'initial' stock movement. */
+/**
+ * Creates a product once per clientOperationId. A timeout, a retry, or a late completion of the
+ * same operation returns the original product instead of writing a second one.
+ */
 export const posCreateProduct = onCall(async (request) => {
   const input = parse(createSchema, request.data);
-  const actor = await posActor(request, ['canAddProducts']);
-  const t = actor.tenantId;
-  const p = tenantPaths(t);
   const f = input.product;
-  await assertBarcodeFree(t, f.barcode);
-
   const trimmedImeis = input.initialImeis.map((imei) => imei.trim()).filter(Boolean);
   if (f.imeiTracking) {
     const seen = new Set<string>();
@@ -64,44 +65,54 @@ export const posCreateProduct = onCall(async (request) => {
   }
   const imeis = f.imeiTracking ? trimmedImeis.map((imei) => ({ imei, status: 'available' as const })) : [];
   const stock = f.imeiTracking ? imeis.length : input.initialStock;
-  const atMs = Date.now();
-  const audit = auditFields(actor, atMs);
-  const ref = p.newRef('products');
-  const batch = db.batch();
-  let lastMovementId: string | null = null;
-  if (stock > 0) {
-    const movementRef = p.newRef('stockMovements');
-    lastMovementId = movementRef.id;
-    batch.set(movementRef, {
-      productId: ref.id,
-      productName: f.name,
-      type: 'initial',
-      quantity: stock,
-      stockAfter: stock,
-      refId: null,
-      refNumber: null,
-      note: '',
-      ...audit,
+  // Pause before the write so a repeated request can commit first and this call replays it.
+  await emulatorDelay(input.emulatorDelayMs);
+  return runClientOp(request, input.clientOperationId, 'posCreateProduct', ['canAddProducts'], async (tx, actor) => {
+    const p = tenantPaths(actor.tenantId);
+    if (f.barcode) {
+      const taken = await tx.get(p.col('products').where('barcode', '==', f.barcode).limit(1));
+      const hit = taken.docs[0];
+      if (hit) fail('already-exists', 'error.barcodeInUse', { name: String(hit.data().name ?? '') });
+    }
+    const atMs = Date.now();
+    const audit = auditFields(actor, atMs);
+    const ref = p.newRef('products');
+    let lastMovementId: string | null = null;
+    if (stock > 0) {
+      const movementRef = p.newRef('stockMovements');
+      lastMovementId = movementRef.id;
+      tx.set(movementRef, {
+        productId: ref.id,
+        productName: f.name,
+        type: 'initial',
+        quantity: stock,
+        stockAfter: stock,
+        refId: null,
+        refNumber: null,
+        note: '',
+        ...audit,
+      });
+    }
+    const { costKnown, ...fields } = f;
+    tx.set(ref, {
+      ...fields,
+      costKnown: costKnown !== false,
+      nameNormalized: nameNormalized(f.name),
+      stock,
+      imeis,
+      imageUrl: null,
+      imagePath: null,
+      lastMovementId,
+      status: 'active',
+      archivedAt: null,
+      createdAt: audit.createdAt,
+      createdAtMs: atMs,
+      createdBy: actor.uid,
+      updatedAt: FieldValue.serverTimestamp(),
     });
-  }
-  batch.set(ref, {
-    ...f,
-    nameNormalized: nameNormalized(f.name),
-    stock,
-    imeis,
-    imageUrl: null,
-    imagePath: null,
-    lastMovementId,
-    status: 'active',
-    archivedAt: null,
-    createdAt: audit.createdAt,
-    createdAtMs: atMs,
-    createdBy: actor.uid,
-    updatedAt: FieldValue.serverTimestamp(),
+    if (f.category) tx.set(p.categories, { names: FieldValue.arrayUnion(f.category) }, { merge: true });
+    return { id: ref.id };
   });
-  if (f.category) batch.set(p.categories, { names: FieldValue.arrayUnion(f.category) }, { merge: true });
-  await batch.commit();
-  return { id: ref.id };
 });
 
 const importSchema = z.object({

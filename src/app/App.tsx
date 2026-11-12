@@ -10,8 +10,9 @@ import { FirebaseConfigError } from '@/firebase/config';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import { useI18n } from '@/i18n/i18n';
 import { APP_NAME } from '@/constants/app';
+import { AiConversationLifecycle } from '@/features/ai/AiConversationLifecycle';
+import { PosPreviewPage } from '@/features/pos/PosPreviewPage';
 import { AppRoutes } from './AppRoutes';
-import { UpdateNotice } from './UpdateNotice';
 
 function CrashScreen({ error, reset }: { error: Error; reset: () => void }) {
   const { t } = useI18n();
@@ -68,6 +69,17 @@ function FirebaseGate({ children }: { children: ReactNode }) {
 }
 
 export function App() {
+  const preview =
+    import.meta.env.VITE_APP_CHANNEL === 'preview' && window.location.pathname.startsWith('/preview');
+  if (preview) {
+    return (
+      <ThemeProvider>
+        <I18nProvider>
+          <PosPreviewPage />
+        </I18nProvider>
+      </ThemeProvider>
+    );
+  }
   return (
     <ThemeProvider>
       <I18nProvider>
@@ -75,11 +87,11 @@ export function App() {
           <FeedbackProvider>
             <FirebaseGate>
               <SessionProvider>
-                <BrowserRouter>
+                <AiConversationLifecycle />
+                <BrowserRouter basename={import.meta.env.BASE_URL === '/' ? undefined : String(import.meta.env.BASE_URL).replace(/\/$/, '')}>
                   <AppRoutes />
                 </BrowserRouter>
               </SessionProvider>
-              <UpdateNotice />
             </FirebaseGate>
           </FeedbackProvider>
         </ErrorBoundary>

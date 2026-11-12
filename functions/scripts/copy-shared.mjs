@@ -18,6 +18,9 @@ const FILES = {
   'src/domain/returns.ts': 'returns.ts',
   'src/domain/inventory.ts': 'inventory.ts',
   'src/domain/suppliers.ts': 'suppliers.ts',
+  'src/domain/release.ts': 'release.ts',
+  'src/domain/featureRelease.ts': 'featureRelease.ts',
+  'src/domain/trial.ts': 'trial.ts',
   'src/types/models.ts': 'models.ts',
   'src/constants/permissions.ts': 'permissions.ts',
 };

@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const NAMESPACES =
-  'common|error|config|validation|auth|account|nav|sync|settings|receipt|pos|sales|returns|products|movement|expiry|customers|ledger|suppliers|purchases|date|cash|dashboard|reports|users|perm|admin';
+  'common|error|config|validation|auth|account|nav|sync|settings|receipt|pos|sales|returns|products|movement|expiry|customers|ledger|suppliers|purchases|date|cash|dashboard|reports|users|perm|admin|release|update|offline|trial|onboarding|ai';
 const RE = new RegExp(`['\`]((?:${NAMESPACES})\\.[A-Za-z0-9_.]+(?:\\$\\{[^}]+\\})?)['\`]`, 'g');
 
 function read(p) {

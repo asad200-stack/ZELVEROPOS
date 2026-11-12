@@ -2,15 +2,51 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, getDoc, getDocs, collection, query, where, setDoc, Timestamp, type Firestore } from 'firebase/firestore';
+import { waitForFunctionsIdle } from './functionActivity';
+import {
+  EMULATOR_PORTS,
+  resolveAuthEmulatorHostPort,
+  resolveFunctionsEmulatorOrigin as resolveFunctionsOriginSafe,
+} from './emulatorSafety';
 
-export const PROJECT_ID = 'demo-zelvero';
+export const PROJECT_ID = EMULATOR_PORTS.projectId;
 export const T = 'tenantA';
 export const OTHER = 'tenantB';
 export const DAY = 86_400_000;
 export const RATE = 89_500;
 
-const AUTH = `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '127.0.0.1:9099'}`;
-const FUNCTIONS = 'http://127.0.0.1:5001';
+/**
+ * Resolves the Functions emulator HTTP origin for integration/concurrency tests.
+ *
+ * `FUNCTIONS_EMULATOR_HOST` accepts either:
+ * - `host:port` (Firebase style), e.g. `127.0.0.1:15001`
+ * - a full loopback URL, e.g. `http://127.0.0.1:15001`
+ *
+ * Defaults to `http://127.0.0.1:5001` when unset (stock `emulators:exec` ports).
+ * With `ZELVERO_ISOLATED_EMULATORS=1`, the host is required and must use the
+ * isolated Functions port (never a primary-stack fallback).
+ * Non-loopback hosts are rejected so tests cannot reach cloud/production endpoints.
+ */
+export function resolveFunctionsEmulatorOrigin(
+  env: NodeJS.ProcessEnv = process.env,
+  defaultHostPort = `127.0.0.1:${EMULATOR_PORTS.primary.functions}`,
+): string {
+  return resolveFunctionsOriginSafe(env, defaultHostPort);
+}
+
+/** Base origin only (`http://127.0.0.1:PORT`). Callable paths append `/{project}/{region}/{name}`. */
+export const FUNCTIONS_ORIGIN = resolveFunctionsEmulatorOrigin();
+
+export function functionsCallableUrl(name: string, projectId = PROJECT_ID, region = 'europe-west1'): string {
+  return `${FUNCTIONS_ORIGIN}/${projectId}/${region}/${name}`;
+}
+
+/** Emulator admin/trigger URL used by scheduled-function probes. */
+export function functionsTriggerUrl(trigger: string, projectId = PROJECT_ID): string {
+  return `${FUNCTIONS_ORIGIN}/functions/projects/${projectId}/triggers/${trigger}`;
+}
+
+const AUTH = `http://${resolveAuthEmulatorHostPort()}`;
 const PASSWORD = 'integration-pass-1';
 
 export async function createEnv(): Promise<RulesTestEnvironment> {
@@ -41,6 +77,16 @@ export async function readWhere(env: RulesTestEnvironment, col: string, field: s
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Deletes emulator documents only after counted function executions have finished
+ * and the post-observation quiet period has elapsed. Log silence is not proof that
+ * a trigger still waiting in the emulator queue has started.
+ */
+export async function clearFirestore(env: RulesTestEnvironment): Promise<void> {
+  await waitForFunctionsIdle();
+  await env.clearFirestore();
 }
 
 /**
@@ -87,6 +133,7 @@ export interface TestUser {
   role: 'owner' | 'subUser';
   perms?: Record<string, boolean>;
   active?: boolean;
+  superAdmin?: boolean;
 }
 
 /** Creates an Auth emulator user with custom claims (as syncUserClaims would) and returns an ID token. */
@@ -100,6 +147,7 @@ export async function createUser(u: TestUser): Promise<string> {
     subUntil: Date.now() + 30 * DAY,
     cv: 1,
     ...(u.role === 'subUser' ? { perms: Object.fromEntries(Object.entries(u.perms ?? {}).filter(([, v]) => v)) } : {}),
+    ...(u.superAdmin ? { superAdmin: true } : {}),
   };
   await authPost(`projects/${PROJECT_ID}/accounts:update`, { localId: u.uid, customAttributes: JSON.stringify(claims), emailVerified: true }, true);
   const signIn = await authPost('accounts:signInWithPassword', { email, password: PASSWORD, returnSecureToken: true });
@@ -129,6 +177,7 @@ const MONEY_FNS = new Set([
   'posAdjustDebt',
   'posCreatePurchase',
   'posCreateCustomer',
+  'posCreateProduct',
 ]);
 
 function withClientOperationId(name: string, data: unknown): unknown {
@@ -139,7 +188,7 @@ function withClientOperationId(name: string, data: unknown): unknown {
 }
 
 export async function call<R = Record<string, unknown>>(token: string, name: string, data: unknown): Promise<{ result?: R; error?: CallError }> {
-  const res = await fetch(`${FUNCTIONS}/${PROJECT_ID}/europe-west1/${name}`, {
+  const res = await fetch(functionsCallableUrl(name), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ data: withClientOperationId(name, data) }),

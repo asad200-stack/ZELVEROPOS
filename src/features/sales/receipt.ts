@@ -1,7 +1,8 @@
 import type { TFunction, Lang } from '@/i18n/i18n';
 import type { OfflineOperation } from '@/offline/types';
-import type { Sale, SaleReturn, StoreSettings } from '@/types/models';
+import type { PrintFormat, Sale, SaleReturn, StoreSettings } from '@/types/models';
 import { APP_NAME } from '@/constants/app';
+import { lbpToUsdCents } from '@/domain/money';
 import { formatDateTime, formatLbp, formatNumber, formatUsd } from '@/utils/format';
 import { escapeHtml as e, printHtml, safeUrl } from '@/utils/html';
 
@@ -9,10 +10,12 @@ interface ReceiptContext {
   settings: StoreSettings;
   lang: Lang;
   t: TFunction;
+  /** Overrides the store default for this print only. The saved sale and settings stay unchanged. */
+  format?: PrintFormat;
 }
 
 function page(ctx: ReceiptContext, title: string, body: string): string {
-  const a4 = ctx.settings.printFormat === 'a4';
+  const a4 = (ctx.format ?? ctx.settings.printFormat) === 'a4';
   const dir = ctx.lang === 'ar' ? 'rtl' : 'ltr';
   const css = `
     *{box-sizing:border-box;margin:0;padding:0}
@@ -71,17 +74,21 @@ export function buildSaleReceipt(sale: Sale, ctx: ReceiptContext): string {
   const p = sale.payment;
   const lines: string[] = [];
   if (sale.discountUsdCents > 0) lines.push(row(t('pos.discount'), formatUsd(sale.discountUsdCents)));
-  const grand = `<tr class="grand"><td>${e(t('pos.total'))}</td><td class="num">${money(sale.totalUsdCents, sale.totalLbp)}</td></tr>`;
+  const grand = `<tr class="grand"><td>${e(t('pos.totalSale'))}</td><td class="num">${money(sale.totalUsdCents, sale.totalLbp)}</td></tr>`;
   if (lbp) lines.push(row(t('receipt.equivalent'), formatUsd(sale.totalUsdCents)));
-  if (p.settledPreviousUsdCents > 0) lines.push(row(t('pos.previousBalanceSettled'), formatUsd(p.settledPreviousUsdCents)));
+  if (p.settledPreviousUsdCents > 0) lines.push(row(t('receipt.previousDebtPaid'), formatUsd(p.settledPreviousUsdCents)));
+  const collectedUsd =
+    p.receivedUsdCents +
+    lbpToUsdCents(p.receivedLbp, sale.exchangeRate) -
+    (p.changeUsdCents ?? 0) -
+    lbpToUsdCents(p.changeLbp ?? 0, sale.exchangeRate);
+  if (collectedUsd > 0) lines.push(row(t('receipt.totalCollected'), formatUsd(collectedUsd)));
   if (p.receivedUsdCents > 0) lines.push(row(t('receipt.paidUsd'), formatUsd(p.receivedUsdCents)));
   if (p.receivedLbp > 0) lines.push(row(t('receipt.paidLbp'), formatLbp(p.receivedLbp, lang)));
   if ((p.changeUsdCents ?? 0) > 0) lines.push(row(t('receipt.changeUsd'), formatUsd(p.changeUsdCents ?? 0)));
   if ((p.changeLbp ?? 0) > 0) lines.push(row(t('receipt.changeLbp'), formatLbp(p.changeLbp ?? 0, lang)));
-  if (sale.kind === 'credit') {
-    lines.push(row(t('receipt.unpaid'), formatUsd(p.unpaidUsdCents)));
-    if (p.debtAfterUsdCents !== null) lines.push(row(t('receipt.balanceAfter'), formatUsd(p.debtAfterUsdCents)));
-  }
+  if (sale.kind === 'credit') lines.push(row(t('receipt.unpaid'), formatUsd(p.unpaidUsdCents)));
+  if (p.debtAfterUsdCents !== null) lines.push(row(t('receipt.balanceAfter'), formatUsd(p.debtAfterUsdCents)));
   if (sale.returnedUsdCents > 0) lines.push(row(t('sales.returned'), formatUsd(sale.returnedUsdCents)));
 
   const body = `${header(ctx)}
@@ -187,14 +194,14 @@ export function buildOfflineReceipt(op: OfflineOperation, ctx: ReceiptContext): 
   return page(ctx, op.offlineRef, body);
 }
 
-export function printOfflineReceipt(op: OfflineOperation, ctx: ReceiptContext): void {
-  printHtml(buildOfflineReceipt(op, ctx));
+export function printOfflineReceipt(op: OfflineOperation, ctx: ReceiptContext): Promise<boolean> {
+  return printHtml(buildOfflineReceipt(op, ctx));
 }
 
-export function printSaleReceipt(sale: Sale, ctx: ReceiptContext): void {
-  printHtml(buildSaleReceipt(sale, ctx));
+export function printSaleReceipt(sale: Sale, ctx: ReceiptContext): Promise<boolean> {
+  return printHtml(buildSaleReceipt(sale, ctx));
 }
 
-export function printReturnReceipt(ret: SaleReturn, ctx: ReceiptContext): void {
-  printHtml(buildReturnReceipt(ret, ctx));
+export function printReturnReceipt(ret: SaleReturn, ctx: ReceiptContext): Promise<boolean> {
+  return printHtml(buildReturnReceipt(ret, ctx));
 }

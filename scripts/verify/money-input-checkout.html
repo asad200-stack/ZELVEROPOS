@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Checkout money format</title>
+    <style>
+      :root { --c-bg:#0f172a; --c-surface:#1e293b; --c-text:#e2e8f0; --c-muted:#94a3b8; --c-primary:#818cf8; --c-input:#0b1220; --c-border:#334155; --c-success:#34d399; }
+      *{box-sizing:border-box} body{margin:0;font-family:Segoe UI,system-ui;background:#020617;color:var(--c-text);padding:24px}
+      .pay{width:380px;background:var(--c-surface);border-radius:16px;padding:18px;box-shadow:0 20px 50px rgb(0 0 0 / .4)}
+      h2{margin:0 0 4px;font-size:1.15rem} .sub{color:var(--c-muted);font-size:.82rem;margin:0 0 12px}
+      .total{background:#312e81;border-radius:12px;padding:12px;margin-bottom:14px}
+      .kicker{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:#c7d2fe;font-weight:700}
+      .amt{font-size:1.7rem;font-weight:800;color:#c7d2fe}
+      .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      label{display:flex;flex-direction:column;gap:4px;font-size:.75rem;color:var(--c-muted);font-weight:700}
+      input{height:40px;border-radius:8px;border:1px solid var(--c-border);background:var(--c-input);color:#fff;padding:0 10px;font-size:1rem;font-variant-numeric:tabular-nums}
+      .remain{margin-top:12px;color:#fbbf24;font-weight:800}
+      .ok{margin-top:12px;color:var(--c-success);font-weight:700}
+    </style>
+  </head>
+  <body>
+    <div class="pay">
+      <h2>Checkout</h2>
+      <p class="sub">Payment mode: Full payment</p>
+      <div class="total">
+        <div class="kicker">Amount to collect</div>
+        <div class="amt">$2,500.00</div>
+        <div class="sub">223,750,000 LBP</div>
+      </div>
+      <div class="kicker">Cash received</div>
+      <div class="pair">
+        <label>USD<input value="2,000.00" readonly></label>
+        <label>LBP<input value="44,750,000" readonly></label>
+      </div>
+      <p class="ok">Paid exactly · No change</p>
+    </div>
+  </body>
+</html>

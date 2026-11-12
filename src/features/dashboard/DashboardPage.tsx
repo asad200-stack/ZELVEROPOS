@@ -11,14 +11,17 @@ import { useAsyncData } from '@/hooks/useAsyncData';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
 import { pageCustomers, pageProducts } from '@/services/catalogQuery';
 import { useResource } from '@/stores/tenantStore';
+import { OnboardingCard } from '@/features/account/OnboardingCard';
+import { TrialReadOnlyBanner } from '@/features/account/TrialBanner';
 import { useI18n } from '@/i18n/i18n';
 import { emptyStats, loadDailyStats, netFigures } from '@/services/reportService';
+import { catalogHasUnknownCost } from '@/services/productService';
 import { formatDate, formatLbp, formatUsd } from '@/utils/format';
 
 export default function DashboardPage() {
   const { t, lang } = useI18n();
   const { tenantId, can, isOwner } = useTenant();
-  const { profile, subscription } = useSession();
+  const { profile, subscription, writesEnabled } = useSession();
   const canReports = can('canViewReports');
   const canProducts = can('canViewProducts');
   const canCustomers = can('canViewCustomers');
@@ -29,6 +32,8 @@ export default function DashboardPage() {
   const today = localDate(new Date(now));
   const from = addDays(today, -6);
   const stats = useAsyncData(canReports ? `${tenantId}|${from}|${today}` : null, () => loadDailyStats(tenantId, from, today));
+  const unknownCost = useAsyncData(canReports && canCosts ? `${tenantId}|unknown-cost` : null, () => catalogHasUnknownCost(tenantId));
+  const profitUnknown = unknownCost.data === true || !!unknownCost.error;
 
   const week = useMemo(() => {
     const byDate = new Map((stats.data ?? []).map((s) => [s.date, s]));
@@ -52,7 +57,9 @@ export default function DashboardPage() {
         }
       />
 
-      {isOwner && subscription && !subscription.lifetime && subscription.endsAt && subscription.endsAt - now < 7 * 86_400_000 && (
+      <TrialReadOnlyBanner />
+      <OnboardingCard />
+      {isOwner && writesEnabled && subscription && !subscription.lifetime && !subscription.trial && subscription.endsAt && subscription.endsAt - now < 7 * 86_400_000 && (
         <Alert tone="warning">{t('dashboard.subscriptionEnding', { date: formatDate(subscription.endsAt, lang) })}</Alert>
       )}
 
@@ -62,13 +69,13 @@ export default function DashboardPage() {
             <Alert tone="error" onRetry={stats.reload} retryLabel={t('common.retry')}>
               {t('error.loadFailed')}
             </Alert>
-          ) : stats.loading ? (
+          ) : stats.loading || (canCosts && unknownCost.loading) ? (
             <Spinner />
           ) : (
             <>
               <div className="stats">
                 <StatCard icon="dollar" tone="success" label={t('dashboard.todaySales')} value={formatUsd(todayNet.netRevenue)} sub={t('dashboard.invoices', { count: todayStats.salesCount })} />
-                {canCosts && <StatCard icon="chart" tone="info" label={t('dashboard.todayProfit')} value={formatUsd(todayNet.grossProfit)} />}
+                {canCosts && <StatCard icon="chart" tone="info" label={t('dashboard.todayProfit')} value={profitUnknown ? t('products.costUnknown') : formatUsd(todayNet.grossProfit)} />}
                 <StatCard icon="undo" tone="warning" label={t('dashboard.todayReturns')} value={formatUsd(todayStats.returnsUsdCents)} sub={t('dashboard.count', { count: todayStats.returnsCount })} />
                 <StatCard icon="users" label={t('dashboard.debtCollected')} value={formatUsd(todayStats.debtCollectedUsdCents)} />
               </div>

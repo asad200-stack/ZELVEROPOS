@@ -13,7 +13,7 @@ import { needsAction, type OfflineOperation } from '@/offline/types';
 import { sdkEncode, withoutUndefined } from '@/services/callableData';
 import type { CheckoutCall, CheckoutResponse } from '@/services/functionsClient';
 import type { Product } from '@/types/models';
-import { asAdmin, call, callOk, clearAuth, createEnv, createUser, DAY, RATE, readDoc, readWhere, seedTenant, T, tp, type SeedProfile } from './helpers';
+import { asAdmin, call, callOk, clearAuth, clearFirestore, createEnv, createUser, DAY, RATE, readDoc, readWhere, seedTenant, T, tp, type SeedProfile } from './helpers';
 
 /**
  * Offline queue ↔ server: the REAL sync engine and IndexedDB store (fake-indexeddb) sending through
@@ -28,7 +28,7 @@ const STAFF: SeedProfile[] = [
 ];
 
 async function seed() {
-  await env.clearFirestore();
+  await clearFirestore(env);
   await seedTenant(env, T, [{ uid: T, role: 'owner' }, ...STAFF]);
 }
 

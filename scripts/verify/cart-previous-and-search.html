@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Previous balance + customer search</title>
+    <link rel="stylesheet" href="/src/styles/pages.css" />
+    <style>
+      :root {
+        --c-bg: #f4f6fa; --c-surface: #fff; --c-surface-2: #f8fafc; --c-border: #e2e8f0; --c-border-strong: #cbd5e1;
+        --c-text: #0f172a; --c-text-muted: #64748b; --c-primary: #4f46e5; --c-primary-soft: #eef2ff;
+        --c-warning: #d97706; --c-warning-soft: #fffbeb; --c-danger: #dc2626; --radius-sm: 6px; --radius-lg: 14px;
+        --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06); --shadow-md: 0 12px 32px rgb(15 23 42 / 0.16);
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--c-bg); color: var(--c-text); padding: 16px; }
+      h2 { font-size: 13px; color: var(--c-text-muted); font-weight: 600; margin: 0 0 8px; }
+      .stage { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+      .field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+      .field__label { font-size: 0.68rem; font-weight: 600; color: var(--c-text-muted); }
+      .input, select.input { width: 100%; height: 30px; padding: 0 8px; background: var(--c-surface); border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm); }
+      .btn { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--c-border); border-radius: var(--radius-sm); font-weight: 600; background: #fff; }
+      .btn--sm { height: 30px; padding: 0 8px; font-size: 0.75rem; }
+      .btn--ghost { border: 0; background: transparent; width: 24px; height: 24px; }
+      .segmented { display: flex; padding: 3px; gap: 3px; height: 30px; background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--radius-sm); }
+      .segmented__item { flex: 1; border: 0; background: transparent; font-size: 0.68rem; font-weight: 600; color: var(--c-text-muted); }
+      .segmented__item--active { background: #fff; color: var(--c-primary); }
+      .pos__cart { width: 420px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-lg); overflow: hidden; container-type: inline-size; }
+      .pos__lines { padding: 0 10px; min-height: 120px; }
+      .fit-amount { display: block; text-align: end; }
+      .fit-amount--line { font-weight: 700; }
+      .fit-amount--muted, .fit-amount--sub { color: var(--c-text-muted); font-size: 0.78rem; }
+      .icon { width: 16px; height: 16px; }
+      .payment { width: 380px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-lg); padding: 12px; }
+      .payment__row { display: flex; justify-content: space-between; padding: 4px 0; color: var(--c-text-muted); }
+      .payment__kicker { margin-top: 8px; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--c-text-muted); }
+      .payment__total-line { font-size: 1.35rem; font-weight: 800; color: var(--c-primary); }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div>
+        <h2>F · Customer search dropdown (420px)</h2>
+        <section class="pos__cart">
+          <div class="cart-head">
+            <div class="cart-options">
+              <div class="field"><span class="field__label">Price tier</span><select class="input"><option>Retail</option></select></div>
+              <div class="field"><span class="field__label">Currency</span><select class="input"><option>USD $</option></select></div>
+              <div class="field cart-options__pay"><span class="field__label">Payment method</span><div class="segmented"><button class="segmented__item segmented__item--active">Full Payment</button><button class="segmented__item">Credit Sale</button></div></div>
+            </div>
+            <div class="cart-customer-row">
+              <label class="field cart-customer-row__search">
+                <span class="field__label">Customer</span>
+                <input class="input" value="john" />
+                <ul class="cart-customer-results" role="listbox">
+                  <li>
+                    <button type="button" class="cart-customer-option cart-customer-option--active">
+                      <span class="cart-customer-option__avatar">👤</span>
+                      <span class="cart-customer-option__body"><span class="cart-customer-option__name">John</span><span class="cart-customer-option__phone">71 783 701</span></span>
+                      <span class="cart-customer-option__debt">Debt: $100.00</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button type="button" class="cart-customer-option">
+                      <span class="cart-customer-option__avatar">👤</span>
+                      <span class="cart-customer-option__body"><span class="cart-customer-option__name">Johnny Store</span><span class="cart-customer-option__phone">03 112 233</span></span>
+                      <span class="cart-customer-option__debt cart-customer-option__debt--ok">No debt</span>
+                    </button>
+                  </li>
+                </ul>
+              </label>
+              <button class="btn btn--sm">Walk-in</button>
+            </div>
+          </div>
+          <div class="pos__lines" style="height:160px"></div>
+        </section>
+      </div>
+
+      <div>
+        <h2>A · Empty cart + Previous $100</h2>
+        <section class="pos__cart">
+          <div class="cart-head">
+            <div class="cart-options">
+              <div class="field"><span class="field__label">Price tier</span><select class="input"><option>Retail</option></select></div>
+              <div class="field"><span class="field__label">Currency</span><select class="input"><option>USD $</option></select></div>
+              <div class="field cart-options__pay"><span class="field__label">Payment method</span><div class="segmented"><button class="segmented__item segmented__item--active">Full Payment</button><button class="segmented__item">Credit Sale</button></div></div>
+            </div>
+            <div class="cart-customer-row">
+              <label class="field cart-customer-row__search"><span class="field__label">Customer</span><input class="input" value="John" /></label>
+              <button class="btn btn--sm">Walk-in</button>
+              <span class="cart-debt-actions"><span class="cart-debt-chip cart-debt-chip--on">Previous +$100.00</span><button class="cart-debt-btn">Remove</button></span>
+            </div>
+          </div>
+          <div class="pos__lines">
+            <div class="cart-lines">
+              <div class="cart-line cart-line--debt">
+                <div class="cart-line__left">
+                  <span class="cart-line__img cart-line__img--debt">◷</span>
+                  <div class="cart-line__info">
+                    <div class="cart-line__name">Previous balance</div>
+                    <div class="cart-line__meta">Customer: John</div>
+                    <div class="cart-line__meta">Debt payment</div>
+                  </div>
+                </div>
+                <div class="cart-line__right">
+                  <div class="cart-line__total">
+                    <span class="fit-amount fit-amount--line">$100.00</span>
+                    <span class="fit-amount fit-amount--muted">8,950,000 LBP</span>
+                  </div>
+                  <div class="cart-line__actions"><button class="btn btn--ghost">×</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <footer class="cart-foot">
+            <div class="cart-foot__row"><span>Sale subtotal</span><span class="cart-foot__money"><span class="fit-amount">$0.00</span></span></div>
+            <div class="cart-foot__row"><span>Previous balance</span><span class="cart-foot__money"><span class="fit-amount">$100.00</span></span></div>
+            <div class="cart-foot__total"><span>Total to collect</span><span class="cart-foot__money"><span class="fit-amount">$100.00</span><span class="fit-amount fit-amount--sub">8,950,000 LBP</span></span></div>
+          </footer>
+        </section>
+      </div>
+
+      <div>
+        <h2>B · $500 sale + $100 previous</h2>
+        <section class="pos__cart">
+          <div class="cart-head">
+            <div class="cart-options">
+              <div class="field"><span class="field__label">Price tier</span><select class="input"><option>Retail</option></select></div>
+              <div class="field"><span class="field__label">Currency</span><select class="input"><option>USD $</option></select></div>
+              <div class="field cart-options__pay"><span class="field__label">Payment method</span><div class="segmented"><button class="segmented__item segmented__item--active">Full Payment</button><button class="segmented__item">Credit Sale</button></div></div>
+            </div>
+            <div class="cart-customer-row">
+              <label class="field cart-customer-row__search"><span class="field__label">Customer</span><input class="input" value="John" /></label>
+              <button class="btn btn--sm">Walk-in</button>
+              <span class="cart-debt-actions"><span class="cart-debt-chip cart-debt-chip--on">Previous +$100.00</span><button class="cart-debt-btn">Remove</button></span>
+            </div>
+          </div>
+          <div class="pos__lines">
+            <div class="cart-lines">
+              <div class="cart-line">
+                <div class="cart-line__left">
+                  <span class="cart-line__img cart-line__img--empty">▢</span>
+                  <div class="cart-line__info"><div class="cart-line__name">Phone case</div><div class="cart-line__unit">$5.00</div></div>
+                </div>
+                <div class="cart-line__qty">1</div>
+                <div class="cart-line__right"><div class="cart-line__total"><span class="fit-amount fit-amount--line">$500.00</span><span class="fit-amount fit-amount--muted">44,750,000 LBP</span></div></div>
+              </div>
+              <div class="cart-line cart-line--debt">
+                <div class="cart-line__left">
+                  <span class="cart-line__img cart-line__img--debt">◷</span>
+                  <div class="cart-line__info">
+                    <div class="cart-line__name">Previous balance</div>
+                    <div class="cart-line__meta">Customer: John</div>
+                    <div class="cart-line__meta">Debt payment</div>
+                  </div>
+                </div>
+                <div class="cart-line__right">
+                  <div class="cart-line__total">
+                    <span class="fit-amount fit-amount--line">$100.00</span>
+                    <span class="fit-amount fit-amount--muted">8,950,000 LBP</span>
+                  </div>
+                  <div class="cart-line__actions"><button class="btn btn--ghost">×</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <footer class="cart-foot">
+            <div class="cart-foot__row"><span>Sale subtotal</span><span class="cart-foot__money"><span class="fit-amount">$500.00</span></span></div>
+            <div class="cart-foot__row"><span>Previous balance</span><span class="cart-foot__money"><span class="fit-amount">$100.00</span></span></div>
+            <div class="cart-foot__total"><span>Total to collect</span><span class="cart-foot__money"><span class="fit-amount">$600.00</span><span class="fit-amount fit-amount--sub">53,700,000 LBP</span></span></div>
+          </footer>
+        </section>
+      </div>
+
+      <div>
+        <h2>6 · Checkout summary</h2>
+        <div class="payment">
+          <p class="payment__mode">Payment mode: Full payment</p>
+          <div class="payment__row"><span>Sale total</span><span>$500.00</span></div>
+          <div class="payment__row"><span>Previous balance</span><span>$100.00</span></div>
+          <div class="payment__kicker">Amount to collect</div>
+          <div class="payment__total-line">$600.00</div>
+          <div class="fit-amount--sub">53,700,000 LBP</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

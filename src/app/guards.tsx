@@ -6,6 +6,7 @@ import type { PermissionKey } from '@/constants/permissions';
 import { useSession } from '@/contexts/session';
 import { useI18n } from '@/i18n/i18n';
 import { AccountStatusScreen } from '@/features/auth/AccountStatusScreen';
+import { publicRouteDecision, superAdminRouteDecision, tenantRouteDecision } from './routeAccess';
 
 /**
  * Route protection. These guards are UX only; the real enforcement is in Firestore/Storage rules
@@ -14,21 +15,20 @@ import { AccountStatusScreen } from '@/features/auth/AccountStatusScreen';
 export function RequireTenant() {
   const session = useSession();
   const location = useLocation();
-  switch (session.status) {
-    case 'loading':
+  switch (tenantRouteDecision(session)) {
+    case 'loader':
       return <PageLoader />;
-    case 'signedOut':
+    case 'login':
       return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-    case 'needsVerification':
+    case 'verify':
       return <Navigate to="/verify-email" replace />;
-    case 'needsSetup':
+    case 'setup':
       return <Navigate to="/setup" replace />;
-    case 'disabled':
-    case 'inactive':
-    case 'error':
-      return <AccountStatusScreen status={session.status} />;
-    case 'ready':
-      if (!session.tenantId) return <Navigate to="/admin" replace />;
+    case 'status':
+      return <AccountStatusScreen status={session.status as 'disabled' | 'inactive' | 'error'} />;
+    case 'admin':
+      return <Navigate to="/admin" replace />;
+    case 'allow':
       return <Outlet />;
   }
 }
@@ -43,22 +43,24 @@ export function RequirePermission({ permission, ownerOnly, children }: { permiss
 
 export function RequireSuperAdmin() {
   const session = useSession();
-  if (session.status === 'loading') return <PageLoader />;
-  if (session.status === 'signedOut') return <Navigate to="/login" replace />;
-  if (!session.isSuperAdmin) return <Navigate to="/" replace />;
-  return <Outlet />;
+  switch (superAdminRouteDecision(session)) {
+    case 'loader':
+      return <PageLoader />;
+    case 'login':
+      return <Navigate to="/login" replace />;
+    case 'home':
+      return <Navigate to="/" replace />;
+    case 'allow':
+      return <Outlet />;
+  }
 }
 
 /** Public auth pages: signed-in users are sent to the app. */
 export function PublicOnly() {
   const session = useSession();
   const location = useLocation();
-  if (session.status === 'loading') return <PageLoader />;
-  if (session.status === 'ready') {
-    const from = (location.state as { from?: string } | null)?.from;
-    return <Navigate to={from && from !== '/login' ? from : session.tenantId ? '/' : '/admin'} replace />;
-  }
-  if (session.status === 'needsVerification') return <Navigate to="/verify-email" replace />;
-  if (session.status === 'needsSetup') return <Navigate to="/setup" replace />;
+  const decision = publicRouteDecision(session, (location.state as { from?: string } | null)?.from);
+  if (decision.kind === 'loader') return <PageLoader />;
+  if (decision.kind === 'redirect') return <Navigate to={decision.to} replace />;
   return <Outlet />;
 }

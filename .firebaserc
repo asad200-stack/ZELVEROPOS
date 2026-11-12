@@ -1,5 +1,32 @@
 {
   "projects": {
-    "default": "zelvoropos"
-  }
+    "default": "zelvoropos",
+    "staging": "zelvoropos-stage"
+  },
+  "targets": {
+    "zelvoropos": {
+      "hosting": {
+        "production": [
+          "zelvoropos"
+        ],
+        "staging": [
+          "zelvoropos-staging"
+        ],
+        "marketing": [
+          "zelvero-web-staging"
+        ]
+      }
+    },
+    "zelvoropos-stage": {
+      "hosting": {
+        "staging": [
+          "zelvoropos-stage"
+        ],
+        "web-staging": [
+          "zelvoropos-stage-web"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

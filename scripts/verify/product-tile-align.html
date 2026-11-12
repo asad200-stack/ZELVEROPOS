@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Product tile alignment</title>
+    <link rel="stylesheet" href="/src/styles/pages.css" />
+    <style>
+      :root {
+        --c-bg: #f4f6fa; --c-surface: #fff; --c-surface-2: #f1f5f9; --c-border: #e2e8f0; --c-text: #0f172a;
+        --c-text-muted: #64748b; --c-primary: #4f46e5; --c-on-primary: #fff; --c-success: #15803d; --c-success-soft: #dcfce7;
+        --c-warning: #d97706; --c-warning-soft: #fffbeb; --c-danger: #dc2626; --c-danger-soft: #fee2e2; --radius: 10px; --radius-sm: 6px;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--c-bg); padding: 16px; color: var(--c-text); }
+      h1 { font-size: 14px; margin: 0 0 12px; color: var(--c-text-muted); }
+      .picker__grid { width: min(720px, 100%); background: #fff; padding: 10px; border: 1px solid var(--c-border); border-radius: 14px; overflow: visible; }
+      .fit-slot { display: block; min-width: 0; max-width: 100%; container-type: inline-size; }
+      .fit-amount { display: block; max-width: 100%; direction: ltr; unicode-bidi: isolate; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 800; line-height: 1.15; }
+      .fit-amount--muted { font-weight: 600; color: var(--c-text-muted); }
+      .guide { position: relative; }
+      .guide::before, .guide::after { content: ""; pointer-events: none; position: absolute; left: 10px; right: 10px; border-top: 1px dashed #fb7185; z-index: 2; opacity: .55; }
+      .guide::before { top: calc(10px + 6px + 58px + 4px + 2rem + 4px + 0.62rem); }
+      .guide::after { top: calc(10px + 6px + 58px + 4px + 2rem + 4px + 1.25rem + 4px + 0.5rem); }
+    </style>
+  </head>
+  <body>
+    <h1>1-line, 2-line, long name · short/large USD · large LBP · low/out/high stock</h1>
+    <div class="picker__grid guide">
+      <button type="button" class="product-tile">
+        <span class="product-tile__media"><span class="product-tile__img product-tile__img--empty">▢</span></span>
+        <span class="product-tile__name" title="PS5">PS5</span>
+        <span class="product-tile__usd"><span class="fit-slot"><span class="fit-amount" style="--chars:7">$500.00</span></span></span>
+        <span class="product-tile__lbp"><span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars:14">44,750,000 LBP</span></span></span>
+        <span class="product-tile__stock">498 in stock</span>
+      </button>
+      <button type="button" class="product-tile">
+        <span class="product-tile__media"><span class="product-tile__img product-tile__img--empty">▢</span></span>
+        <span class="product-tile__name" title="iPhone 18 Pro Max">iPhone 18 Pro Max</span>
+        <span class="product-tile__usd"><span class="fit-slot"><span class="fit-amount" style="--chars:9">$2,000.00</span></span></span>
+        <span class="product-tile__lbp"><span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars:15">179,000,000 LBP</span></span></span>
+        <span class="product-tile__stock">97 in stock</span>
+      </button>
+      <button type="button" class="product-tile">
+        <span class="product-tile__media"><span class="product-tile__img product-tile__img--empty">▢</span></span>
+        <span class="product-tile__name" title="iPhone 18 Pro Max 256GB Titanium Natural">iPhone 18 Pro Max 256GB Titanium Natural</span>
+        <span class="product-tile__usd"><span class="fit-slot"><span class="fit-amount" style="--chars:6">$12.50</span></span></span>
+        <span class="product-tile__lbp"><span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars:19">1,118,750,000 LBP</span></span></span>
+        <span class="product-tile__stock product-tile__stock--low">3 in stock</span>
+      </button>
+      <button type="button" class="product-tile" disabled>
+        <span class="product-tile__media"><span class="product-tile__img product-tile__img--empty">▢</span></span>
+        <span class="product-tile__name" title="Cable">Cable</span>
+        <span class="product-tile__usd"><span class="fit-slot"><span class="fit-amount" style="--chars:5">$5.00</span></span></span>
+        <span class="product-tile__lbp"><span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars:11">447,500 LBP</span></span></span>
+        <span class="product-tile__stock product-tile__stock--out">Out of stock</span>
+      </button>
+      <button type="button" class="product-tile">
+        <span class="product-tile__media"><img class="product-tile__img" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='80'%3E%3Crect width='40' height='80' fill='%234f46e5'/%3E%3C/svg%3E" /></span>
+        <span class="product-tile__name" title="Tall image">Tall image</span>
+        <span class="product-tile__usd"><span class="fit-slot"><span class="fit-amount" style="--chars:13">$9,999,999.99</span></span></span>
+        <span class="product-tile__lbp"><span class="fit-slot"><span class="fit-amount fit-amount--muted" style="--chars:18">895,000,000,000 LBP</span></span></span>
+        <span class="product-tile__stock">999,999 in stock</span>
+      </button>
+    </div>
+    <script>
+      const tiles = [...document.querySelectorAll('.product-tile')];
+      const rows = tiles.map((el) => {
+        const name = el.querySelector('.product-tile__name');
+        const usd = el.querySelector('.product-tile__usd');
+        const lbp = el.querySelector('.product-tile__lbp');
+        const stock = el.querySelector('.product-tile__stock');
+        return {
+          h: el.offsetHeight,
+          nameH: name.offsetHeight,
+          usdY: Math.round(usd.getBoundingClientRect().top),
+          lbpY: Math.round(lbp.getBoundingClientRect().top),
+          stockY: Math.round(stock.getBoundingClientRect().top),
+        };
+      });
+      document.querySelector('h1').textContent +=
+        ` · heights ${[...new Set(rows.map((r) => r.h))].join('/')} · USD Δ${Math.max(...rows.map((r) => r.usdY)) - Math.min(...rows.map((r) => r.usdY))}px · LBP Δ${Math.max(...rows.map((r) => r.lbpY)) - Math.min(...rows.map((r) => r.lbpY))}px · stock Δ${Math.max(...rows.map((r) => r.stockY)) - Math.min(...rows.map((r) => r.stockY))}px`;
+    </script>
+  </body>
+</html>

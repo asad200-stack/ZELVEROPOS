@@ -1,12 +1,18 @@
 import { lazy, Suspense, useEffect, useRef, type ComponentType, type LazyExoticComponent } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
+import { Button } from '@/components/ui/Button';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useSession } from '@/contexts/session';
+import { adminPreviewDecision, isAdminPreviewBuild } from '@/domain/adminPreview';
 import { resetTenantStore } from '@/stores/tenantStore';
 import { AppLayout } from '@/layouts/AppLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { NAV_ITEMS } from './navigation';
 import { PublicOnly, RequirePermission, RequireSuperAdmin, RequireTenant } from './guards';
+import { UpdateNotice } from './UpdateNotice';
+import { PreviewAccess } from './PreviewAccess';
+import { signOut } from '@/services/authService';
+import { useI18n } from '@/i18n/i18n';
 
 const page = (loader: () => Promise<{ default: ComponentType }>) => lazy(loader);
 
@@ -47,9 +53,32 @@ function useTenantReset() {
   }, [key]);
 }
 
+function AdminPreviewDenied() {
+  const { t } = useI18n();
+  return (
+    <div className="center-screen">
+      <div className="center-card">
+        <h1>{t('adminPreview.deniedTitle')}</h1>
+        <p className="muted">{t('adminPreview.deniedMessage')}</p>
+        <Button onClick={() => void signOut()}>{t('auth.signOut')}</Button>
+      </div>
+    </div>
+  );
+}
+
 export function AppRoutes() {
   useTenantReset();
-  return (
+  const session = useSession();
+  const previewDecision = adminPreviewDecision({
+    enabled: isAdminPreviewBuild(import.meta.env),
+    status: session.status,
+    isSuperAdmin: session.isSuperAdmin,
+    isInternalDemo: session.isInternalDemo,
+  });
+  if (previewDecision === 'loading') return <PageLoader />;
+  if (previewDecision === 'denied') return <AdminPreviewDenied />;
+  const routes = (
+    <>
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route element={<AuthLayout />}>
@@ -92,5 +121,11 @@ export function AppRoutes() {
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
+    {previewDecision === 'allow' ? <UpdateNotice /> : null}
+    </>
   );
+  if (isAdminPreviewBuild(import.meta.env) && previewDecision === 'allow') {
+    return <PreviewAccess denied={<AdminPreviewDenied />}>{routes}</PreviewAccess>;
+  }
+  return routes;
 }

@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useState } from 'react';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/Button';
 import { Checkbox, FormGrid, MoneyInput, SelectInput, TextInput } from '@/components/ui/Form';
@@ -13,6 +13,7 @@ import { centsToInput, parseUsdInput } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
+import { registerPageUiHost, unregisterPageUiHost } from '@/features/ai/actions/pageUiBridge';
 import { pageProducts, pageSuppliers } from '@/services/catalogQuery';
 import { emptyProductQuery } from '@/domain/catalogPlan';
 import { createPurchase, listPurchases, returnToSupplier } from '@/services/supplierService';
@@ -36,6 +37,17 @@ export default function PurchasesPage() {
   const [status, setStatus] = useState<BillStatus | 'all'>('all');
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Purchase | null>(null);
+
+  useEffect(() => {
+    const host = {
+      openCreateForm: () => {
+        setCreating(true);
+        return true;
+      },
+    };
+    registerPageUiHost('/purchases', host);
+    return () => unregisterPageUiHost('/purchases', host);
+  }, []);
 
   const fetchPage = useCallback(
     (cursor: QueryDocumentSnapshot | null) => listPurchases(tenantId, { supplierId: supplierId || null, status }, cursor),
@@ -268,7 +280,7 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
                         <input className="input input--qty" dir="ltr" inputMode="numeric" value={l.quantity} onChange={(e) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
                       </td>
                       <td className="num">
-                        <input className="input input--money" inputMode="decimal" value={l.unitCost} onChange={(e) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, unitCost: e.target.value } : x)))} />
+                        <MoneyInput currency="usd" fieldClassName="field--bare" value={l.unitCost} onChange={(e) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, unitCost: e.target.value } : x)))} />
                       </td>
                       <td className="num">{formatUsd((Math.floor(Number(l.quantity)) || 0) * cost)}</td>
                       <td>
@@ -283,7 +295,7 @@ function PurchaseFormModal({ onClose }: { onClose: (saved: boolean) => void }) {
         )}
         <Checkbox label={t('purchases.updateCost')} checked={updateCost} onChange={(e) => setUpdateCost(e.target.checked)} />
         <FormGrid>
-          <MoneyInput label={t('purchases.paidNow')} value={paidNow} onChange={(e) => setPaidNow(e.target.value)} placeholder="0" />
+          <MoneyInput currency="usd" label={t('purchases.paidNow')} value={paidNow} onChange={(e) => setPaidNow(e.target.value)} placeholder="0.00" />
           <TextInput label={t('common.note')} value={note} onChange={(e) => setNote(e.target.value)} />
         </FormGrid>
         {can('canManageCashDrawer') && (paid ?? 0) > 0 && (

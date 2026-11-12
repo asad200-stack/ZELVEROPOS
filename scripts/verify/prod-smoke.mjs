@@ -218,7 +218,8 @@ const show = (label, s) =>
 
 /* ------------------------------------------------------------------ payloads */
 
-const productPayload = {
+const productPayload = () => ({
+  clientOperationId: `smoke${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
   product: {
     name: PRODUCT_NAME,
     category: '',
@@ -233,7 +234,7 @@ const productPayload = {
   },
   initialStock: 10,
   initialImeis: [],
-};
+});
 const checkout = (saleId, productId, expectedTotal = 100) => ({
   saleId,
   kind: 'cash',
@@ -296,7 +297,7 @@ async function signupPhase() {
   const c = await claimsOf(cred.user);
   check('token: email_verified=false, tenantId=uid, role=owner, active, subUntil=0',
     c.email_verified === false && c.tenantId === s.tenantId && c.role === 'owner' && c.active === true && c.subUntil === 0, JSON.stringify(c));
-  await denied('unverified: posCreateProduct', () => owner.call('posCreateProduct', productPayload), /permission-denied error\.permissionDenied/);
+  await denied('unverified: posCreateProduct', () => owner.call('posCreateProduct', productPayload()), /permission-denied error\.permissionDenied/);
   await denied('unverified: read tenant document', () => getDoc(doc(owner.db, `tenants/${s.tenantId}`)), /permission-denied/);
   await denied('unverified: read tenant settings', () => getDoc(doc(owner.db, `tenants/${s.tenantId}/settings/main`)), /permission-denied/);
   const profile = await getDoc(doc(owner.db, `users/${s.ownerUid}`));
@@ -347,7 +348,7 @@ async function backendPhase() {
   section('Inactive subscription (verified owner)');
   const settings = await getDoc(doc(owner.db, `tenants/${t}/settings/main`));
   check('verified owner can read own store settings', settings.exists() && settings.data().storeName === STORE_NAME);
-  await denied('inactive: posCreateProduct', () => owner.call('posCreateProduct', productPayload), /failed-precondition error\.fn\.subscriptionInactive/);
+  await denied('inactive: posCreateProduct', () => owner.call('posCreateProduct', productPayload()), /failed-precondition error\.fn\.subscriptionInactive/);
   await denied('inactive: createSubUser', () => owner.call('createSubUser', { email: CASHIER, password: password(), fullName: 'TEST CASHIER', permissions: { canSell: true } }), /failed-precondition error\.fn\.subscriptionInactive/);
   await denied('inactive: direct settings write', () => updateDoc(doc(owner.db, `tenants/${t}/settings/main`), { storeName: 'X', updatedAt: serverTimestamp() }), /permission-denied/);
 
@@ -379,7 +380,7 @@ async function backendPhase() {
   critical('after the app\'s forced token refresh: subUntil in the future, cv matches', c.subUntil > Date.now() && c.cv === profile.claimsVersion, `subUntil ${new Date(c.subUntil).toISOString()}`);
 
   section('Product (posCreateProduct)');
-  const created = await owner.call('posCreateProduct', productPayload);
+  const created = await owner.call('posCreateProduct', productPayload());
   const productId = created.data.id;
   s.productId = productId;
   saveState(s);
@@ -555,7 +556,7 @@ async function finalizePhase() {
   const c = await claimsOf(again.user);
   check('owner can sign in again; claims subUntil=0', c.subUntil === 0, JSON.stringify(c));
   check('owner can still read its history (audit trail intact)', (await getDoc(doc(again.db, `tenants/${t}/sales/${s.saleId}`))).data()?.invoiceNumber === s.invoiceNumber);
-  await denied('inactive again: posCreateProduct', () => again.call('posCreateProduct', productPayload), /failed-precondition error\.fn\.subscriptionInactive/);
+  await denied('inactive again: posCreateProduct', () => again.call('posCreateProduct', productPayload()), /failed-precondition error\.fn\.subscriptionInactive/);
   await denied('inactive again: posCheckout', () => again.call('posCheckout', harmlessCheckout(s.productId)), /failed-precondition error\.fn\.subscriptionInactive/);
   check('history untouched', same(await ledgerState(t, s.productId), before));
   const store = await adminDoc(`stores/${t}`);

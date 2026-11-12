@@ -19,15 +19,27 @@ function fittedPx(containerPx: number, chars: number, minRem = 0.62, maxRem = 1.
 }
 
 describe('POS layout safety', () => {
-  it('keeps product names and cart names fully visible', () => {
+  it('keeps product cards aligned and cart controls independent of the name', () => {
     const name = rule('.product-tile__name {');
     const cartName = rule('.cart-line__name {');
     expect(name).toContain('overflow-wrap: anywhere');
-    expect(name).not.toContain('line-clamp');
-    expect(name).not.toContain('ellipsis');
+    expect(name).toContain('height: max-content');
+    expect(name).toContain('max-height: 2.4em');
+    expect(name).not.toContain('3.2rem');
+    expect(name).toContain('unicode-bidi: plaintext');
+    expect(rule('.product-tile {')).toContain('grid-template-rows: subgrid');
+    expect(rule('.product-tile__media {')).toContain('height: 65px');
+    expect(rule('.product-tile__img {')).toContain('object-fit: contain');
+    expect(rule('.picker__grid {')).toContain('minmax(min(100%, 96px), 1fr)');
     expect(cartName).toContain('overflow-wrap: anywhere');
-    expect(cartName).not.toContain('ellipsis');
-    expect(cartName).not.toContain('nowrap');
+    expect(cartName).toContain('white-space: normal');
+    expect(cartName).not.toContain('line-clamp');
+    expect(cartName).toContain('unicode-bidi: plaintext');
+    expect(rule('.cart-line__controls {')).toContain('grid-template-columns: auto minmax(0, 1fr) auto');
+    expect(rule('.cart-line__qty {')).toContain('justify-self: start');
+    expect(css).not.toContain('img info qty prices actions');
+    expect(css).toContain('@container pos-cart (max-width: 300px)');
+    expect(rule('.product-tile__usd > .fit-slot,')).toContain('flex: 1 1 0%');
   });
 
   it('scales money with the container instead of clipping it', () => {
@@ -40,16 +52,29 @@ describe('POS layout safety', () => {
     expect(rule('.fit-slot {')).toContain('container-type: inline-size');
   });
 
-  it('uses three columns on desktop and tabs below that', () => {
+  it('uses two columns on desktop with checkout as a drawer overlay', () => {
     const pos = rule('.pos {');
-    expect(pos).toContain('minmax(0, 1fr) minmax(280px, 340px) minmax(250px, 300px)');
-    expect(css).toContain('.pos--checkout .pos__products');
-    expect(css).toContain('max-width: 1100px');
+    expect(pos).toContain('minmax(0, 1.7fr) minmax(280px, 38%)');
+    expect(pos).toContain('position: relative');
+    expect(css).toContain('.pos__pay');
+    // Dedicated drawer rules (second `.pos__checkout` block after the shared panel rule).
+    const checkoutDrawer = css.slice(css.lastIndexOf('\n.pos__checkout {'));
+    expect(checkoutDrawer).toContain('position: absolute');
+    expect(checkoutDrawer).toContain('width: min(420px, 100%)');
+    expect(checkoutDrawer).toContain('inset-inline-end: 0');
+    expect(css).toContain('@media (max-width: 759px)');
+    expect(css).toContain('.pos--products .pos__cart');
+    // PosPage applies `pos--pay` when checkout is open (class contract).
+    const page = readFileSync(new URL('../../src/features/pos/PosPage.tsx', import.meta.url), 'utf8');
+    expect(page).toContain('pos--${mobileTab}');
+    expect(page).toContain("checkoutOpen ? ' pos--pay' : ''");
+    expect(page).toContain('className="pos__checkout"');
   });
 
   it('keeps the cart title and tabs on separate fixed rows', () => {
-    expect(rule('.cart-head {')).toContain('flex: none');
-    expect(rule('.cart-head {')).toContain('justify-content: space-between');
+    const head = rule('.cart-head {');
+    expect(head).toContain('flex: none');
+    expect(head).toContain('flex-direction: column');
     const tabs = rule('.cart-tabs {');
     expect(tabs).toContain('flex-wrap: nowrap');
     expect(tabs).toContain('overflow-x: auto');

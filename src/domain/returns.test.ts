@@ -39,4 +39,23 @@ describe('returns', () => {
     expect(planReturn(sale(), [{ index: 0, quantity: 0 }], 0)).toMatchObject({ ok: false, error: 'empty' });
     expect(planReturn(sale(), [{ index: 5, quantity: 1 }], 0)).toMatchObject({ ok: false, error: 'invalid' });
   });
+
+  it('aggregates duplicate indexes within the remaining quantity', () => {
+    const plan = planReturn(sale(), [{ index: 0, quantity: 1 }, { index: 0, quantity: 1 }], 0);
+    expect(plan).toMatchObject({ ok: true, amountUsdCents: 1_000, costUsdCents: 400, refundUsdCents: 1_000 });
+    expect(plan.quantities.get(0)).toBe(2);
+    expect(plan.items).toHaveLength(1);
+    expect(plan.items[0]?.quantity).toBe(2);
+    expect(returnStatusAfter(sale(), plan.quantities)).toBe('full');
+  });
+
+  it('rejects duplicate indexes that exceed the remaining quantity', () => {
+    expect(
+      planReturn(sale(), [{ index: 0, quantity: 2 }, { index: 0, quantity: 2 }], 0),
+    ).toMatchObject({ ok: false, error: 'tooMany' });
+    const partiallyReturned = sale({ items: [{ ...sale().items[0], returnedQty: 1 }] });
+    expect(
+      planReturn(partiallyReturned, [{ index: 0, quantity: 1 }, { index: 0, quantity: 1 }], 0),
+    ).toMatchObject({ ok: false, error: 'tooMany' });
+  });
 });

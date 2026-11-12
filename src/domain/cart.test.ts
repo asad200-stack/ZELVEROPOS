@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyCartDraft, type Cart } from './cart';
+import { cartCanCheckout, creditRequiresCustomer, emptyCartDraft, type Cart } from './cart';
 import { addProductToCart, findStockShortages, findUnavailableImeis, priceCart } from './cart';
 import { product } from './fixtures.test-utils';
 
@@ -67,5 +67,34 @@ describe('cart', () => {
     const products = new Map([[phone.id, phone]]);
     const line = (imei: string) => ({ key: imei, productId: 'ph', name: 'p', tier: 'retail' as const, quantity: 1, customUsdCents: null, imei });
     expect(findUnavailableImeis([line('A'), line('B'), line('A')], products)).toEqual(['B', 'A']);
+  });
+
+  it('C: credit sale without a customer is blocked before checkout', () => {
+    expect(creditRequiresCustomer('credit', null)).toBe(true);
+    expect(creditRequiresCustomer('credit', 'cust-1')).toBe(false);
+    expect(creditRequiresCustomer('cash', null)).toBe(false);
+  });
+
+  it('F/G: adding previous increases amount to collect without changing sale revenue', () => {
+    const p = product();
+    const products = new Map([[p.id, p]]);
+    const sale = emptyCart({
+      customerId: 'cust',
+      lines: [{ key: 'k', productId: p.id, name: p.name, tier: 'retail', quantity: 1, customUsdCents: null, imei: null }],
+    });
+    const without = priceCart(sale, products, RATE);
+    const withPrev = priceCart({ ...sale, debtLineUsdCents: 4_000 }, products, RATE);
+    expect(without.productsUsdCents).toBe(withPrev.productsUsdCents);
+    expect(withPrev.dueUsdCents).toBe(without.productsUsdCents + 4_000);
+    expect(priceCart({ ...sale, debtLineUsdCents: null }, products, RATE).dueUsdCents).toBe(without.productsUsdCents);
+  });
+
+  it('A: previous-only cart shows $100 to collect and $0 sale revenue', () => {
+    const totals = priceCart(emptyCart({ customerId: 'cust', debtLineUsdCents: 10_000 }), new Map(), RATE);
+    expect(totals.productsUsdCents).toBe(0);
+    expect(totals.debtLineUsdCents).toBe(10_000);
+    expect(totals.dueUsdCents).toBe(10_000);
+    expect(cartCanCheckout({ lines: [], customerId: 'cust', debtLineUsdCents: 10_000 })).toBe(true);
+    expect(cartCanCheckout({ lines: [], customerId: 'cust', debtLineUsdCents: null })).toBe(false);
   });
 });

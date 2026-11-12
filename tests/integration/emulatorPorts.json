@@ -1,0 +1,22 @@
+{
+  "projectId": "demo-zelvero",
+  "isolatedModeEnv": "ZELVERO_ISOLATED_EMULATORS",
+  "primary": {
+    "firestore": 8080,
+    "auth": 9099,
+    "functions": 5001,
+    "storage": 9199,
+    "pubsub": 8085,
+    "ui": 4000,
+    "hub": 4400
+  },
+  "isolated": {
+    "firestore": 18080,
+    "auth": 19099,
+    "functions": 15001,
+    "storage": 19199,
+    "pubsub": 18085,
+    "ui": 14000,
+    "hub": 14400
+  }
+}

@@ -6,9 +6,11 @@ import {
   call,
   callOk,
   clearAuth,
+  clearFirestore,
   createEnv,
   createUser,
   DAY,
+  functionsCallableUrl,
   OTHER,
   RATE,
   readDoc,
@@ -27,6 +29,8 @@ const STAFF: (SeedProfile & { perms?: Record<string, boolean> })[] = [
   { uid: 'cashier', role: 'subUser', permissions: { canSell: true } },
   { uid: 'pricer', role: 'subUser', permissions: { canSell: true, canEditPrice: true } },
   { uid: 'clerk', role: 'subUser', permissions: { canViewSales: true, canViewCustomers: true } },
+  { uid: 'returner', role: 'subUser', permissions: { canViewSales: true, canSell: true } },
+  { uid: 'drawerReturner', role: 'subUser', permissions: { canViewSales: true, canManageCashDrawer: true } },
   { uid: 'editor', role: 'subUser', permissions: { canViewProducts: true, canAddProducts: true, canEditProducts: true, canImportProducts: true } },
   { uid: 'buyer', role: 'subUser', permissions: { canViewSuppliers: true, canManageCashDrawer: true } },
   { uid: 'ghost', role: 'subUser', permissions: { canSell: true }, isActive: false },
@@ -34,7 +38,7 @@ const STAFF: (SeedProfile & { perms?: Record<string, boolean> })[] = [
 ];
 
 async function seed(opts: { subscriptionEndsAt?: number } = {}) {
-  await env.clearFirestore();
+  await clearFirestore(env);
   await seedTenant(env, T, [{ uid: T, role: 'owner' }, ...STAFF], opts);
   await seedTenant(env, OTHER, [{ uid: OTHER, role: 'owner' }]);
 }
@@ -130,7 +134,7 @@ describe('posCheckout', () => {
     const res = await callOk<{ sale: { payment: Record<string, number> } }>(tokens.cashier!, 'posCheckout', sale);
     expect(res.sale.payment).toMatchObject({ receivedUsdCents: 2_000, receivedLbp: 0, changeUsdCents: 0, changeLbp: 895_000 });
     expect(await drawer()).toMatchObject({ usdCents: 12_000, lbp: 105_000 });
-    const refund = await callOk<{ saleReturn: { refundUsdCents: number; refundLbp: number } }>(tokens.clerk!, 'posReturn', {
+    const refund = await callOk<{ saleReturn: { refundUsdCents: number; refundLbp: number } }>(tokens.returner!, 'posReturn', {
       saleId: sale.saleId,
       lines: [{ index: 0, quantity: 2 }],
     });
@@ -257,7 +261,7 @@ describe('posReturn', () => {
   it('restocks and refunds from the drawer', async () => {
     const sale = cashSale();
     await callOk(tokens.cashier!, 'posCheckout', sale);
-    const res = await callOk<{ saleReturn: Record<string, unknown> }>(tokens.clerk!, 'posReturn', {
+    const res = await callOk<{ saleReturn: Record<string, unknown> }>(tokens.returner!, 'posReturn', {
       saleId: sale.saleId,
       lines: [{ index: 0, quantity: 1 }],
       reason: 'broken',
@@ -267,7 +271,7 @@ describe('posReturn', () => {
     expect((await drawer()).usdCents).toBe(10_500);
     const saved = await readDoc(env, tp(T, 'sales', sale.saleId));
     expect(saved).toMatchObject({ returnStatus: 'partial', returnedUsdCents: 500 });
-    const tooMany = await call(tokens.clerk!, 'posReturn', { saleId: sale.saleId, lines: [{ index: 0, quantity: 2 }] });
+    const tooMany = await call(tokens.returner!, 'posReturn', { saleId: sale.saleId, lines: [{ index: 0, quantity: 2 }] });
     expect(tooMany.error?.key).toBe('error.return.tooMany');
   });
 
@@ -278,10 +282,34 @@ describe('posReturn', () => {
     expect(error?.status).toBe('PERMISSION_DENIED');
   });
 
+  it('sales-view-only reporters cannot process returns', async () => {
+    const sale = cashSale();
+    await callOk(tokens.cashier!, 'posCheckout', sale);
+    const { error } = await call(tokens.clerk!, 'posReturn', { saleId: sale.saleId, lines: [{ index: 0, quantity: 1 }] });
+    expect(error?.status).toBe('PERMISSION_DENIED');
+  });
+
+  it('drawer managers with canViewSales can process returns', async () => {
+    const sale = cashSale();
+    await callOk(tokens.cashier!, 'posCheckout', sale);
+    const res = await callOk<{ saleReturn: Record<string, unknown> }>(tokens.drawerReturner!, 'posReturn', {
+      saleId: sale.saleId,
+      lines: [{ index: 0, quantity: 1 }],
+    });
+    expect(res.saleReturn).toMatchObject({ amountUsdCents: 500, refundUsdCents: 500 });
+  });
+
+  it('drawer managers without canViewSales cannot process returns', async () => {
+    const sale = cashSale();
+    await callOk(tokens.cashier!, 'posCheckout', sale);
+    const { error } = await call(tokens.buyer!, 'posReturn', { saleId: sale.saleId, lines: [{ index: 0, quantity: 1 }] });
+    expect(error?.status).toBe('PERMISSION_DENIED');
+  });
+
   it('a credit-sale return reduces the debt before refunding cash', async () => {
     const sale = cashSale({ kind: 'credit', customerId: 'c1', cash: undefined, credit: { paidUsdCents: 0, paidLbp: 0 } });
     await callOk(tokens.cashier!, 'posCheckout', sale);
-    const res = await callOk<{ saleReturn: Record<string, unknown> }>(tokens.clerk!, 'posReturn', {
+    const res = await callOk<{ saleReturn: Record<string, unknown> }>(tokens.returner!, 'posReturn', {
       saleId: sale.saleId,
       lines: [{ index: 0, quantity: 2 }],
     });
@@ -367,6 +395,53 @@ describe('inventory', () => {
     });
     expect(await stock(T, id)).toBe(4);
     expect((await readWhere(env, tp(T, 'stockMovements'), 'productId', id))[0]).toMatchObject({ type: 'initial', quantity: 4 });
+  });
+
+  it('repeats of one create, including a delayed one, return the original product', async () => {
+    const product = {
+      name: 'Once Soap',
+      category: '',
+      barcode: 'ONCE-1',
+      prices: { retail: { usdCents: 300, lbp: null }, wholesale: { usdCents: 0, lbp: null }, vip: { usdCents: 0, lbp: null } },
+      costUsdCents: 0,
+      costKnown: false,
+      minStock: null,
+      supplierId: null,
+      supplierName: '',
+      expiryDate: null,
+      imeiTracking: false,
+    };
+    const denied = await call(tokens.cashier!, 'posCreateProduct', {
+      clientOperationId: 'cashierCreateNo01',
+      product,
+      initialStock: 0,
+      initialImeis: [],
+    });
+    expect(denied.error?.status).toBe('PERMISSION_DENIED');
+    expect(await readWhere(env, tp(T, 'products'), 'barcode', 'ONCE-1')).toHaveLength(0);
+
+    const payload = { clientOperationId: 'createOnceSoap01', product, initialStock: 0, initialImeis: [] };
+    const first = await callOk<{ id: string; duplicate: boolean }>(tokens.editor!, 'posCreateProduct', payload);
+    const second = await callOk<{ id: string; duplicate: boolean }>(tokens.editor!, 'posCreateProduct', payload);
+    expect(first.duplicate).toBe(false);
+    expect(second).toEqual({ id: first.id, duplicate: true });
+    expect(await readDoc(env, tp(T, 'products', first.id))).toMatchObject({ costUsdCents: 0, costKnown: false, stock: 0 });
+    expect(await readWhere(env, tp(T, 'products'), 'barcode', 'ONCE-1')).toHaveLength(1);
+
+    const delayed = {
+      clientOperationId: 'createDelaySoap01',
+      emulatorDelayMs: 2500,
+      product: { ...product, name: 'Delay Soap', barcode: 'DELAY-1' },
+      initialStock: 0,
+      initialImeis: [],
+    };
+    const [slow, retry] = await Promise.all([
+      callOk<{ id: string; duplicate: boolean }>(tokens.editor!, 'posCreateProduct', delayed),
+      callOk<{ id: string; duplicate: boolean }>(tokens.editor!, 'posCreateProduct', { ...delayed, emulatorDelayMs: 0 }),
+    ]);
+    expect(slow.id).toBe(retry.id);
+    expect([slow.duplicate, retry.duplicate].sort()).toEqual([false, true]);
+    expect(await readWhere(env, tp(T, 'products'), 'barcode', 'DELAY-1')).toHaveLength(1);
   });
 
   it('serialized opening stock must match the IMEI list and is not created when it does not', async () => {
@@ -470,7 +545,7 @@ describe('product archiving and deletion', () => {
     expect(saved).toMatchObject({ productIds: ['p1'] });
     expect((saved?.items as { name: string }[])[0]?.name).toBeTruthy();
     expect(await readWhere(env, tp(T, 'stockMovements'), 'productId', 'p1')).toHaveLength(1);
-    await callOk(tokens.clerk!, 'posReturn', { saleId: sale.saleId, lines: [{ index: 0, quantity: 1 }] });
+    await callOk(tokens.returner!, 'posReturn', { saleId: sale.saleId, lines: [{ index: 0, quantity: 1 }] });
     expect(await stock()).toBe(9);
   });
 
@@ -580,7 +655,7 @@ interface BurstRow {
 async function checkoutBurst(token: string, data: unknown, index: number, saleId: string): Promise<Omit<BurstRow, 'committed'>> {
   const started = Date.now();
   try {
-    const res = await fetch('http://127.0.0.1:5001/demo-zelvero/europe-west1/posCheckout', {
+    const res = await fetch(functionsCallableUrl('posCheckout'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ data }),

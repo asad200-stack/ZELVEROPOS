@@ -226,8 +226,8 @@ function CashMoveModal({ type, onClose }: { type: CashMoveType; onClose: () => v
     >
       <div className="stack">
         <FormGrid>
-          <MoneyInput label="USD" value={usd} onChange={(e) => setUsd(e.target.value)} autoFocus />
-          <MoneyInput label="LBP" value={lbp} onChange={(e) => setLbp(e.target.value)} />
+          <MoneyInput currency="usd" label="USD" value={usd} onChange={(e) => setUsd(e.target.value)} autoFocus />
+          <MoneyInput currency="lbp" label="LBP" value={lbp} onChange={(e) => setLbp(e.target.value)} />
         </FormGrid>
         {type === 'expense' ? (
           <div className="chips">
@@ -282,8 +282,8 @@ function AdjustDrawerModal({ onClose }: { onClose: () => void }) {
           {t('cash.adjustHint', { usd: formatUsd(cashbox.usdCents), lbp: formatLbp(cashbox.lbp, lang) })}
         </p>
         <FormGrid>
-          <MoneyInput label={t('cash.countedUsd')} value={usd} onChange={(e) => setUsd(e.target.value)} />
-          <MoneyInput label={t('cash.countedLbp')} value={lbp} onChange={(e) => setLbp(e.target.value)} />
+          <MoneyInput currency="usd" label={t('cash.countedUsd')} value={usd} onChange={(e) => setUsd(e.target.value)} />
+          <MoneyInput currency="lbp" label={t('cash.countedLbp')} value={lbp} onChange={(e) => setLbp(e.target.value)} />
         </FormGrid>
         <TextInput label={t('common.note')} required value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
       </div>

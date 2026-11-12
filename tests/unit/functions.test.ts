@@ -1,18 +1,44 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { normalizePermissions as clientNormalize, PERMISSION_KEYS as CLIENT_KEYS } from '../../src/constants/permissions';
-import { grantedOnly, normalizePermissions as serverNormalize, PERMISSION_KEYS as SERVER_KEYS } from '../../functions/src/permissions';
+import {
+  grantedOnly as clientGrantedOnly,
+  mergePermissionPatch as clientMerge,
+  normalizePermissions as clientNormalize,
+  PERMISSION_KEYS as CLIENT_KEYS,
+} from '../../src/constants/permissions';
 import { cashMessage, crossedLowStock, formatDate, lowStockMessage, saleMessage } from '../../functions/src/telegram/format';
 
+const sharedPerms = resolve(__dirname, '../../functions/src/shared/permissions.ts');
+if (!existsSync(sharedPerms)) {
+  execFileSync(process.execPath, [resolve(__dirname, '../../functions/scripts/copy-shared.mjs')], {
+    stdio: 'inherit',
+  });
+}
+
+const {
+  grantedOnly,
+  mergePermissionPatch: serverMerge,
+  normalizePermissions: serverNormalize,
+  PERMISSION_KEYS: SERVER_KEYS,
+} = await import('../../functions/src/permissions');
+
 describe('permission keys stay in sync between client and Cloud Functions', () => {
-  it('has identical keys and normalization', () => {
+  it('has identical keys and normalization including canUseZelveroAI', () => {
     expect([...SERVER_KEYS]).toEqual([...CLIENT_KEYS]);
-    const input = { canSell: true, canAddProducts: true, canEditSettings: true, bogus: true };
+    expect(SERVER_KEYS).toContain('canUseZelveroAI');
+    const input = { canSell: true, canAddProducts: true, canEditSettings: true, canUseZelveroAI: true, bogus: true };
     expect(serverNormalize(input)).toEqual(clientNormalize(input));
     expect(grantedOnly(serverNormalize({ canSell: true, canViewProducts: true, canAddProducts: true }))).toEqual({
       canSell: true,
       canViewProducts: true,
       canAddProducts: true,
     });
+    expect(clientGrantedOnly(clientNormalize({ canUseZelveroAI: true })).canUseZelveroAI).toBe(true);
+    expect(
+      serverMerge({ canSell: true, canUseZelveroAI: false }, { canUseZelveroAI: true }),
+    ).toEqual(clientMerge({ canSell: true, canUseZelveroAI: false }, { canUseZelveroAI: true }));
   });
 });
 

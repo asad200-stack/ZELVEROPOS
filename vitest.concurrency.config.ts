@@ -9,6 +9,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/integration/concurrency.test.ts'],
+    setupFiles: ['tests/integration/isolatedEmulator.concurrency.setup.ts'],
     testTimeout: 600_000,
     hookTimeout: 180_000,
     fileParallelism: false,

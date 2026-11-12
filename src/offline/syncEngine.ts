@@ -128,6 +128,8 @@ export function createSyncEngine(deps: SyncEngineDeps) {
     for (const queued of mine) {
       if (queued.status !== 'PENDING_SYNC') continue;
       const at = now();
+      // A paused sale waits for a person. It must not hold every later sale behind it.
+      if (queued.nextAttemptAt === PAUSED) continue;
       if (queued.nextAttemptAt > at) break;
       if (!(await deps.store.acquireLease(deps.owner, at, LEASE_TTL_MS))) {
         summary.skipped = 'busy';

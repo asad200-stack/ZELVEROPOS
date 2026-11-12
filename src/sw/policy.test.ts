@@ -7,7 +7,7 @@ const get = (url: string, mode = 'no-cors') => routeRequest({ url, method: 'GET'
 
 describe('service worker request policy', () => {
   it('serves the app shell for navigations to every client route (deep links)', () => {
-    for (const path of ['/', '/pos', '/products', '/sales', '/sales/abc123', '/customers', '/settings', '/index.html', '/pos?tab=cart']) {
+    for (const path of ['/', '/pos', '/products', '/sales', '/sales/abc123', '/customers', '/settings', '/index.html', '/pos?tab=cart', '/app/0.9.0-dev/pos', '/auth/action']) {
       expect(get(`${ORIGIN}${path}`, 'navigate')).toBe('shell');
     }
   });
@@ -72,5 +72,6 @@ describe('service worker cache versioning', () => {
       '/favicon.ico',
       '/index.html',
     ]);
+    expect(precacheList(['index.html', 'assets/app-1.js'], '/app/0.9.0-dev')).toEqual(['/app/0.9.0-dev/assets/app-1.js', '/app/0.9.0-dev/index.html']);
   });
 });

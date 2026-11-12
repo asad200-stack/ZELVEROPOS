@@ -1,10 +1,14 @@
 import { useState, type ChangeEvent } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Checkbox, FormGrid, SelectInput, TextArea, TextInput } from '@/components/ui/Form';
+import { Checkbox, Field, FormGrid, MoneyInput, SelectInput, TextArea, TextInput } from '@/components/ui/Form';
 import { Alert, Badge, Card, PageHeader } from '@/components/ui/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/Spinner';
-import { APP_NAME, APP_VERSION, SUPPORT_PHONE } from '@/constants/app';
+import { useNavigate } from 'react-router';
+import { APP_BUILD_ID, APP_NAME, APP_RELEASE_VERSION, SUPPORT_PHONE } from '@/constants/app';
+import { activateAssignedVersion, canActivateUpdate } from '@/features/releases/activateRelease';
+import { useReleaseAssignment } from '@/features/releases/useReleaseAssignment';
+import { useOfflineQueue } from '@/offline/queue';
 import { useFeedback } from '@/contexts/feedback';
 import { useSession, useTenant } from '@/contexts/session';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
@@ -39,6 +43,7 @@ export default function SettingsPage() {
           <SalesForm key={`sales-${settings.data.updatedAt ?? 0}`} settings={settings.data} disabled={!canEdit} />
           <TelegramCard key={`tg-${settings.data.updatedAt ?? 0}`} settings={settings.data} disabled={!canEdit} showSecrets={sensitive && canEdit} />
           <AccountCard />
+          <ApplicationCard />
           {sensitive && <DataCard />}
         </div>
       )}
@@ -144,6 +149,7 @@ function SalesForm({ settings, disabled }: { settings: StoreSettings; disabled: 
   const [currency, setCurrency] = useState(settings.defaultCurrency);
   const [printFormat, setPrintFormat] = useState(settings.printFormat);
   const [lowStockAlert, setLowStockAlert] = useState(settings.lowStockAlert);
+  const [autoPrintInvoice, setAutoPrintInvoice] = useState(settings.autoPrintInvoice);
   const [threshold, setThreshold] = useState(String(settings.lowStockThreshold));
   const { busy, run } = useAsyncAction('settings-sales');
 
@@ -158,14 +164,14 @@ function SalesForm({ settings, disabled }: { settings: StoreSettings; disabled: 
           if (!Number.isInteger(exchangeRate) || exchangeRate <= 0) return notify('error', t('error.invalidRate'));
           if (!Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) return notify('error', t('validation.nonNegativeInt'));
           void run(async () => {
-            await saveSettings(tenantId, { exchangeRate, defaultCurrency: currency, printFormat, lowStockAlert, lowStockThreshold });
+            await saveSettings(tenantId, { exchangeRate, defaultCurrency: currency, printFormat, autoPrintInvoice, lowStockAlert, lowStockThreshold });
             notify('success', t('common.saved'));
           });
         }}
       >
         <fieldset disabled={disabled || busy} className="stack">
           <FormGrid>
-            <TextInput label={t('settings.exchangeRate')} inputMode="numeric" value={rate} onChange={(e) => setRate(e.target.value)} hint={t('settings.exchangeRateHint')} />
+            <MoneyInput currency="lbp" label={t('settings.exchangeRate')} value={rate} onChange={(e) => setRate(e.target.value)} hint={t('settings.exchangeRateHint')} />
             <SelectInput
               label={t('settings.defaultCurrency')}
               value={currency}
@@ -187,6 +193,9 @@ function SalesForm({ settings, disabled }: { settings: StoreSettings; disabled: 
             <TextInput label={t('settings.lowStockThreshold')} inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
           </FormGrid>
           <Checkbox label={t('settings.lowStockAlert')} checked={lowStockAlert} onChange={(e) => setLowStockAlert(e.target.checked)} />
+          <Field hint={t('settings.autoPrintInvoiceHint')}>
+            {() => <Checkbox label={t('settings.autoPrintInvoice')} checked={autoPrintInvoice} onChange={(e) => setAutoPrintInvoice(e.target.checked)} />}
+          </Field>
         </fieldset>
         {!disabled && (
           <div className="modal-actions">
@@ -333,6 +342,65 @@ function TelegramSecretsForm({ tenantId, initial, onClose }: { tenantId: string;
   );
 }
 
+function ApplicationCard() {
+  const { t } = useI18n();
+  const { isSuperAdmin } = useSession();
+  const { confirm } = useFeedback();
+  const navigate = useNavigate();
+  const queue = useOfflineQueue();
+  const release = useReleaseAssignment();
+  return (
+    <Card title={t('release.application')}>
+      <div className="stack">
+        <div className="details-grid">
+          <div>
+            <span className="muted">{t('release.currentVersion')}</span>
+            <strong dir="ltr">{APP_RELEASE_VERSION}</strong>
+          </div>
+          <div>
+            <span className="muted">{t('release.build')}</span>
+            <strong dir="ltr">{APP_BUILD_ID}</strong>
+          </div>
+          <div>
+            <span className="muted">{t('release.availableVersion')}</span>
+            <strong dir="ltr">{release.available ?? t('release.upToDate')}</strong>
+          </div>
+        </div>
+        {release.notes || release.title ? (
+          <div>
+            <span className="muted">{t('release.whatsNew')}</span>
+            {release.title ? <p><strong>{release.title}</strong></p> : null}
+            {release.notes ? <p>{release.notes}</p> : null}
+          </div>
+        ) : null}
+        {release.showOptional || release.force ? (
+          <Button
+            onClick={() => {
+              void (async () => {
+                const gate = canActivateUpdate(queue.operations, queue.syncing);
+                if (!gate.ok) {
+                  const ok = await confirm({ title: t('update.busyTitle'), message: t('update.busyMessage'), confirmLabel: t('update.updateNow') });
+                  if (!ok) return;
+                }
+                if (release.available) activateAssignedVersion(release.available);
+              })();
+            }}
+          >
+            {t('release.updateTo', { version: release.available ?? '' })}
+          </Button>
+        ) : (
+          <p className="muted small">{t('release.upToDate')}</p>
+        )}
+        {isSuperAdmin && (
+          <Button variant="secondary" onClick={() => navigate('/admin?tab=releases')}>
+            {t('release.title')}
+          </Button>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function AccountCard() {
   const { t, lang } = useI18n();
   const { profile, subscription, user, isOwner } = useSession();
@@ -405,7 +473,7 @@ function AccountCard() {
           </Button>
         </div>
         <p className="muted small">
-          {APP_NAME} v{APP_VERSION} · {t('account.support')}: <span dir="ltr">{SUPPORT_PHONE}</span>
+          {APP_NAME} v{APP_RELEASE_VERSION} · {t('account.support')}: <span dir="ltr">{SUPPORT_PHONE}</span>
         </p>
       </div>
     </Card>

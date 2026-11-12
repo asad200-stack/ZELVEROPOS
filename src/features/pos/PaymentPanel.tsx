@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/Button';
 import { MoneyInput } from '@/components/ui/Form';
 import { Alert } from '@/components/ui/Layout';
 import type { CartTotals } from '@/domain/cart';
-import type { CashTenderPlan, ChangeManual, CreditResult } from '@/domain/checkout';
-import { centsToInput } from '@/domain/money';
+import { autoFillCashTender, type CashTenderPlan, type ChangeManual, type CreditResult } from '@/domain/checkout';
+import { applyTypedMoney, completeMoneyInput, formatLbpAmountInput, formatUsdCentsInput } from '@/domain/money';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
 import type { Customer, SaleKind } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
@@ -20,6 +20,8 @@ export interface PaymentDraft {
   changeManual: ChangeManual;
   creditUsd: string;
   creditLbp: string;
+  tenderUsdManual: boolean;
+  tenderLbpManual: boolean;
 }
 
 interface Props {
@@ -31,6 +33,8 @@ interface Props {
   customer: Customer | null;
   cash: CashTenderPlan;
   credit: CreditResult | null;
+  previousUsdCents: number | null;
+  rate: number;
   busy: boolean;
   disabled: boolean;
   onComplete: () => void;
@@ -43,7 +47,7 @@ const CREDIT_ERRORS: Record<string, TranslationKey> = {
   invalidAmount: 'error.credit.invalidAmount',
 };
 
-export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, cash, credit, busy, disabled, onComplete }: Props) {
+export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, cash, credit, previousUsdCents, rate, busy, disabled, onComplete }: Props) {
   const { t, lang } = useI18n();
   const receivedUsdRef = useRef<HTMLInputElement>(null);
   const receivedLbpRef = useRef<HTMLInputElement>(null);
@@ -87,12 +91,70 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
             ? { tone: 'warn' as const, text: t('pos.changeDrawer') }
             : null;
 
-  const changeUsdShown = draft.changeManual === 'usd' ? draft.changeUsd : cash.changeUsdCents ? centsToInput(cash.changeUsdCents) : '0.00';
-  const changeLbpShown = draft.changeManual === 'lbp' ? draft.changeLbp : cash.changeLbp ? cash.changeLbp.toLocaleString('en-US') : '0';
+  const changeUsdShown = draft.changeManual === 'usd' ? draft.changeUsd : cash.changeUsdCents ? formatUsdCentsInput(cash.changeUsdCents) : '0.00';
+  const changeLbpShown = draft.changeManual === 'lbp' ? draft.changeLbp : cash.changeLbp ? formatLbpAmountInput(cash.changeLbp) : '0';
   const fieldSize = (value: string, fallback: string): CSSProperties => ({ '--chars': Math.max((value || fallback).length, 4) }) as CSSProperties;
+
+  const onReceived = (kind: 'usd' | 'lbp', raw: string, caret: number, input: HTMLInputElement) => {
+    const typed = applyTypedMoney(kind, raw, caret);
+    const filled =
+      draft.kind === 'cash'
+        ? autoFillCashTender({
+            dueUsdCents: totals.dueUsdCents,
+            rate,
+            receivedUsd: kind === 'usd' ? typed.value : draft.receivedUsd,
+            receivedLbp: kind === 'lbp' ? typed.value : draft.receivedLbp,
+            edited: kind,
+            usdManual: draft.tenderUsdManual,
+            lbpManual: draft.tenderLbpManual,
+          })
+        : {
+            receivedUsd: kind === 'usd' ? typed.value : draft.receivedUsd,
+            receivedLbp: kind === 'lbp' ? typed.value : draft.receivedLbp,
+            usdManual: draft.tenderUsdManual,
+            lbpManual: draft.tenderLbpManual,
+          };
+    onDraft({
+      receivedUsd: filled.receivedUsd,
+      receivedLbp: filled.receivedLbp,
+      tenderUsdManual: filled.usdManual,
+      tenderLbpManual: filled.lbpManual,
+    });
+    requestAnimationFrame(() => input.setSelectionRange(typed.caret, typed.caret));
+  };
+
+  const onReceivedBlur = (kind: 'usd' | 'lbp', raw: string) => {
+    const completed = completeMoneyInput(kind, raw);
+    const filled =
+      draft.kind === 'cash'
+        ? autoFillCashTender({
+            dueUsdCents: totals.dueUsdCents,
+            rate,
+            receivedUsd: kind === 'usd' ? completed : draft.receivedUsd,
+            receivedLbp: kind === 'lbp' ? completed : draft.receivedLbp,
+            edited: kind,
+            usdManual: draft.tenderUsdManual,
+            lbpManual: draft.tenderLbpManual,
+          })
+        : {
+            receivedUsd: kind === 'usd' ? completed : draft.receivedUsd,
+            receivedLbp: kind === 'lbp' ? completed : draft.receivedLbp,
+            usdManual: draft.tenderUsdManual,
+            lbpManual: draft.tenderLbpManual,
+          };
+    onDraft({
+      receivedUsd: filled.receivedUsd,
+      receivedLbp: filled.receivedLbp,
+      tenderUsdManual: filled.usdManual,
+      tenderLbpManual: filled.lbpManual,
+    });
+  };
 
   return (
     <div className="payment" data-payment-panel>
+      <p className="payment__mode">
+        {t('pos.paymentMode')}: {t(draft.kind === 'cash' ? 'pos.fullPayment' : 'pos.creditSale')}
+      </p>
       <div className="payment__totals">
         {totals.discountUsdCents > 0 && (
           <div className="payment__row">
@@ -100,26 +162,21 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
             <span className="text-success">−{formatUsd(totals.discountUsdCents)}</span>
           </div>
         )}
-        <div className="payment__kicker">{t('pos.total')}</div>
+        <div className="payment__row">
+          <span>{t('pos.saleTotal')}</span>
+          <FitAmount value={formatUsd(totals.productsUsdCents)} />
+        </div>
+        {previousUsdCents !== null && previousUsdCents > 0 && (
+          <div className="payment__row">
+            <span>{t('pos.previousBalance')}</span>
+            <FitAmount value={formatUsd(previousUsdCents)} />
+          </div>
+        )}
+        <div className="payment__kicker">{t('pos.amountToCollect')}</div>
         <div className="payment__total-line">
           <FitAmount value={formatUsd(totals.dueUsdCents)} />
           <FitAmount value={formatLbp(totals.dueLbp, lang)} className="fit-amount--sub" />
         </div>
-      </div>
-
-      <div className="segmented" role="radiogroup" aria-label={t('pos.paymentMethod')}>
-        {(['cash', 'credit'] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            role="radio"
-            aria-checked={draft.kind === k}
-            className={draft.kind === k ? 'segmented__item segmented__item--active' : 'segmented__item'}
-            onClick={() => onDraft({ kind: k })}
-          >
-            {t(k === 'cash' ? 'pos.cash' : 'pos.credit')}
-          </button>
-        ))}
       </div>
 
       {draft.kind === 'cash' ? (
@@ -141,7 +198,8 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
                   style={fieldSize(draft.receivedUsd, '0.00')}
                   value={draft.receivedUsd}
                   onFocus={(e) => e.currentTarget.select()}
-                  onChange={(e) => onDraft({ receivedUsd: e.target.value })}
+                  onChange={(e) => onReceived('usd', e.target.value, e.target.selectionStart ?? e.target.value.length, e.currentTarget)}
+                  onBlur={(e) => onReceivedBlur('usd', e.target.value)}
                   onKeyDown={(e) => focusNext(e, 'received-lbp')}
                 />
               </label>
@@ -159,7 +217,8 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
                   style={fieldSize(draft.receivedLbp, '0')}
                   value={draft.receivedLbp}
                   onFocus={(e) => e.currentTarget.select()}
-                  onChange={(e) => onDraft({ receivedLbp: e.target.value })}
+                  onChange={(e) => onReceived('lbp', e.target.value, e.target.selectionStart ?? e.target.value.length, e.currentTarget)}
+                  onBlur={(e) => onReceivedBlur('lbp', e.target.value)}
                   onKeyDown={(e) => focusNext(e, phase === 'change' ? 'change-usd' : 'sale-note')}
                 />
               </label>
@@ -190,7 +249,7 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
                   disabled={!cash.allUsdOk}
                   aria-label={t('pos.allUsdHint')}
                   title={cash.allUsdOk ? t('pos.allUsdHint') : t('pos.changeDrawer')}
-                  onClick={() => onDraft({ changeManual: 'usd', changeUsd: centsToInput(cash.allUsdCents) })}
+                  onClick={() => onDraft({ changeManual: 'usd', changeUsd: formatUsdCentsInput(cash.allUsdCents) })}
                 >
                   {t('pos.allUsd')}
                 </button>
@@ -199,7 +258,7 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
                   disabled={!cash.allLbpOk}
                   aria-label={t('pos.allLbpHint')}
                   title={cash.allLbpOk ? t('pos.allLbpHint') : t('pos.changeDrawer')}
-                  onClick={() => onDraft({ changeManual: 'lbp', changeLbp: cash.allLbp.toLocaleString('en-US') })}
+                  onClick={() => onDraft({ changeManual: 'lbp', changeLbp: formatLbpAmountInput(cash.allLbp) })}
                 >
                   {t('pos.allLbp')}
                 </button>
@@ -224,7 +283,12 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
                   style={fieldSize(changeUsdShown, '0.00')}
                   value={changeUsdShown}
                   onFocus={(e) => e.currentTarget.select()}
-                  onChange={(e) => onDraft({ changeManual: 'usd', changeUsd: e.target.value })}
+                  onChange={(e) => {
+                    const next = applyTypedMoney('usd', e.target.value, e.target.selectionStart ?? e.target.value.length);
+                    onDraft({ changeManual: 'usd', changeUsd: next.value });
+                    requestAnimationFrame(() => e.currentTarget.setSelectionRange(next.caret, next.caret));
+                  }}
+                  onBlur={() => onDraft({ changeUsd: completeMoneyInput('usd', changeUsdShown) })}
                   onKeyDown={(e) => focusNext(e, 'change-lbp')}
                 />
               </label>
@@ -242,7 +306,12 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
                   style={fieldSize(changeLbpShown, '0')}
                   value={changeLbpShown}
                   onFocus={(e) => e.currentTarget.select()}
-                  onChange={(e) => onDraft({ changeManual: 'lbp', changeLbp: e.target.value })}
+                  onChange={(e) => {
+                    const next = applyTypedMoney('lbp', e.target.value, e.target.selectionStart ?? e.target.value.length);
+                    onDraft({ changeManual: 'lbp', changeLbp: next.value });
+                    requestAnimationFrame(() => e.currentTarget.setSelectionRange(next.caret, next.caret));
+                  }}
+                  onBlur={() => onDraft({ changeLbp: completeMoneyInput('lbp', changeLbpShown) })}
                   onKeyDown={(e) => focusNext(e, 'sale-note')}
                 />
               </label>
@@ -260,8 +329,8 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
       ) : (
         <div className="payment__fields">
           <div className="payment__pair">
-            <MoneyInput label={t('pos.paidUsd')} placeholder="0" value={draft.creditUsd} onChange={(e) => onDraft({ creditUsd: e.target.value })} />
-            <MoneyInput label={t('pos.paidLbp')} placeholder="0" value={draft.creditLbp} onChange={(e) => onDraft({ creditLbp: e.target.value })} />
+            <MoneyInput currency="usd" label={t('pos.paidUsd')} placeholder="0.00" value={draft.creditUsd} onChange={(e) => onDraft({ creditUsd: e.target.value })} />
+            <MoneyInput currency="lbp" label={t('pos.paidLbp')} placeholder="0" value={draft.creditLbp} onChange={(e) => onDraft({ creditLbp: e.target.value })} />
           </div>
           {customer && credit && (
             <div className="payment__summary">
@@ -269,6 +338,12 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
                 <span>{t('pos.currentDebt')}</span>
                 <FitAmount value={formatUsd(customer.debtUsdCents)} />
               </div>
+              {credit.settledFromPreviousUsdCents > 0 && (
+                <div className="payment__row">
+                  <span>{t('pos.previousBalanceSettled')}</span>
+                  <FitAmount value={formatUsd(credit.settledFromPreviousUsdCents)} />
+                </div>
+              )}
               <div className="payment__row">
                 <span>{t('pos.totalDue')}</span>
                 <FitAmount value={formatUsd(credit.totalDueUsdCents)} />

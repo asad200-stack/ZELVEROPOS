@@ -98,7 +98,7 @@ export default function SalesPage() {
           ))}
         </select>
         <form
-          className="inline-form"
+          className="inline-form sales-find"
           onSubmit={(e) => {
             e.preventDefault();
             if (!invoice.trim()) return;

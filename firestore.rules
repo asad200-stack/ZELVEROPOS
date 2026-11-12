@@ -59,6 +59,18 @@ service cloud.firestore {
     // Owner / "sensitive data" users can read everything (full JSON backup).
     function fullRead(t) { return isOwner(t) || can(t, 'canViewSensitiveData'); }
 
+    // A document read returns every field. costUsdCents stays on the product document because
+    // POS and purchases read it there; phone, email, and debtUsdCents stay on the customer
+    // document because POS, sales, and reports read them there. Rules can only choose who may
+    // read the whole document, using the permissions those screens already require.
+    function canReadProducts(t) {
+      return fullRead(t) || can(t, 'canViewProducts') || can(t, 'canSell') || can(t, 'canViewSuppliers');
+    }
+
+    function canReadCustomers(t) {
+      return fullRead(t) || can(t, 'canViewCustomers') || can(t, 'canSell') || can(t, 'canViewSales') || can(t, 'canViewReports');
+    }
+
     // ------------------------------------------------------------------ data helpers
 
     function incoming() { return request.resource.data; }
@@ -102,6 +114,88 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /platformReleases/{version} {
+      allow get: if signedIn();
+      allow list: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformReleaseManifest/{id} {
+      allow get: if signedIn();
+      allow list: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformReleaseAssignments/{t} {
+      allow get: if isSuperAdmin() || (signedIn() && claim('tenantId', '') == t);
+      allow list: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformReleaseAudit/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformLeads/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformLeadIndex/{id} {
+      allow read, write: if false;
+    }
+    match /platformQuotes/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformReferrals/{id} {
+      allow read, write: if false;
+    }
+    match /platformSalesOps/{id} {
+      allow read, write: if false;
+    }
+    match /platformAudit/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformPreviewCredentials/{id} {
+      allow read, write: if false;
+    }
+    match /platformRateLimits/{id} {
+      allow read, write: if false;
+    }
+    match /platformTrialIndex/{id} {
+      allow read, write: if false;
+    }
+    match /platformProvisionState/{id} {
+      allow read, write: if false;
+    }
+    match /platform/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformFeatures/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformFeatureEntitlements/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformFeatureAudit/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformFeatureControl/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformFeaturePreview/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
     // ------------------------------------------------------------------ tenant
 
     match /tenants/{t} {
@@ -110,12 +204,25 @@ service cloud.firestore {
 
       // ---------------------------------------------------------- settings
 
+      match /onboarding/{id} {
+        allow read: if member(t);
+        allow create, update: if id == 'main' && isOwner(t)
+          && incoming().keys().hasOnly(['skipped', 'dismissedWelcome', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      match /notifications/{id} {
+        allow read: if member(t);
+        allow update: if member(t) && changed().hasOnly(['read']);
+        allow create, delete: if false;
+      }
+
       match /settings/{id} {
         allow read: if member(t);
         allow create, update: if id == 'main' && canW(t, 'canEditSettings')
           && incoming().keys().hasOnly([
             'storeName', 'storeAddress', 'storePhone', 'logoUrl', 'logoPath', 'receiptFooter', 'printFormat',
-            'exchangeRate', 'defaultCurrency', 'lowStockAlert', 'lowStockThreshold', 'telegram', 'updatedAt'
+            'autoPrintInvoice', 'exchangeRate', 'defaultCurrency', 'lowStockAlert', 'lowStockThreshold', 'telegram', 'updatedAt'
           ])
           && (!('exchangeRate' in incoming()) || (incoming().exchangeRate is int && incoming().exchangeRate > 0))
           && (!('storeName' in incoming()) || str(incoming().storeName, 120))
@@ -123,7 +230,8 @@ service cloud.firestore {
           && (!('storePhone' in incoming()) || str(incoming().storePhone, 40))
           && (!('logoUrl' in incoming()) || str(incoming().logoUrl, 2000))
           && (!('logoPath' in incoming()) || str(incoming().logoPath, 500))
-          && (!('receiptFooter' in incoming()) || str(incoming().receiptFooter, 500));
+          && (!('receiptFooter' in incoming()) || str(incoming().receiptFooter, 500))
+          && (!('autoPrintInvoice' in incoming()) || incoming().autoPrintInvoice is bool);
         allow delete: if false;
       }
 
@@ -220,11 +328,11 @@ service cloud.firestore {
       }
 
       match /products/{id} {
-        allow read: if member(t);
+        allow read: if canReadProducts(t);
         // Created by posCreateProduct / posImportProducts (initial stock needs a movement).
         allow create: if false;
         allow update: if canW(t, 'canEditProducts')
-          && changed().hasOnly(['name', 'nameNormalized', 'category', 'barcode', 'prices', 'costUsdCents', 'minStock', 'supplierId',
+          && changed().hasOnly(['name', 'nameNormalized', 'category', 'barcode', 'prices', 'costUsdCents', 'costKnown', 'minStock', 'supplierId',
                                 'supplierName', 'expiryDate', 'imeiTracking', 'imageUrl', 'imagePath', 'updatedAt'])
           && productFieldsValid(incoming())
           && (!changed().hasAny(['imeiTracking']) || (existing().stock == 0 && existing().imeis.size() == 0));
@@ -241,7 +349,7 @@ service cloud.firestore {
       }
 
       match /customers/{id} {
-        allow read: if member(t);
+        allow read: if canReadCustomers(t);
         // A customer with an opening debt is created by posCreateCustomer (with its ledger entry).
         allow create: if canW(t, 'canViewCustomers') && stamped() && customerFieldsValid(incoming())
           && incoming().keys().hasOnly(['name', 'nameNormalized', 'phone', 'phoneKey', 'email', 'emailKey', 'address', 'creditLimitUsdCents', 'debtUsdCents',

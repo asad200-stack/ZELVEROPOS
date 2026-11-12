@@ -106,7 +106,7 @@ export function StockAdjustModal({ product, onClose }: { product: Product; onClo
         )}
         {canSeeCost && addQty > 0 && (
           <>
-            <MoneyInput label={t('products.unitCostOfAdded')} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} hint={t('products.weightedHint')} />
+            <MoneyInput currency="usd" label={t('products.unitCostOfAdded')} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} hint={t('products.weightedHint')} />
             {newAvg !== null && (
               <Alert tone="info">
                 {t('products.newAverageCost', { from: formatUsd(product.costUsdCents), to: formatUsd(newAvg) })}

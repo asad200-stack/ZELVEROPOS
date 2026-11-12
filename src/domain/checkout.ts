@@ -1,6 +1,27 @@
 import type { Currency } from '@/types/models';
 import type { CartTotals } from './cart';
-import { lbpCentTolerance, lbpToUsdCents, usdCentsToLbp, type Cents } from './money';
+import {
+  formatLbpAmountInput,
+  formatUsdCentsInput,
+  lbpCentTolerance,
+  lbpToUsdCents,
+  parseLbpInput,
+  parseUsdInput,
+  usdCentsToLbp,
+  type Cents,
+} from './money';
+
+function isZeroUsdInput(raw: string): boolean {
+  if (!raw.trim()) return true;
+  const cents = parseUsdInput(raw);
+  return cents === 0;
+}
+
+function isZeroLbpInput(raw: string): boolean {
+  if (!raw.trim()) return true;
+  const pounds = parseLbpInput(raw);
+  return pounds === 0;
+}
 
 /* ------------------------------------------------------------------ cash */
 
@@ -50,6 +71,62 @@ export function computeCashPayment(
 }
 
 export type ChangeManual = 'usd' | 'lbp' | null;
+
+/**
+ * Full-payment mixed tender: the last-edited currency keeps the cashier's typing;
+ * the other field is filled with the remaining due. Manual override of that other
+ * field (usdManual/lbpManual) stops auto-fill so mixed payments are not fought.
+ * Credit sales must not call this.
+ */
+export function autoFillCashTender(input: {
+  dueUsdCents: Cents;
+  rate: number;
+  receivedUsd: string;
+  receivedLbp: string;
+  edited: 'usd' | 'lbp';
+  usdManual: boolean;
+  lbpManual: boolean;
+}): { receivedUsd: string; receivedLbp: string; usdManual: boolean; lbpManual: boolean } {
+  const due = Math.max(0, Math.round(input.dueUsdCents) || 0);
+  const rate = input.rate;
+  let receivedUsd = input.receivedUsd;
+  let receivedLbp = input.receivedLbp;
+  let usdManual = input.usdManual;
+  let lbpManual = input.lbpManual;
+  const usdEmpty = isZeroUsdInput(receivedUsd);
+  const lbpEmpty = isZeroLbpInput(receivedLbp);
+
+  if (usdEmpty && lbpEmpty) {
+    return { receivedUsd: '', receivedLbp: '', usdManual: false, lbpManual: false };
+  }
+
+  if (input.edited === 'usd') {
+    if (usdEmpty) {
+      usdManual = false;
+      if (!lbpManual) receivedLbp = due > 0 ? formatLbpAmountInput(usdCentsToLbp(due, rate)) : '';
+      return { receivedUsd, receivedLbp, usdManual, lbpManual };
+    }
+    usdManual = true;
+    const cents = parseUsdInput(receivedUsd);
+    if (cents === null) return { receivedUsd, receivedLbp, usdManual, lbpManual };
+    if (!lbpManual) receivedLbp = cents >= due ? '' : formatLbpAmountInput(usdCentsToLbp(due - cents, rate));
+    return { receivedUsd, receivedLbp, usdManual, lbpManual };
+  }
+
+  if (lbpEmpty) {
+    lbpManual = false;
+    if (!usdManual) receivedUsd = due > 0 ? formatUsdCentsInput(due) : '';
+    return { receivedUsd, receivedLbp, usdManual, lbpManual };
+  }
+  lbpManual = true;
+  const pounds = parseLbpInput(receivedLbp);
+  if (pounds === null) return { receivedUsd, receivedLbp, usdManual, lbpManual };
+  if (!usdManual) {
+    const asUsd = lbpToUsdCents(pounds, rate);
+    receivedUsd = asUsd >= due ? '' : formatUsdCentsInput(due - asUsd);
+  }
+  return { receivedUsd, receivedLbp, usdManual, lbpManual };
+}
 
 export type CashTenderError = 'invalidAmount' | 'nothingDue' | 'underpaid' | 'remaining' | 'exceeds' | 'drawer';
 
@@ -174,6 +251,29 @@ export function planCashTender(input: {
     }
   }
 
+  const overpayCents = receivedValue - dueUsd;
+  const given = changeUsd + lbpToUsdCents(changeLbp, rate);
+  if (given > overpayCents + 1) {
+    if (input.manual === 'usd') {
+      changeUsd = Math.min(Math.max(0, changeUsd), Math.max(0, overpayCents));
+      changeLbp = Math.max(0, usdCentsToLbp(overpayCents - changeUsd, rate));
+    } else if (input.manual === 'lbp') {
+      const maxLbp = Math.max(0, usdCentsToLbp(overpayCents, rate));
+      changeLbp = Math.min(Math.max(0, changeLbp), maxLbp);
+      changeUsd = Math.max(0, overpayCents - lbpToUsdCents(changeLbp, rate));
+    } else if (receivedUsd > 0 && (receivedLbp === 0 || receivedUsd >= lbpToUsdCents(receivedLbp, rate))) {
+      changeUsd = Math.min(Math.max(0, overpayCents), availableUsd);
+      changeLbp = Math.max(0, usdCentsToLbp(overpayCents - changeUsd, rate));
+    } else {
+      changeLbp = Math.min(Math.max(0, usdCentsToLbp(overpayCents, rate)), availableLbp);
+      changeUsd = Math.max(0, overpayCents - lbpToUsdCents(changeLbp, rate));
+    }
+    if (changeUsd + lbpToUsdCents(changeLbp, rate) > overpayCents + 1) {
+      changeUsd = Math.min(Math.max(0, overpayCents), availableUsd);
+      changeLbp = 0;
+    }
+  }
+
   const remainingCents = receivedValue - dueUsd - (changeUsd + lbpToUsdCents(changeLbp, rate));
   const drawerShort = changeUsd > availableUsd || changeLbp > availableLbp;
   let error: CashTenderError | null = null;
@@ -225,7 +325,8 @@ export interface CreditInput {
   rate: number;
   customerDebtUsdCents: Cents;
   creditLimitUsdCents: Cents;
-  includePreviousDebt: boolean;
+  /** Previous-debt amount to collect in this checkout. 0 means leave old debt untouched. */
+  previousUsdCents: Cents;
 }
 
 export type CreditError = 'nothingDue' | 'overpay' | 'creditLimit' | 'invalidAmount';
@@ -243,28 +344,29 @@ export interface CreditResult {
 }
 
 /**
- * CATCH POS partial/credit rule (unchanged formulas):
- *   totalDue = cart + (previous line ? existing debt : 0)
- *   paidTowardCurrent = min(cart, paid); remainingCurrent = cart − paidTowardCurrent
- *   settledFromPrev = previous line ? min(debt, paid − paidTowardCurrent) : 0
- *   newTotalDebt = previous line ? max(0, debt − settled + remainingCurrent) : debt + remainingCurrent
+ * Allocation: previous debt first, then the current sale.
+ *   previous = min(requested previous, live debt)
+ *   totalDue = cart + previous
+ *   settledFromPrev = min(previous, paid)
+ *   paidTowardCurrent = min(cart, paid − settledFromPrev)
+ *   remainingCurrent = cart − paidTowardCurrent
+ *   newTotalDebt = liveDebt − settledFromPrev + remainingCurrent
  * Blocking: paid > totalDue, totalDue ≤ 0, newTotalDebt > credit limit (only when new debt is added).
  */
 export function computeCredit(input: CreditInput): CreditResult {
   const cart = Math.max(0, input.productsUsdCents);
   const debt = Math.max(0, input.customerDebtUsdCents);
+  const previous = Math.max(0, Math.min(Math.round(input.previousUsdCents) || 0, debt));
   const paidUsd = Math.round(input.paidUsdCents);
   const paidLbp = Math.round(input.paidLbp);
   const invalid = !Number.isFinite(paidUsd) || !Number.isFinite(paidLbp) || paidUsd < 0 || paidLbp < 0;
   const paid = invalid ? 0 : paidUsd + lbpToUsdCents(paidLbp, input.rate);
 
-  const totalDue = cart + (input.includePreviousDebt ? debt : 0);
-  const paidTowardCurrent = Math.min(cart, paid);
+  const totalDue = cart + previous;
+  const settledFromPrev = Math.min(previous, paid);
+  const paidTowardCurrent = Math.min(cart, Math.max(0, paid - settledFromPrev));
   const remainingCurrent = cart - paidTowardCurrent;
-  const settledFromPrev = input.includePreviousDebt ? Math.min(debt, Math.max(0, paid - paidTowardCurrent)) : 0;
-  const newTotalDebt = input.includePreviousDebt
-    ? Math.max(0, debt - settledFromPrev + remainingCurrent)
-    : debt + remainingCurrent;
+  const newTotalDebt = Math.max(0, debt - settledFromPrev + remainingCurrent);
   const debtToAdd = Math.max(0, newTotalDebt - debt);
 
   let error: CreditError | null = null;

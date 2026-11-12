@@ -13,11 +13,13 @@ import { lbpToUsdCents } from '@/domain/money';
 import {
   asAdmin,
   clearAuth,
+  clearFirestore,
   createEnv,
   createUser,
   DAY,
   PROJECT_ID,
   RATE,
+  FUNCTIONS_ORIGIN,
   seedTenant,
   settleUntil,
   tp,
@@ -29,7 +31,7 @@ const INFRA =
   /INTERNAL|UNAVAILABLE|DEADLINE|UNAUTHENTICATED|RESOURCE_EXHAUSTED|ABORTED|CANCELLED|ECONNRESET|ECONNREFUSED|socket|fetch failed|invalid-json|network|error\.network|Too many|lock|contention/i;
 
 const TENANT = 'dConc';
-const FUNCTIONS = 'http://127.0.0.1:5001';
+const FUNCTIONS = FUNCTIONS_ORIGIN;
 const USERS = 50;
 const CASHIERS: SeedProfile[] = Array.from({ length: USERS }, (_, i) => ({
   uid: `dC${i}`,
@@ -111,7 +113,7 @@ function percentile(values: number[], p: number): number | null {
 }
 
 async function reset() {
-  await env.clearFirestore();
+  await clearFirestore(env);
   await seedTenant(env, TENANT, [{ uid: TENANT, role: 'owner' }, MANAGER, ...CASHIERS]);
 }
 

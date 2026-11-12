@@ -1,4 +1,5 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useId, useRef, useState, type ChangeEvent, type FocusEvent, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { applyTypedMoney, completeMoneyInput, type MoneyKind } from '@/domain/money';
 
 interface FieldProps {
   label?: ReactNode;
@@ -63,9 +64,71 @@ export function TextInput({ label, error, hint, required, fieldClassName, classN
   );
 }
 
-/** Decimal money input: keeps the raw string so users can type freely; parse on submit. */
-export function MoneyInput(props: InputProps) {
-  return <TextInput inputMode="decimal" autoComplete="off" {...props} dir="ltr" />;
+type MoneyInputProps = InputProps & { currency?: MoneyKind };
+
+/** Shared USD/LBP amount field. Display is grouped; parseUsdInput/parseLbpInput remain the source of truth. */
+export function MoneyInput({
+  currency = 'usd',
+  label,
+  error,
+  hint,
+  required,
+  fieldClassName,
+  className,
+  onChange,
+  onBlur,
+  value,
+  ...rest
+}: MoneyInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [focused, setFocused] = useState(false);
+  const raw = value == null ? '' : String(value);
+  const display = focused ? raw : completeMoneyInput(currency, raw) || raw;
+
+  const emit = (event: ChangeEvent<HTMLInputElement>, next: string) => {
+    onChange?.({
+      ...event,
+      target: { ...event.target, value: next, name: event.target.name },
+      currentTarget: { ...event.currentTarget, value: next, name: event.currentTarget.name },
+    } as ChangeEvent<HTMLInputElement>);
+  };
+
+  return (
+    <Field label={label} error={error} hint={hint} required={required} className={fieldClassName}>
+      {(id) => (
+        <input
+          {...rest}
+          ref={inputRef}
+          id={id}
+          dir="ltr"
+          inputMode={currency === 'lbp' ? 'numeric' : 'decimal'}
+          autoComplete="off"
+          className={['input', className].filter(Boolean).join(' ')}
+          aria-invalid={error ? true : undefined}
+          required={required}
+          value={display}
+          onFocus={(event) => {
+            setFocused(true);
+            event.currentTarget.select();
+            rest.onFocus?.(event);
+          }}
+          onChange={(event) => {
+            const next = applyTypedMoney(currency, event.target.value, event.target.selectionStart ?? event.target.value.length);
+            emit(event, next.value);
+            requestAnimationFrame(() => inputRef.current?.setSelectionRange(next.caret, next.caret));
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            const completed = completeMoneyInput(currency, event.target.value);
+            if (completed !== event.target.value) {
+              emit(event as unknown as ChangeEvent<HTMLInputElement>, completed);
+            }
+            onBlur?.(event as FocusEvent<HTMLInputElement>);
+          }}
+        />
+      )}
+    </Field>
+  );
 }
 
 type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {

@@ -19,6 +19,9 @@ yarn-error.log
 .env.*
 !.env.example
 !.env.emulator
+!.env.emulator-isolated
+.env.staging
+apps/marketing/.env.staging
 *.pem
 service-account*.json
 **/.vercel/
@@ -39,12 +42,36 @@ Thumbs.db
 
 # Build output
 dist/
+staging-dist/
+apps/marketing/staging-dist/
+release-dist/
+release-dist-keep/
 build/
 functions/lib/
 functions/isolation.json
 functions/src/shared/
 coverage/
+apps/marketing/lighthouse-*.json
 *.tsbuildinfo
 
 # Python / tool caches
 __pycache__/
+
+# Local cinematic workspace (large; not part of either app)
+docs/awakening/
+
+# Local Zelvero AI weights and llama.cpp binaries (never bundled or committed)
+local-ai/runtime/
+local-ai/models/
+*.gguf
+
+# Local build/deploy scratch (generated, never source)
+hosting-deliverable/
+hosting-recovered/
+hosting-rollback/
+preview-ai-dist/
+preview-app-dist/
+tmp/
+releases/
+hosting-delivery-report.json
+hosting-recovered-manifest.json

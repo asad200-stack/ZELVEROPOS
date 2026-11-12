@@ -9,7 +9,7 @@
   },
   "scripts": {
     "prebuild": "node scripts/copy-isolation.mjs && node scripts/copy-shared.mjs",
-    "build": "tsc -p tsconfig.json && node scripts/check-regions.mjs",
+    "build": "tsc -p tsconfig.json && node scripts/check-regions.mjs && node scripts/verify-permissions-build.mjs",
     "typecheck": "node scripts/copy-isolation.mjs && node scripts/copy-shared.mjs && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -19,8 +19,12 @@ function setUpdateReady() {
   listeners.forEach((l) => l());
 }
 
+export function shouldRegisterServiceWorker(env: { PROD?: boolean; VITE_APP_CHANNEL?: string }): boolean {
+  return env.PROD === true && env.VITE_APP_CHANNEL !== 'preview';
+}
+
 export function registerServiceWorker(): void {
-  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+  if (!shouldRegisterServiceWorker(import.meta.env) || !('serviceWorker' in navigator)) return;
   const sw = navigator.serviceWorker;
   // Without a controller at startup this is the first install; its takeover is not an update.
   const hadController = !!sw.controller;
@@ -32,7 +36,9 @@ export function registerServiceWorker(): void {
 
   const register = async () => {
     try {
-      const reg = await sw.register('/sw.js', { updateViaCache: 'none' });
+      const base = import.meta.env.BASE_URL || '/';
+      const swUrl = new URL('sw.js', `${location.origin}${base}`).pathname;
+      const reg = await sw.register(swUrl, { updateViaCache: 'none', scope: base });
       registration = reg;
       if (reg.waiting && sw.controller) setUpdateReady();
       reg.addEventListener('updatefound', () => {

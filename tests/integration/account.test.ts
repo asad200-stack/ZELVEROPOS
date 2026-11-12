@@ -1,10 +1,10 @@
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, setDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { asAdmin, call, clearAuth, createEnv, createUser, PROJECT_ID, readDoc, readWhere } from './helpers';
+import { asAdmin, call, clearAuth, clearFirestore, createEnv, createUser, FUNCTIONS_ORIGIN, PROJECT_ID, readDoc, readWhere } from './helpers';
 
 const AUTH = `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '127.0.0.1:9099'}`;
-const FUNCTIONS = `http://127.0.0.1:5001/${PROJECT_ID}/europe-west1`;
+const FUNCTIONS = `${FUNCTIONS_ORIGIN}/${PROJECT_ID}/europe-west1`;
 const EXISTING = 'existing-owner';
 const EXISTING_EMAIL = `${EXISTING}@test.local`;
 const TAKEN = 'taken-store';
@@ -32,7 +32,7 @@ async function signUp(email: string, password: string) {
 
 beforeAll(async () => {
   env = await createEnv();
-  await env.clearFirestore();
+  await clearFirestore(env);
   await clearAuth();
   await createUser({ uid: EXISTING, tenantId: EXISTING, role: 'owner' });
   await asAdmin(env, (fs) => setDoc(doc(fs, `storeSubdomains/${TAKEN}`), { tenantId: EXISTING }));

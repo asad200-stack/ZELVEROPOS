@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { setWorkInProgress } from '@/app/serviceWorker';
 import { Button } from '@/components/ui/Button';
-import { Checkbox, SelectInput } from '@/components/ui/Form';
+import { SelectInput } from '@/components/ui/Form';
 import { Icon } from '@/components/ui/Icon';
-import { Alert, Badge } from '@/components/ui/Layout';
+import { Alert } from '@/components/ui/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
-import { addProductToCart, newLineKey, priceCart } from '@/domain/cart';
+import { addProductToCart, cartCanCheckout, creditRequiresCustomer, newLineKey, priceCart } from '@/domain/cart';
 import { computeCredit, planCashTender, type CashTenderPlan } from '@/domain/checkout';
 import { parseLbpInput, parseUsdInput, usdCentsToLbp } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
@@ -16,17 +16,17 @@ import { mergeKnown } from '@/domain/catalogSession';
 import { useCashbox, useCategories, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { takeReopenRequest, useOfflineQueue } from '@/offline/queue';
-import type { OfflineOperation } from '@/offline/types';
 import { getCustomer, getProductsByIds } from '@/services/catalogQuery';
 import { checkout, type CheckoutResult } from '@/services/salesService';
 import type { Currency, Customer, PriceTier, Product } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
-import { printOfflineReceipt, printSaleReceipt } from '@/features/sales/receipt';
 import { CartPanel } from './CartPanel';
+import { CheckoutPrintMenu } from './CheckoutPrintMenu';
 import { FitAmount } from './FitAmount';
 import { CustomerSelect } from './CustomerSelect';
 import { PaymentPanel, type PaymentDraft } from './PaymentPanel';
 import { ProductPicker } from './ProductPicker';
+import { registerPosCartHost, unregisterPosCartHost } from '@/features/ai/actions/cartBridge';
 import { MAX_CARTS, usePosCarts } from './usePosCarts';
 
 const INVALID_TENDER: CashTenderPlan = {
@@ -63,6 +63,16 @@ export default function PosPage() {
   const [knownProducts, setKnownProducts] = useState<Map<string, Product>>(() => new Map());
   const [knownCustomer, setKnownCustomer] = useState<Customer | null>(null);
   const { cart, update } = pos;
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
+  useEffect(() => {
+    const host = {
+      getCart: () => cartRef.current,
+      update,
+    };
+    registerPosCartHost(host);
+    return () => unregisterPosCartHost(host);
+  }, [update]);
   const draft = cart.draft;
   const customer = cart.customerId && knownCustomer?.id === cart.customerId ? knownCustomer : null;
   const productMap = knownProducts;
@@ -104,7 +114,10 @@ export default function PosPage() {
   const skipRenameSave = useRef(false);
   const [imeiProduct, setImeiProduct] = useState<Product | null>(null);
   const [completed, setCompleted] = useState<CheckoutResult | null>(null);
-  const [mobileTab, setMobileTab] = useState<'products' | 'cart' | 'checkout'>('products');
+  const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  /** Invalidates ProductPicker's one-shot page after stock commits on the server. */
+  const [catalogRevision, setCatalogRevision] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const { busy, run } = useAsyncAction('checkout');
 
@@ -143,7 +156,7 @@ export default function PosPage() {
             rate,
             customerDebtUsdCents: customer.debtUsdCents,
             creditLimitUsdCents: customer.creditLimitUsdCents,
-            includePreviousDebt: cart.debtLineUsdCents !== null,
+            previousUsdCents: cart.debtLineUsdCents ?? 0,
           })
         : null,
     [customer, totals.productsUsdCents, creditPaidUsd, creditPaidLbp, rate, cart.debtLineUsdCents],
@@ -163,16 +176,26 @@ export default function PosPage() {
 
   const setCustomer = (next: Customer | null) => {
     setKnownCustomer(next);
-    update((c) => ({ ...c, customerId: next?.id ?? null, debtLineUsdCents: null }));
+    update((c) => ({
+      ...c,
+      customerId: next?.id ?? null,
+      debtLineUsdCents: null,
+      draft: next ? c.draft : { ...c.draft, kind: 'cash' as const },
+    }));
   };
 
-  const toggleDebtLine = (on: boolean) => {
-    update((c) => ({ ...c, debtLineUsdCents: on && customer && customer.debtUsdCents > 0 ? customer.debtUsdCents : null }));
+  const toggleDebtLine = (amountUsdCents: number | null) => {
+    if (amountUsdCents !== null && !online) return;
+    update((c) => {
+      if (!customer || customer.debtUsdCents <= 0 || amountUsdCents === null) return { ...c, debtLineUsdCents: null };
+      const cents = Math.max(0, Math.min(customer.debtUsdCents, Math.round(amountUsdCents)));
+      return { ...c, debtLineUsdCents: cents > 0 ? cents : null };
+    });
   };
 
   const complete = () =>
     run(async () => {
-      if (cart.lines.length === 0) {
+      if (!cartCanCheckout(cart)) {
         notify('warning', t('error.cartEmpty'));
         return;
       }
@@ -211,9 +234,22 @@ export default function PosPage() {
       );
       // The cart is cleared only once the sale is either recorded by the server or committed to IndexedDB.
       pos.resetActive();
+      setCheckoutOpen(false);
       setCompleted(result);
       setMobileTab('products');
-      if (result.mode === 'online' && result.duplicate) notify('info', t('pos.duplicateSale'));
+      if (result.mode === 'online') {
+        // One-shot catalog is not a listener; bump the page key so tiles re-read committed stock.
+        setCatalogRevision((n) => n + 1);
+        const soldIds = [...new Set(result.sale.items.map((item) => item.productId))];
+        if (soldIds.length > 0) {
+          void getProductsByIds(tenantId, soldIds)
+            .then((found) => {
+              if (found.length > 0) setKnownProducts((known) => mergeKnown(known, found));
+            })
+            .catch((error: unknown) => console.error('[pos] catalog stock refresh', error));
+        }
+        if (result.duplicate) notify('info', t('pos.duplicateSale'));
+      }
     });
 
   const queue = useOfflineQueue();
@@ -240,6 +276,22 @@ export default function PosPage() {
     notify(opened ? 'info' : 'error', t(opened ? 'offline.reopened' : 'offline.reopenNoRoom', { ref: op.offlineRef }));
   }, [queue, pos, notify, t]);
 
+  const hasItems = cartCanCheckout(cart);
+  const cartTitle = cart.label.trim() || `#${cart.id}`;
+  const openCheckout = () => {
+    if (!hasItems) {
+      notify('warning', t('error.cartEmpty'));
+      return;
+    }
+    if (creditRequiresCustomer(draft.kind, cart.customerId)) {
+      notify('warning', t('pos.creditNeedsCustomer'));
+      return;
+    }
+    setCheckoutOpen(true);
+    requestAnimationFrame(() => document.getElementById(draft.kind === 'cash' ? 'received-usd' : 'complete-sale')?.focus());
+  };
+  const closeCheckout = () => setCheckoutOpen(false);
+
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     if (e.key === 'F2') {
       e.preventDefault();
@@ -247,7 +299,12 @@ export default function PosPage() {
       searchRef.current?.select();
     } else if (e.key === 'F9') {
       e.preventDefault();
-      if (!completed && !imeiProduct && !document.querySelector('[role="dialog"]')) void complete();
+      if (completed || imeiProduct || document.querySelector('.modal[role="dialog"]')) return;
+      if (checkoutOpen) void complete();
+      else openCheckout();
+    } else if (e.key === 'Escape' && checkoutOpen && !completed && !imeiProduct) {
+      e.preventDefault();
+      closeCheckout();
     }
   });
   useEffect(() => {
@@ -256,23 +313,22 @@ export default function PosPage() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const hasItems = cart.lines.length > 0;
-  const workInProgress = busy || pos.carts.some((c) => c.lines.length > 0);
+  const workInProgress = busy || pos.carts.some((c) => cartCanCheckout(c) || c.lines.length > 0);
   useEffect(() => {
     setWorkInProgress('pos', workInProgress);
     return () => setWorkInProgress('pos', false);
   }, [workInProgress]);
 
   return (
-    <div className={`pos pos--${mobileTab}`}>
+    <div className={`pos pos--${mobileTab}${checkoutOpen ? ' pos--pay' : ''}`}>
       <div className="pos__tabs-mobile segmented">
-        <button type="button" className={mobileTab === 'products' ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => setMobileTab('products')}>
+        <button type="button" className={mobileTab === 'products' ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => { setMobileTab('products'); setCheckoutOpen(false); }}>
           {t('nav.products')}
         </button>
-        <button type="button" className={mobileTab === 'cart' ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => setMobileTab('cart')}>
+        <button type="button" className={mobileTab === 'cart' && !checkoutOpen ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => { setMobileTab('cart'); setCheckoutOpen(false); }}>
           {t('pos.cart')} ({totals.itemCount})
         </button>
-        <button type="button" className={mobileTab === 'checkout' ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => setMobileTab('checkout')}>
+        <button type="button" className={checkoutOpen ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => { setMobileTab('cart'); openCheckout(); }}>
           {t('pos.checkout')}
         </button>
       </div>
@@ -286,26 +342,11 @@ export default function PosPage() {
           lowStockThreshold={settings.lowStockThreshold}
           searchRef={searchRef}
           onPick={pick}
+          catalogRevision={catalogRevision}
         />
       </section>
 
       <section className="pos__cart">
-        <header className="cart-head">
-          <h2>{t('pos.cartItems', { count: totals.itemCount })}</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="trash"
-            disabled={!hasItems}
-            onClick={async () => {
-              if (await confirm({ title: t('pos.clearCart'), danger: true })) {
-                update((c) => ({ ...c, lines: [], debtLineUsdCents: null, draft: { ...c.draft, receivedUsd: '', receivedLbp: '', changeUsd: '', changeLbp: '', changeManual: null } }));
-              }
-            }}
-          >
-            {t('pos.clearCart')}
-          </Button>
-        </header>
         <div className="cart-tabs" role="tablist">
           {pos.carts.map((c, i) => {
             const title = c.label.trim() || `#${c.id}`;
@@ -388,55 +429,124 @@ export default function PosPage() {
               <Icon name="plus" size={14} />
             </button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="trash"
+            className="cart-tabs__clear"
+            disabled={!hasItems}
+            onClick={async () => {
+              if (await confirm({ title: t('pos.clearCart'), danger: true })) {
+                update((c) => ({ ...c, lines: [], debtLineUsdCents: null, draft: { ...c.draft, receivedUsd: '', receivedLbp: '', changeUsd: '', changeLbp: '', changeManual: null, tenderUsdManual: false, tenderLbpManual: false } }));
+              }
+            }}
+          >
+            {t('pos.clearCart')}
+          </Button>
         </div>
 
-        <div className="cart-options">
-          <SelectInput
-            label={t('pos.priceTier')}
-            value={cart.tier}
-            onChange={(e) => {
-              const tier = e.target.value as PriceTier;
-              update((c) => ({ ...c, tier, lines: c.lines.map((l) => ({ ...l, tier, customUsdCents: null })) }));
-            }}
-            options={[
-              { value: 'retail', label: t('products.retail') },
-              { value: 'wholesale', label: t('products.wholesale') },
-              { value: 'vip', label: t('products.vip') },
-            ]}
+        <div className="cart-head">
+          <div className="cart-options">
+            <SelectInput
+              label={t('pos.priceTier')}
+              value={cart.tier}
+              onChange={(e) => {
+                const tier = e.target.value as PriceTier;
+                update((c) => ({ ...c, tier, lines: c.lines.map((l) => ({ ...l, tier, customUsdCents: null })) }));
+              }}
+              options={[
+                { value: 'retail', label: t('products.retail') },
+                { value: 'wholesale', label: t('products.wholesale') },
+                { value: 'vip', label: t('products.vip') },
+              ]}
+            />
+            <SelectInput
+              label={t('pos.currency')}
+              value={cart.currency}
+              onChange={(e) => {
+                const currency = e.target.value as Currency;
+                update((c) => ({ ...c, currency }));
+              }}
+              options={[
+                { value: 'USD', label: 'USD $' },
+                { value: 'LBP', label: lang === 'ar' ? 'ليرة ل.ل' : 'LBP' },
+              ]}
+            />
+            <div className="field cart-options__pay">
+              <span className="field__label">{t('pos.paymentMethod')}</span>
+              <div className="segmented" role="radiogroup" aria-label={t('pos.paymentMethod')}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={draft.kind === 'cash'}
+                  className={draft.kind === 'cash' ? 'segmented__item segmented__item--active' : 'segmented__item'}
+                  onClick={() => setDraft({ kind: 'cash' })}
+                >
+                  {t('pos.fullPayment')}
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={draft.kind === 'credit'}
+                  className={draft.kind === 'credit' ? 'segmented__item segmented__item--active' : 'segmented__item'}
+                  onClick={() => setDraft({ kind: 'credit' })}
+                >
+                  {t('pos.creditSale')}
+                </button>
+              </div>
+            </div>
+          </div>
+          <CustomerSelect
+            tenantId={tenantId}
+            selected={customer}
+            onSelect={setCustomer}
+            hint={creditRequiresCustomer(draft.kind, cart.customerId) ? t('pos.selectCustomer') : undefined}
+            actions={
+              customer && customer.debtUsdCents > 0 ? (
+                <span className="cart-debt-actions">
+                  <span className={cart.debtLineUsdCents !== null ? 'cart-debt-chip cart-debt-chip--on' : 'cart-debt-chip'}>
+                    {cart.debtLineUsdCents !== null
+                      ? t('pos.previousShort', { amount: formatUsd(cart.debtLineUsdCents) })
+                      : t('pos.previousDue', { amount: formatUsd(customer.debtUsdCents) })}
+                  </span>
+                  {cart.debtLineUsdCents !== null ? (
+                    <button type="button" className="cart-debt-btn" onClick={() => toggleDebtLine(null)}>
+                      {t('common.remove')}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="cart-debt-btn"
+                      disabled={!online}
+                      title={!online ? t('pos.previousOffline') : undefined}
+                      onClick={() => toggleDebtLine(customer.debtUsdCents)}
+                    >
+                      {t('pos.addPrevious')}
+                    </button>
+                  )}
+                </span>
+              ) : null
+            }
           />
-          <SelectInput
-            label={t('pos.currency')}
-            value={cart.currency}
-            onChange={(e) => {
-              const currency = e.target.value as Currency;
-              update((c) => ({ ...c, currency }));
-            }}
-            options={[
-              { value: 'USD', label: 'USD $' },
-              { value: 'LBP', label: lang === 'ar' ? 'ليرة ل.ل' : 'LBP' },
-            ]}
-          />
-          <CustomerSelect tenantId={tenantId} selected={customer} onSelect={setCustomer} />
-          {customer && customer.debtUsdCents > 0 && (
-          <Checkbox
-            label={t('pos.addPreviousBalance', { amount: formatUsd(customer.debtUsdCents) })}
-            checked={cart.debtLineUsdCents !== null}
-            onChange={(e) => toggleDebtLine(e.target.checked)}
-          />
-          )}
         </div>
-
-        {customer && <p className="cart-customer">{customer.name}</p>}
 
         <div className="pos__lines">
-          <CartPanel cart={cart} totals={totals} products={productMap} canEditPrice={can('canEditPrice')} onChange={update} />
+          <CartPanel
+            cart={cart}
+            totals={totals}
+            products={productMap}
+            canEditPrice={can('canEditPrice')}
+            customerName={customer?.name}
+            onChange={update}
+            onRemovePrevious={() => toggleDebtLine(null)}
+          />
         </div>
 
         {!online && <Alert tone="warning">{t('offline.posBanner')}</Alert>}
 
         <footer className="cart-foot">
-          <div className="cart-foot__row">
-            <span>{t('pos.subtotal')}</span>
+          <div className="cart-foot__row cart-foot__subtotal">
+            <span>{t('pos.saleSubtotal')}</span>
             <span className="cart-foot__money">
               <FitAmount value={formatUsd(totals.productsUsdCents)} />
               <FitAmount value={formatLbp(totals.productsLbp, lang)} className="fit-amount--muted" />
@@ -451,8 +561,17 @@ export default function PosPage() {
               </span>
             </div>
           )}
+          {totals.debtLineUsdCents > 0 && (
+            <div className="cart-foot__row">
+              <span>{t('pos.previousBalance')}</span>
+              <span className="cart-foot__money">
+                <FitAmount value={formatUsd(totals.debtLineUsdCents)} />
+                <FitAmount value={formatLbp(totals.debtLineLbp, lang)} className="fit-amount--muted" />
+              </span>
+            </div>
+          )}
           <div className="cart-foot__total">
-            <span>{t('pos.total')}</span>
+            <span>{t('pos.totalToCollect')}</span>
             <span className="cart-foot__money">
               <FitAmount value={formatUsd(totals.dueUsdCents)} />
               <FitAmount value={formatLbp(totals.dueLbp, lang)} className="fit-amount--sub" />
@@ -462,34 +581,42 @@ export default function PosPage() {
             <Button variant="secondary" icon="clipboard" disabled={!hasItems || pos.carts.length >= MAX_CARTS} onClick={() => pos.addCart()}>
               {t('pos.saveCart')}
             </Button>
-            <Button
-              disabled={!hasItems}
-              onClick={() => {
-                setMobileTab('checkout');
-                requestAnimationFrame(() => document.getElementById(draft.kind === 'cash' ? 'received-usd' : 'complete-sale')?.focus());
-              }}
-            >
+            <Button disabled={!hasItems || creditRequiresCustomer(draft.kind, cart.customerId)} onClick={openCheckout}>
               {t('pos.checkout')}
             </Button>
           </div>
         </footer>
       </section>
 
-      <section className="pos__checkout">
-        <PaymentPanel
-          draft={draft}
-          onDraft={setDraft}
-          note={cart.note}
-          onNote={(note) => update((c) => ({ ...c, note: note.slice(0, 200) }))}
-          totals={totals}
-          customer={customer}
-          cash={cash}
-          credit={credit}
-          busy={busy}
-          disabled={!hasItems}
-          onComplete={() => void complete()}
-        />
-      </section>
+      {checkoutOpen && (
+        <div className="pos__pay" role="dialog" aria-modal="true" aria-labelledby="pos-checkout-title">
+          <button type="button" className="pos__pay-backdrop" aria-label={t('pos.closeCheckout')} onClick={closeCheckout} />
+          <aside className="pos__checkout">
+            <header className="pos__checkout-head">
+              <div>
+                <h2 id="pos-checkout-title">{t('pos.checkout')}</h2>
+                <p className="pos__checkout-cart">{t('pos.payingCart', { name: cartTitle })}</p>
+              </div>
+              <Button variant="ghost" size="sm" icon="x" aria-label={t('pos.closeCheckout')} onClick={closeCheckout} />
+            </header>
+            <PaymentPanel
+              draft={draft}
+              onDraft={setDraft}
+              note={cart.note}
+              onNote={(note) => update((c) => ({ ...c, note: note.slice(0, 200) }))}
+              totals={totals}
+              customer={customer}
+              cash={cash}
+              credit={credit}
+              previousUsdCents={cart.debtLineUsdCents}
+              rate={rate}
+              busy={busy}
+              disabled={!hasItems || creditRequiresCustomer(draft.kind, cart.customerId)}
+              onComplete={() => void complete()}
+            />
+          </aside>
+        </div>
+      )}
 
       {imeiProduct && (
         <ImeiPicker
@@ -504,69 +631,15 @@ export default function PosPage() {
       )}
 
       {completed && (
-        <Modal
-          open
-          size="sm"
-          title={t(completed.mode === 'online' ? 'pos.saleCompleted' : 'offline.savedTitle')}
+        <CheckoutPrintMenu
+          result={completed}
+          settings={settings}
           onClose={() => {
             setCompleted(null);
             searchRef.current?.focus();
           }}
-          footer={
-            <>
-              <Button
-                variant="secondary"
-                icon="printer"
-                onClick={() =>
-                  completed.mode === 'online'
-                    ? printSaleReceipt(completed.sale, { settings, lang, t })
-                    : printOfflineReceipt(completed.operation, { settings, lang, t })
-                }
-              >
-                {t(completed.mode === 'online' ? 'common.print' : 'offline.printProof')}
-              </Button>
-              <Button
-                autoFocus
-                onClick={() => {
-                  setCompleted(null);
-                  searchRef.current?.focus();
-                }}
-              >
-                {t('pos.newSale')}
-              </Button>
-            </>
-          }
-        >
-          {completed.mode === 'online' ? (
-            <div className="sale-done">
-              <Icon name="check" size={40} className="text-success" />
-              <div className="sale-done__number">{completed.sale.invoiceNumber}</div>
-              <div className="sale-done__total">{formatUsd(completed.sale.totalUsdCents)}</div>
-            </div>
-          ) : (
-            <OfflineSaleDone operation={completed.operation} cause={completed.cause} />
-          )}
-        </Modal>
+        />
       )}
-    </div>
-  );
-}
-
-function OfflineSaleDone({ operation, cause }: { operation: OfflineOperation; cause: 'offline' | 'network' }) {
-  const { t, lang } = useI18n();
-  const s = operation.snapshot;
-  const cashTaken = s.received.usdCents > 0 || s.received.lbp > 0;
-  const received = [s.received.usdCents > 0 && formatUsd(s.received.usdCents), s.received.lbp > 0 && formatLbp(s.received.lbp, lang)]
-    .filter(Boolean)
-    .join(' + ');
-  return (
-    <div className="sale-done">
-      <Icon name="wifiOff" size={40} className="text-warning" />
-      <Badge tone="warning">{t('offline.status.PENDING_SYNC')}</Badge>
-      <div className="sale-done__number">{operation.offlineRef}</div>
-      <div className="sale-done__total">{s.currency === 'LBP' ? formatLbp(s.totalLbp, lang) : formatUsd(s.totalUsdCents)}</div>
-      <Alert tone="warning">{t(cause === 'network' ? 'offline.savedAfterNetworkError' : 'offline.savedNotInvoice')}</Alert>
-      {cashTaken && <Alert tone="error">{t('offline.cashWarning', { amount: received })}</Alert>}
     </div>
   );
 }

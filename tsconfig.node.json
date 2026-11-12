@@ -17,5 +17,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["vite.config.ts", "tools", "vitest.rules.config.ts", "vitest.integration.config.ts", "tests/rules", "tests/unit", "tests/integration"]
+  "include": ["vite.config.ts", "tools", "vitest.rules.config.ts", "vitest.integration.config.ts", "tests/rules", "tests/unit", "tests/integration", "src/vite-env.d.ts"]
 }

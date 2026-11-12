@@ -17,9 +17,11 @@ export interface DailyStats {
   returnsUsdCents: number;
   returnsCostUsdCents: number;
   expensesUsdCents: number;
+  /** False when a stored day has no numeric cost. Absent means the caller already supplied numbers. */
+  costsComplete?: boolean;
 }
 
-const FIELDS: (keyof Omit<DailyStats, 'date'>)[] = [
+const FIELDS = [
   'salesCount',
   'revenueUsdCents',
   'costUsdCents',
@@ -32,7 +34,7 @@ const FIELDS: (keyof Omit<DailyStats, 'date'>)[] = [
   'returnsUsdCents',
   'returnsCostUsdCents',
   'expensesUsdCents',
-];
+] as const satisfies readonly (keyof DailyStats)[];
 
 export function emptyStats(date = ''): DailyStats {
   const s = { date } as DailyStats;
@@ -55,6 +57,7 @@ export async function loadDailyStats(tenantId: string, from: string, to: string)
       const data = d.data();
       const s = emptyStats(String(data.date ?? d.id));
       for (const f of FIELDS) s[f] = typeof data[f] === 'number' ? data[f] : 0;
+      s.costsComplete = typeof data.costUsdCents === 'number' && typeof data.returnsCostUsdCents === 'number';
       return s;
     })
     .sort((a, b) => a.date.localeCompare(b.date));

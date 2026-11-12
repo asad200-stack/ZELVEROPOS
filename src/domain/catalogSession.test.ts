@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '@/types/models';
-import { applyLoadedPage, catalogLoadProblem, mergeKnown } from './catalogSession';
+import { applyLoadedPage, catalogLoadProblem, catalogViewMode, mergeKnown } from './catalogSession';
 
 describe('catalog session', () => {
   it('drops a page that belongs to a search the cashier already left', () => {
@@ -23,5 +23,47 @@ describe('catalog session', () => {
     expect(catalogLoadProblem(false, new Error('unavailable'))).toBe('offline');
     expect(catalogLoadProblem(true, new Error('permission'))).toBe('failed');
     expect(catalogLoadProblem(false, null)).toBeNull();
+  });
+
+  it('shows stock 19 after a post-checkout catalog reload replaces stock 20', () => {
+    const cable20 = { id: 'cable', name: 'USB cable', stock: 20 } as Product;
+    const cable19 = { id: 'cable', name: 'USB cable', stock: 19 } as Product;
+    const before = applyLoadedPage(null, 'tenant|| |0', { items: [cable20], cursor: null, hasMore: false }, false);
+    expect(before?.items[0]?.stock).toBe(20);
+    // keepPrevious holds the prior page while the revision key advances (append into a new key is ignored).
+    expect(applyLoadedPage(before, 'tenant|| |1', { items: [cable19], cursor: null, hasMore: false }, true)).toBe(before);
+    const after = applyLoadedPage(before, 'tenant|| |1', { items: [cable19], cursor: null, hasMore: false }, false);
+    expect(after?.items[0]?.stock).toBe(19);
+    expect(after?.key).toBe('tenant|| |1');
+  });
+
+  it('does not flash empty while clearing a search that previously matched products', () => {
+    // keepPrevious still holds the prior USB hit while the empty-search key reloads.
+    expect(
+      catalogViewMode({ hasProblem: false, loading: false, refreshing: true, pendingInput: false, itemCount: 1 }),
+    ).toBe('ready');
+    // Search box already cleared; deferred query key has not caught up yet.
+    expect(
+      catalogViewMode({ hasProblem: false, loading: false, refreshing: false, pendingInput: true, itemCount: 1 }),
+    ).toBe('ready');
+  });
+
+  it('shows empty only after a settled search returns zero products', () => {
+    expect(
+      catalogViewMode({ hasProblem: false, loading: false, refreshing: false, pendingInput: false, itemCount: 0 }),
+    ).toBe('empty');
+  });
+
+  it('treats a prior empty page as loading while the next search or category settles', () => {
+    // Clearing after "zzzz" left keepPrevious with zero items — must not stay on empty.
+    expect(
+      catalogViewMode({ hasProblem: false, loading: false, refreshing: true, pendingInput: false, itemCount: 0 }),
+    ).toBe('loading');
+    expect(
+      catalogViewMode({ hasProblem: false, loading: false, refreshing: false, pendingInput: true, itemCount: 0 }),
+    ).toBe('loading');
+    expect(
+      catalogViewMode({ hasProblem: false, loading: true, refreshing: false, pendingInput: false, itemCount: 0 }),
+    ).toBe('loading');
   });
 });

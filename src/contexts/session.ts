@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { User } from 'firebase/auth';
 import type { PermissionKey, PermissionMap } from '@/constants/permissions';
 import type { Actor } from '@/services/db';
+import { canAccessExpiredTenant, subscriptionGrantsWrite } from '@/domain/trial';
 import type { Role, Subscription, UserProfile } from '@/types/models';
 
 export interface Claims {
@@ -32,9 +33,12 @@ export interface Session {
   tenantId: string | null;
   isOwner: boolean;
   isSuperAdmin: boolean;
+  /** The current tenant is the platform's internal demo store (server-written subscription marker). */
+  isInternalDemo: boolean;
   permissions: PermissionMap;
   actor: Actor | null;
   error: unknown;
+  writesEnabled: boolean;
   can: (permission: PermissionKey) => boolean;
   /** Reloads the Auth user and forces a token refresh; resolves to the fresh emailVerified flag. */
   refresh: () => Promise<boolean>;
@@ -56,7 +60,7 @@ export function useTenant(): { tenantId: string; actor: Actor; can: Session['can
 }
 
 export function isSubscriptionActive(sub: Subscription | null, now: number = Date.now()): boolean {
-  if (!sub || !sub.activated) return false;
-  if (sub.lifetime) return true;
-  return !!sub.endsAt && sub.endsAt > now;
+  return subscriptionGrantsWrite(sub, now);
 }
+
+export { canAccessExpiredTenant };

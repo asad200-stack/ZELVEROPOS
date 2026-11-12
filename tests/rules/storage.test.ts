@@ -1,12 +1,27 @@
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { getBytes, listAll, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
+import { doc, setDoc, type Firestore } from 'firebase/firestore';
+import { deleteObject, getBytes, listAll, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import { claims, createEnv, OTHER, T } from './helpers';
+import { claims, createEnv, DAY, OTHER, T } from './helpers';
 
 let env: RulesTestEnvironment;
 
 beforeAll(async () => {
   env = await createEnv();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const fs = ctx.firestore() as unknown as Firestore;
+    const rows: Array<[string, string, boolean]> = [
+      [T, T, true],
+      ['cashier', T, true],
+      ['editor', T, true],
+      ['x', OTHER, true],
+      ['dead', T, false],
+      ['stale', T, false],
+    ];
+    for (const [uid, tenantId, isActive] of rows) {
+      await setDoc(doc(fs, `users/${uid}`), { uid, tenantId, isActive, role: uid === T ? 'owner' : 'subUser' });
+    }
+  });
 });
 afterAll(async () => {
   await env.cleanup();
@@ -43,6 +58,24 @@ describe('storage', () => {
     const s = env.unauthenticatedContext().storage() as unknown as FirebaseStorage;
     await assertFails(listAll(ref(s, `tenants/${T}/products`)));
     await assertFails(getBytes(ref(s, `tenants/${T}/products/a.jpg`)));
+  });
+
+  it('a token that is still active cannot read after the profile is deactivated', async () => {
+    const owner = storageFor(T);
+    await assertSucceeds(uploadBytes(ref(owner, `tenants/${T}/products/stale.webp`), image(32), { contentType: 'image/webp' }));
+    const stale = storageFor('stale', { role: 'subUser', perms: { canSell: true, canViewProducts: true } });
+    await assertFails(getBytes(ref(stale, `tenants/${T}/products/stale.webp`)));
+  });
+
+  it('expired subscriptions cannot delete images', async () => {
+    const owner = storageFor(T);
+    await assertSucceeds(uploadBytes(ref(owner, `tenants/${T}/products/keep.jpg`), image(32), { contentType: 'image/jpeg' }));
+    await assertSucceeds(uploadBytes(ref(owner, `tenants/${T}/logo/keep.jpg`), image(32), { contentType: 'image/jpeg' }));
+    await assertSucceeds(deleteObject(ref(owner, `tenants/${T}/products/keep.jpg`)));
+    const expired = storageFor(T, { subUntil: Date.now() - DAY });
+    await assertFails(deleteObject(ref(expired, `tenants/${T}/logo/keep.jpg`)));
+    const cashier = storageFor('cashier', { role: 'subUser', perms: { canSell: true } });
+    await assertFails(deleteObject(ref(cashier, `tenants/${T}/logo/keep.jpg`)));
   });
 
   it('inactive tokens and other tenants cannot read product images', async () => {

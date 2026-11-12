@@ -6,7 +6,8 @@ import { subUntilOf, syncUserClaims } from './claims.js';
 import { fail } from './errors.js';
 import { REGION } from './config.js';
 import { requireLiveOwner } from './liveUser.js';
-import { normalizePermissions } from './permissions.js';
+import { mergePermissionPatch, normalizePermissions } from './permissions.js';
+import { assertOwnerMayUpdateSubUser } from './subUserAuth.js';
 import { caller, parse, trimmed, type Caller } from './validate.js';
 
 const MAX_SUB_USERS = 50;
@@ -110,7 +111,15 @@ export const updateSubUser = onCall({ region: REGION }, async (request) => {
   const c = caller(request);
   const tenantId = await requireActiveOwner(c);
   const input = parse(updateSchema, request.data);
-  const { ref } = await ownedSubUser(tenantId, input.uid);
+  // Defense in depth: owners are never sub-users, but never allow self-targeted updates.
+  if (input.uid === c.uid) fail('permission-denied', 'error.fn.notAllowed');
+  const { ref, data } = await ownedSubUser(tenantId, input.uid);
+  const membership = assertOwnerMayUpdateSubUser(
+    { uid: c.uid, tenantId, role: 'owner', active: true },
+    input.uid,
+    data,
+  );
+  if (!membership.ok) fail('not-found', 'error.fn.userNotFound');
 
   const authUpdate: { displayName?: string; password?: string; disabled?: boolean } = {};
   if (input.fullName !== undefined) authUpdate.displayName = input.fullName;
@@ -126,12 +135,29 @@ export const updateSubUser = onCall({ region: REGION }, async (request) => {
     }
   }
 
+  const previousPermissions = data.permissions;
   const patch: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
   if (input.fullName !== undefined) patch.fullName = input.fullName;
-  if (input.permissions !== undefined) patch.permissions = normalizePermissions(input.permissions);
+  // Merge so a partial permission payload cannot wipe unrelated POS keys (incl. canSell).
+  if (input.permissions !== undefined) {
+    patch.permissions = mergePermissionPatch(previousPermissions, input.permissions);
+  }
   if (input.isActive !== undefined) patch.isActive = input.isActive;
   await ref.update(patch);
-  await syncUserClaims(input.uid);
+  try {
+    await syncUserClaims(input.uid);
+  } catch (e) {
+    // Claims are the enforcement boundary; roll permissions back if sync fails after a write.
+    if (input.permissions !== undefined) {
+      await ref
+        .update({
+          permissions: previousPermissions ?? normalizePermissions({}),
+          updatedAt: FieldValue.serverTimestamp(),
+        })
+        .catch((rollbackErr) => console.error('[updateSubUser] permission rollback failed', rollbackErr));
+    }
+    throw e;
+  }
   if (input.isActive === false || input.password !== undefined) await auth.revokeRefreshTokens(input.uid);
   return { ok: true as const };
 });

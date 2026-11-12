@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { TextInput } from '@/components/ui/Form';
 import { Alert, Badge, TableWrap } from '@/components/ui/Layout';
 import { Modal } from '@/components/ui/Modal';
+import { canProcessReturn } from '@/constants/permissions';
 import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
 import { planReturn } from '@/domain/returns';
@@ -44,7 +45,7 @@ export function SaleDetailsModal({ sale, onClose, onUpdated }: Props) {
     };
   }, [tenantId, sale.id, sale.lastReturnId]);
 
-  const canReturn = can('canViewSales') && sale.returnStatus !== 'full';
+  const canReturn = canProcessReturn(can) && sale.returnStatus !== 'full';
   const p = sale.payment;
   const saleReturns = returns?.saleId === sale.id ? returns.list : null;
 

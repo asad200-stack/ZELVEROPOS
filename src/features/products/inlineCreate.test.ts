@@ -3,6 +3,7 @@ import type { Supplier } from '@/types/models';
 import {
   NEW_OPTION,
   categoryOptions,
+  filterSelectOptions,
   findCategory,
   findSupplier,
   mergeSuppliers,
@@ -15,6 +16,12 @@ import {
 const sup = (id: string, name: string) => ({ id, name }) as Supplier;
 
 describe('category inline creation', () => {
+  it('filters category options without dropping the current value or add-new row', () => {
+    const options = categoryOptions(['Phones', 'Cables', 'Phone Cases'], 'Phones', 'Add category');
+    const filtered = filterSelectOptions(options, 'phone', 'Phones');
+    expect(filtered.map((option) => option.value)).toEqual(['', 'Phone Cases', 'Phones', NEW_OPTION]);
+  });
+
   it('matches existing categories case- and spacing-insensitively', () => {
     expect(findCategory(['Phones', 'Cables'], '  phones ')).toBe('Phones');
     expect(findCategory(['Phone Cases'], 'phone   cases')).toBe('Phone Cases');

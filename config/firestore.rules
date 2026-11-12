@@ -1,0 +1,384 @@
+rules_version = '2';
+
+// ZELVERO POS — Firestore security rules (deny by default).
+//
+// Identity comes from custom claims written ONLY by Cloud Functions (functions/src/claims.ts):
+//   tenantId  owner uid; tenant data lives under /tenants/{tenantId}
+//   role      'owner' | 'subUser'
+//   perms     map of granted permission keys (sub-users only; owners have every permission)
+//   active    false when the user is deactivated
+//   subUntil  epoch ms until which the store subscription allows writes
+//   superAdmin platform administrator
+//
+// Money and stock are SERVER-AUTHORITATIVE: sales, returns, stock movements, cash transactions, the
+// drawer, customer ledger/debt, supplier balances, purchases, supplier payments, document counters
+// and daily statistics are written only by Cloud Functions (functions/src/pos), which re-read the
+// data and validate every amount in a transaction. Clients can only read them. Clients may edit
+// master data (names, prices, contact details…) but never a balance, stock level or IMEI list.
+// See docs/SECURITY.md.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------ identity
+
+    function signedIn() { return request.auth != null; }
+    function claim(name, fallback) { return request.auth.token.get(name, fallback); }
+
+    function isSuperAdmin() {
+      return signedIn() && claim('superAdmin', false) == true && claim('email_verified', false) == true;
+    }
+
+    // Live profile (not only the ID token). Closes the window where a disabled user's token
+    // can still read tenant data until the next refresh. Extra document get per request.
+    function liveActive(t) {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path)
+        && get(path).data.isActive == true
+        && get(path).data.tenantId == t;
+    }
+
+    function member(t) {
+      return signedIn()
+        && claim('tenantId', '') == t
+        && claim('active', false) == true
+        && claim('email_verified', false) == true
+        && liveActive(t);
+    }
+
+    function isOwner(t) { return member(t) && claim('role', '') == 'owner'; }
+
+    function can(t, p) {
+      return member(t) && (claim('role', '') == 'owner' || claim('perms', {}).get(p, false) == true);
+    }
+
+    function subscribed() { return claim('subUntil', 0) > request.time.toMillis(); }
+
+    function canW(t, p) { return can(t, p) && subscribed(); }
+
+    // Owner / "sensitive data" users can read everything (full JSON backup).
+    function fullRead(t) { return isOwner(t) || can(t, 'canViewSensitiveData'); }
+
+    // A document read returns every field. costUsdCents stays on the product document because
+    // POS and purchases read it there; phone, email, and debtUsdCents stay on the customer
+    // document because POS, sales, and reports read them there. Rules can only choose who may
+    // read the whole document, using the permissions those screens already require.
+    function canReadProducts(t) {
+      return fullRead(t) || can(t, 'canViewProducts') || can(t, 'canSell') || can(t, 'canViewSuppliers');
+    }
+
+    function canReadCustomers(t) {
+      return fullRead(t) || can(t, 'canViewCustomers') || can(t, 'canSell') || can(t, 'canViewSales') || can(t, 'canViewReports');
+    }
+
+    // ------------------------------------------------------------------ data helpers
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    function str(v, max) { return v is string && v.size() <= max; }
+    function nonEmpty(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
+    function isDate(v) { return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'); }
+    function nonNegInt(v) { return v is int && v >= 0; }
+
+    // Master data creation: stamped with the real author and the server time.
+    function stamped() {
+      let d = incoming();
+      return d.createdBy == request.auth.uid && d.createdAt == request.time && d.createdAtMs is int;
+    }
+
+    // ------------------------------------------------------------------ platform
+
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isSuperAdmin() || isOwner(resource.data.tenantId));
+      allow list: if isSuperAdmin() || isOwner(resource.data.tenantId);
+      allow update: if signedIn() && request.auth.uid == uid
+        && changed().hasOnly(['fullName'])
+        && nonEmpty(incoming().fullName, 80);
+      allow create, delete: if false;
+    }
+
+    match /subscriptions/{t} {
+      allow get: if signedIn() && (request.auth.uid == t || claim('tenantId', '') == t || isSuperAdmin());
+      allow list: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /stores/{t} {
+      allow read: if member(t) || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /storeSubdomains/{sub} {
+      allow read, write: if false;
+    }
+
+    match /platformReleases/{version} {
+      allow get: if signedIn();
+      allow list: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformReleaseManifest/{id} {
+      allow get: if signedIn();
+      allow list: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformReleaseAssignments/{t} {
+      allow get: if isSuperAdmin() || (signedIn() && claim('tenantId', '') == t);
+      allow list: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformReleaseAudit/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformLeads/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformLeadIndex/{id} {
+      allow read, write: if false;
+    }
+    match /platformQuotes/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformReferrals/{id} {
+      allow read, write: if false;
+    }
+    match /platformSalesOps/{id} {
+      allow read, write: if false;
+    }
+    match /platformAudit/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformPreviewCredentials/{id} {
+      allow read, write: if false;
+    }
+    match /platformRateLimits/{id} {
+      allow read, write: if false;
+    }
+    match /platformTrialIndex/{id} {
+      allow read, write: if false;
+    }
+    match /platformProvisionState/{id} {
+      allow read, write: if false;
+    }
+    match /platform/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /platformFeatures/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformFeatureEntitlements/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformFeatureAudit/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformFeatureControl/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /platformFeaturePreview/{id} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    // ------------------------------------------------------------------ tenant
+
+    match /tenants/{t} {
+      allow read: if member(t);
+      allow write: if false;
+
+      // ---------------------------------------------------------- settings
+
+      match /onboarding/{id} {
+        allow read: if member(t);
+        allow create, update: if id == 'main' && isOwner(t)
+          && incoming().keys().hasOnly(['skipped', 'dismissedWelcome', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      match /notifications/{id} {
+        allow read: if member(t);
+        allow update: if member(t) && changed().hasOnly(['read']);
+        allow create, delete: if false;
+      }
+
+      match /settings/{id} {
+        allow read: if member(t);
+        allow create, update: if id == 'main' && canW(t, 'canEditSettings')
+          && incoming().keys().hasOnly([
+            'storeName', 'storeAddress', 'storePhone', 'logoUrl', 'logoPath', 'receiptFooter', 'printFormat',
+            'autoPrintInvoice', 'exchangeRate', 'defaultCurrency', 'lowStockAlert', 'lowStockThreshold', 'telegram', 'updatedAt'
+          ])
+          && (!('exchangeRate' in incoming()) || (incoming().exchangeRate is int && incoming().exchangeRate > 0))
+          && (!('storeName' in incoming()) || str(incoming().storeName, 120))
+          && (!('storeAddress' in incoming()) || str(incoming().storeAddress, 300))
+          && (!('storePhone' in incoming()) || str(incoming().storePhone, 40))
+          && (!('logoUrl' in incoming()) || str(incoming().logoUrl, 2000))
+          && (!('logoPath' in incoming()) || str(incoming().logoPath, 500))
+          && (!('receiptFooter' in incoming()) || str(incoming().receiptFooter, 500))
+          && (!('autoPrintInvoice' in incoming()) || incoming().autoPrintInvoice is bool);
+        allow delete: if false;
+      }
+
+      // Telegram credentials never leave this owner-only document (Cloud Functions send messages).
+      match /private/{id} {
+        allow read: if isOwner(t) || (can(t, 'canViewSensitiveData') && can(t, 'canEditSettings'));
+        allow create, update: if id == 'telegram' && subscribed()
+          && (isOwner(t) || (can(t, 'canViewSensitiveData') && can(t, 'canEditSettings')))
+          && incoming().keys().hasOnly(['botToken', 'chatId', 'updatedAt'])
+          && str(incoming().botToken, 200) && str(incoming().chatId, 100);
+        allow delete: if false;
+      }
+
+      match /lists/{id} {
+        allow read: if member(t);
+        allow create, update: if id == 'categories'
+          && (canW(t, 'canAddProducts') || canW(t, 'canEditProducts') || canW(t, 'canImportProducts'))
+          && incoming().keys().hasOnly(['names'])
+          && incoming().names is list && incoming().names.size() <= 1000;
+        allow delete: if false;
+      }
+
+      // ---------------------------------------------------------- server-only ledgers
+
+      match /counters/{name} {
+        allow read: if member(t);
+        allow write: if false;
+      }
+
+      match /cashbox/{id} {
+        allow read: if member(t);
+        allow write: if false;
+      }
+
+      match /cashTransactions/{id} {
+        allow read: if can(t, 'canManageCashDrawer') || can(t, 'canViewReports') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /stockMovements/{id} {
+        allow read: if can(t, 'canViewProducts') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /sales/{id} {
+        allow get: if can(t, 'canSell') || can(t, 'canViewSales') || can(t, 'canViewReports')
+          || can(t, 'canViewCustomers') || fullRead(t);
+        allow list: if can(t, 'canViewSales') || can(t, 'canViewReports') || can(t, 'canViewCustomers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /returns/{id} {
+        allow read: if can(t, 'canViewSales') || can(t, 'canViewReports') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /customerLedger/{id} {
+        allow read: if can(t, 'canViewCustomers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /purchases/{id} {
+        allow read: if can(t, 'canViewSuppliers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /supplierPayments/{id} {
+        allow read: if can(t, 'canViewSuppliers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /purchaseReturns/{id} {
+        allow read: if can(t, 'canViewSuppliers') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /dailyStats/{date} {
+        allow read: if can(t, 'canViewReports') || fullRead(t);
+        allow write: if false;
+      }
+
+      match /clientOps/{id} {
+        allow read, write: if false;
+      }
+
+      // ---------------------------------------------------------- products (master data only)
+
+      function productFieldsValid(d) {
+        return nonEmpty(d.name, 200) && str(d.category, 100) && str(d.barcode, 100)
+          && d.prices is map && nonNegInt(d.costUsdCents) && d.imeiTracking is bool
+          && (d.minStock == null || d.minStock is number)
+          && (d.expiryDate == null || isDate(d.expiryDate))
+          && str(d.supplierName, 200);
+      }
+
+      match /products/{id} {
+        allow read: if canReadProducts(t);
+        // Created by posCreateProduct / posImportProducts (initial stock needs a movement).
+        allow create: if false;
+        allow update: if canW(t, 'canEditProducts')
+          && changed().hasOnly(['name', 'nameNormalized', 'category', 'barcode', 'prices', 'costUsdCents', 'costKnown', 'minStock', 'supplierId',
+                                'supplierName', 'expiryDate', 'imeiTracking', 'imageUrl', 'imagePath', 'updatedAt'])
+          && productFieldsValid(incoming())
+          && (!changed().hasAny(['imeiTracking']) || (existing().stock == 0 && existing().imeis.size() == 0));
+        // Archiving (status) and deletion go through posSetProductStatus / posDeleteProduct, which
+        // refuse to delete a product that has stock or any history.
+        allow delete: if false;
+      }
+
+      // ---------------------------------------------------------- customers (master data only)
+
+      function customerFieldsValid(d) {
+        return nonEmpty(d.name, 150) && str(d.phone, 40) && str(d.email, 200) && str(d.address, 300)
+          && nonNegInt(d.creditLimitUsdCents);
+      }
+
+      match /customers/{id} {
+        allow read: if canReadCustomers(t);
+        // A customer with an opening debt is created by posCreateCustomer (with its ledger entry).
+        allow create: if canW(t, 'canViewCustomers') && stamped() && customerFieldsValid(incoming())
+          && incoming().keys().hasOnly(['name', 'nameNormalized', 'phone', 'phoneKey', 'email', 'emailKey', 'address', 'creditLimitUsdCents', 'debtUsdCents',
+                                        'totalPurchasesUsdCents', 'lastLedgerId', 'createdAt', 'createdAtMs',
+                                        'createdBy', 'updatedAt'])
+          && incoming().debtUsdCents == 0 && incoming().totalPurchasesUsdCents == 0 && incoming().lastLedgerId == null;
+        allow update: if canW(t, 'canViewCustomers')
+          && changed().hasOnly(['name', 'nameNormalized', 'phone', 'phoneKey', 'email', 'emailKey', 'address', 'creditLimitUsdCents', 'updatedAt'])
+          && customerFieldsValid(incoming());
+        allow delete: if canW(t, 'canViewCustomers') && existing().debtUsdCents == 0;
+      }
+
+      // ---------------------------------------------------------- suppliers (master data only)
+
+      function supplierFieldsValid(d) {
+        return nonEmpty(d.name, 150) && str(d.contactPerson, 150) && str(d.phone, 40) && str(d.email, 200) && str(d.address, 300);
+      }
+
+      match /suppliers/{id} {
+        allow read: if can(t, 'canViewSuppliers') || can(t, 'canAddProducts') || can(t, 'canEditProducts') || fullRead(t);
+        allow create: if canW(t, 'canViewSuppliers') && stamped() && supplierFieldsValid(incoming())
+          && incoming().keys().hasOnly(['name', 'nameNormalized', 'contactPerson', 'phone', 'phoneKey', 'email', 'emailKey', 'address', 'balanceUsdCents',
+                                        'createdAt', 'createdAtMs', 'createdBy', 'updatedAt'])
+          && incoming().balanceUsdCents == 0;
+        allow update: if canW(t, 'canViewSuppliers')
+          && changed().hasOnly(['name', 'nameNormalized', 'contactPerson', 'phone', 'phoneKey', 'email', 'emailKey', 'address', 'updatedAt'])
+          && supplierFieldsValid(incoming());
+        allow delete: if canW(t, 'canViewSuppliers') && existing().balanceUsdCents == 0;
+      }
+    }
+  }
+}

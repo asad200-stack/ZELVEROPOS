@@ -31,6 +31,8 @@ export interface Product {
   barcode: string;
   prices: TierPrices;
   costUsdCents: number;
+  /** False only when $0.00 was stored because the purchase cost was not provided. Missing means the number is the stated cost. */
+  costKnown?: boolean;
   stock: number;
   /** Per-product low-stock threshold; null = use the store default. */
   minStock: number | null;
@@ -319,6 +321,8 @@ export interface StoreSettings {
   logoPath: string | null;
   receiptFooter: string;
   printFormat: PrintFormat;
+  /** Opens the browser print dialog after a confirmed sale. Missing on older stores means off. */
+  autoPrintInvoice: boolean;
   exchangeRate: number;
   defaultCurrency: Currency;
   lowStockAlert: boolean;
@@ -348,4 +352,10 @@ export interface Subscription {
   startsAt: Millis;
   endsAt: Millis;
   updatedAt: Millis;
+  trial?: boolean;
+  status?: string;
+  source?: string;
+  referralCode?: string | null;
+  plan?: string | null;
+  internalDemo?: boolean;
 }

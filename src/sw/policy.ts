@@ -38,7 +38,7 @@ export function routeRequest(req: SwRequest, origin: string, precached: Readonly
   if (url.pathname.startsWith('/__/')) return 'network';
   if (req.mode === 'navigate') return isAppRoute(url.pathname) ? 'shell' : 'network';
   if (url.search) return 'network';
-  if (precached.has(url.pathname) || url.pathname.startsWith('/assets/')) return 'asset';
+  if (precached.has(url.pathname) || url.pathname.startsWith('/assets/') || url.pathname.includes('/assets/')) return 'asset';
   return 'network';
 }
 
@@ -52,9 +52,10 @@ export function cachesToDelete(keys: readonly string[], current: string, previou
 }
 
 /** Build files that go into the precache: the complete app shell, never source maps or the worker itself. */
-export function precacheList(files: readonly string[]): string[] {
+export function precacheList(files: readonly string[], base = ''): string[] {
+  const prefix = base.replace(/\/+$/, '');
   return files
-    .map((f) => `/${f.replace(/\\/g, '/').replace(/^\/+/, '')}`)
-    .filter((f) => f !== '/sw.js' && !f.endsWith('.map') && !f.split('/').some((part) => part.startsWith('.')))
+    .map((f) => `${prefix}/${f.replace(/\\/g, '/').replace(/^\/+/, '')}`.replace(/\/{2,}/g, '/'))
+    .filter((f) => !f.endsWith('/sw.js') && !f.endsWith('.map') && !f.split('/').some((part) => part.startsWith('.')))
     .sort();
 }

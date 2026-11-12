@@ -173,6 +173,41 @@ describe('tenant isolation', () => {
   });
 });
 
+describe('internal demo tenant (super admin with its own store)', () => {
+  const DEMO = 'platformAdmin';
+  const demoAdmin = () => db(env, DEMO, { tenantId: DEMO, superAdmin: true });
+  const pureAdmin = () => env.authenticatedContext('pureAdmin', { superAdmin: true, email_verified: true }).firestore() as unknown as Firestore;
+
+  beforeEach(async () => {
+    await seedTenant(env, DEMO);
+  });
+
+  it('works inside its own demo tenant', async () => {
+    await assertSucceeds(getDoc(doc(demoAdmin(), tp(DEMO, 'products', 'p1'))));
+    await assertSucceeds(setDoc(doc(demoAdmin(), tp(DEMO, 'customers', 'c9')), newCustomer(DEMO)));
+  });
+
+  it('cannot read or write customer tenant data', async () => {
+    const fs = demoAdmin();
+    await assertFails(getDoc(doc(fs, tp(T, 'products', 'p1'))));
+    await assertFails(getDocs(collection(fs, tp(T, 'sales'))));
+    await assertFails(getDocs(collection(fs, tp(T, 'customers'))));
+    await assertFails(getDoc(doc(fs, tp(T, 'cashbox', 'summary'))));
+    await assertFails(setDoc(doc(fs, tp(T, 'customers', 'x')), newCustomer(DEMO)));
+    await assertFails(updateDoc(doc(fs, tp(T, 'products', 'p1')), { name: 'demo', updatedAt: serverTimestamp() }));
+  });
+
+  it('the super admin claim alone grants no tenant data', async () => {
+    await assertFails(getDoc(doc(pureAdmin(), tp(T, 'products', 'p1'))));
+    await assertFails(getDoc(doc(pureAdmin(), tp(DEMO, 'products', 'p1'))));
+  });
+
+  it('cannot mark itself as demo or change its own subscription from the client', async () => {
+    await assertFails(updateDoc(doc(demoAdmin(), `users/${DEMO}`), { internalDemo: true }));
+    await assertFails(setDoc(doc(demoAdmin(), `subscriptions/${DEMO}`), { internalDemo: true, lifetime: true }, { merge: true }));
+  });
+});
+
 describe('server-only ledgers (written exclusively by Cloud Functions)', () => {
   const SERVER_ONLY = [
     'sales',
@@ -289,6 +324,54 @@ describe('server-only ledgers (written exclusively by Cloud Functions)', () => {
     await assertSucceeds(getDocs(collection(reporter, tp(T, 'dailyStats'))));
     await assertSucceeds(getDocs(collection(reporter, tp(T, 'sales'))));
     await assertSucceeds(getDocs(collection(buyer(), tp(T, 'purchases'))));
+  });
+});
+
+describe('product and customer reads follow the permission that loads them', () => {
+  it('lets POS, catalog, and purchasing roles read products', async () => {
+    await assertSucceeds(getDoc(doc(cashier(), tp(T, 'products', 'p1'))));
+    await assertSucceeds(getDoc(doc(editor(), tp(T, 'products', 'p1'))));
+    await assertSucceeds(getDoc(doc(buyer(), tp(T, 'products', 'p1'))));
+    await assertSucceeds(getDocs(collection(cashier(), tp(T, 'products'))));
+  });
+
+  it('hides products from roles that never load the catalog', async () => {
+    const staff = db(env, 'staff', { role: 'subUser', perms: {} });
+    const reports = db(env, 'rep', { role: 'subUser', perms: { canViewReports: true } });
+    await assertFails(getDoc(doc(clerk(), tp(T, 'products', 'p1'))));
+    await assertFails(getDocs(collection(clerk(), tp(T, 'products'))));
+    await assertFails(getDoc(doc(staff, tp(T, 'products', 'p1'))));
+    await assertFails(getDoc(doc(reports, tp(T, 'products', 'p1'))));
+  });
+
+  it('lets POS, customers, sales, and reports read customers', async () => {
+    await assertSucceeds(getDoc(doc(cashier(), tp(T, 'customers', 'c1'))));
+    await assertSucceeds(getDoc(doc(clerk(), tp(T, 'customers', 'c1'))));
+    await assertSucceeds(getDocs(collection(clerk(), tp(T, 'customers'))));
+    const sales = db(env, 'rep', { role: 'subUser', perms: { canViewSales: true } });
+    const reports = db(env, 'staff', { role: 'subUser', perms: { canViewReports: true } });
+    await assertSucceeds(getDoc(doc(sales, tp(T, 'customers', 'c1'))));
+    await assertSucceeds(getDoc(doc(reports, tp(T, 'customers', 'c1'))));
+  });
+
+  it('hides customers from roles that never load them', async () => {
+    const staff = db(env, 'staff', { role: 'subUser', perms: {} });
+    await assertFails(getDoc(doc(editor(), tp(T, 'customers', 'c1'))));
+    await assertFails(getDocs(collection(editor(), tp(T, 'customers'))));
+    await assertFails(getDoc(doc(buyer(), tp(T, 'customers', 'c1'))));
+    await assertFails(getDoc(doc(staff, tp(T, 'customers', 'c1'))));
+  });
+
+  it('still denies another tenant, signed-out callers, and inactive members', async () => {
+    const intruder = db(env, OTHER, { tenantId: OTHER });
+    await assertFails(getDoc(doc(intruder, tp(T, 'products', 'p1'))));
+    await assertFails(getDoc(doc(intruder, tp(T, 'customers', 'c1'))));
+    const anon = env.unauthenticatedContext().firestore() as unknown as Firestore;
+    await assertFails(getDoc(doc(anon, tp(T, 'products', 'p1'))));
+    await assertFails(getDoc(doc(anon, tp(T, 'customers', 'c1'))));
+    const inactive = db(env, 'cashier', { role: 'subUser', perms: { canSell: true }, active: false });
+    await assertFails(getDoc(doc(inactive, tp(T, 'products', 'p1'))));
+    await assertFails(getDoc(doc(inactive, tp(T, 'customers', 'c1'))));
   });
 });
 
@@ -454,6 +537,42 @@ describe('category list (inline creation from Add Product)', () => {
   it('another tenant cannot add categories', async () => {
     const intruder = db(env, 'intruder', { tenantId: OTHER, role: 'owner' });
     await assertFails(setDoc(list(intruder), { names: arrayUnion('X') }, { merge: true }));
+  });
+});
+
+describe('platform release documents', () => {
+  const admin = () => db(env, 'admin', { superAdmin: true, tenantId: T });
+
+  it('nobody can write release records from the client', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fs = ctx.firestore() as unknown as Firestore;
+      await setDoc(doc(fs, 'platformReleaseManifest/current'), { productionVersion: null, paused: false });
+      await setDoc(doc(fs, 'platformReleases/0.9.0-dev'), { status: 'testing' });
+      await setDoc(doc(fs, `platformReleaseAssignments/${T}`), { assignedVersion: '0.9.0-dev' });
+    });
+    await assertFails(setDoc(doc(owner(), 'platformReleases/1.0.1'), { status: 'released' }));
+    await assertFails(setDoc(doc(admin(), 'platformReleases/1.0.1'), { status: 'released' }));
+    await assertFails(updateDoc(doc(owner(), `platformReleaseAssignments/${T}`), { assignedVersion: '9.9.9' }));
+    await assertSucceeds(getDoc(doc(owner(), `platformReleaseAssignments/${T}`)));
+    await assertFails(getDoc(doc(db(env, 'intruder', { tenantId: OTHER, role: 'owner' }), `platformReleaseAssignments/${T}`)));
+    await assertSucceeds(getDoc(doc(owner(), 'platformReleaseManifest/current')));
+    await assertSucceeds(getDoc(doc(admin(), 'platformReleases/0.9.0-dev')));
+  });
+});
+
+describe('platform sales CRM', () => {
+  const admin = () => db(env, 'admin', { superAdmin: true, tenantId: T });
+
+  it('blocks cashiers and anonymous clients from platform leads', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fs = ctx.firestore() as unknown as Firestore;
+      await setDoc(doc(fs, 'platformLeads/lead1'), { email: 'a@b.co', status: 'NEW' });
+    });
+    await assertFails(getDoc(doc(cashier(), 'platformLeads/lead1')));
+    await assertFails(setDoc(doc(cashier(), 'platformLeads/lead2'), { email: 'x@y.z' }));
+    await assertFails(setDoc(doc(owner(), 'platformLeads/lead3'), { email: 'x@y.z' }));
+    await assertSucceeds(getDoc(doc(admin(), 'platformLeads/lead1')));
+    await assertFails(updateDoc(doc(admin(), 'platformLeads/lead1'), { status: 'WON' }));
   });
 });
 

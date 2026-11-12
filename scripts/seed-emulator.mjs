@@ -8,7 +8,7 @@
  * Usage (emulators running): node scripts/seed-emulator.mjs
  */
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 
 const PROJECT_ID = 'demo-zelvero';
 const AUTH = 'http://127.0.0.1:9099';
@@ -50,6 +50,10 @@ async function user(tenantId, uid, email, role, perms) {
  * `ids` maps the logical product names to document ids so each store has its own ids.
  */
 async function seedStore(fs, { T, storeName, drawerUsdCents, users, ids, customerId, customerName }) {
+  const reserved = await getDoc(doc(fs, `platformStorageCleanup/${T}`));
+  if (reserved.exists()) {
+    throw new Error(`Refusing to seed tenant "${T}" because platformStorageCleanup/${T} reserves that id.`);
+  }
   const now = Timestamp.now();
   for (const u of users) {
     await setDoc(doc(fs, `users/${u.uid}`), {

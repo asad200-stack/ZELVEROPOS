@@ -46,20 +46,26 @@ export function planReturn(sale: Sale, request: ReturnRequestLine[], customerDeb
   let cost = 0;
   let error: ReturnError | null = null;
 
+  // Aggregate by line index first so duplicate indexes cannot bypass remaining-qty checks.
+  const requested = new Map<number, number>();
   for (const req of request) {
     const qty = Math.floor(Number(req.quantity));
     if (!qty) continue;
-    const item = sale.items[req.index];
-    if (!item || qty < 0 || !Number.isFinite(qty)) {
+    if (!Number.isFinite(qty) || qty < 0 || !sale.items[req.index]) {
       error = 'invalid';
       continue;
     }
+    requested.set(req.index, (requested.get(req.index) ?? 0) + qty);
+  }
+
+  for (const [index, qty] of requested) {
+    const item = sale.items[index]!;
     const remaining = item.quantity - (item.returnedQty || 0);
     if (qty > remaining) {
       error = 'tooMany';
       continue;
     }
-    quantities.set(req.index, (quantities.get(req.index) ?? 0) + qty);
+    quantities.set(index, qty);
     items.push({
       productId: item.productId,
       name: item.name,

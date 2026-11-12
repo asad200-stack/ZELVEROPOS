@@ -18,6 +18,16 @@ export const SIGNUP_TRIAL_DAYS = defineInt('SIGNUP_TRIAL_DAYS', {
   description: 'Number of free trial days for new stores (0 = manual activation)',
 });
 
+/**
+ * Website sales intake. `off` disables public forms. `staging` accepts real leads and quotes.
+ * On project zelvoropos, known staging hosts and @zelvero.test identities are refused before any write.
+ * `on` opens public 15-day trials for real email addresses (owner approval).
+ */
+export const WEBSITE_SALES_MODE = defineString('WEBSITE_SALES_MODE', {
+  default: 'staging',
+  description: 'Website sales backend mode: off | staging | on',
+});
+
 /** Time zone used for dates in Telegram notifications. */
 export const TELEGRAM_TIMEZONE = defineString('TELEGRAM_TIMEZONE', {
   default: 'Asia/Beirut',
@@ -32,7 +42,7 @@ export const BUSINESS_TIMEZONE = defineString('BUSINESS_TIMEZONE', {
 
 export const DAY_MS = 86_400_000;
 /** Claim value used for lifetime subscriptions (2100-01-01). */
-export const LIFETIME_UNTIL = 4_102_444_800_000;
+export { LIFETIME_UNTIL } from './subscriptionUntil.js';
 
 export const SUBDOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/;
 

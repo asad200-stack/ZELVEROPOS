@@ -1,0 +1,55 @@
+rules_version = '2';
+
+// ZELVERO POS — Storage rules (deny by default). Same custom claims as firestore.rules.
+// Images are displayed through download URLs; only tenant members may list/read/write the files.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function claim(name, fallback) { return request.auth.token.get(name, fallback); }
+
+    function userPath() {
+      return /databases/(default)/documents/users/$(request.auth.uid);
+    }
+
+    // The ID token can stay active after the profile is deactivated. Match firestore.rules:
+    // re-read the live user document. Storage rules cannot see any other project.
+    function liveActive(t) {
+      let path = userPath();
+      return firestore.exists(path)
+        && firestore.get(path).data.isActive == true
+        && firestore.get(path).data.tenantId == t;
+    }
+
+    function member(t) {
+      return request.auth != null
+        && claim('tenantId', '') == t
+        && claim('active', false) == true
+        && claim('email_verified', false) == true
+        && liveActive(t);
+    }
+
+    function can(t, p) {
+      return member(t) && (claim('role', '') == 'owner' || claim('perms', {}).get(p, false) == true);
+    }
+
+    function subscribed() { return claim('subUntil', 0) > request.time.toMillis(); }
+
+    function validImage() {
+      return request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    match /tenants/{t}/products/{file} {
+      allow read: if member(t);
+      allow create, update: if subscribed() && (can(t, 'canAddProducts') || can(t, 'canEditProducts')) && validImage();
+      allow delete: if subscribed() && (can(t, 'canAddProducts') || can(t, 'canEditProducts') || can(t, 'canDeleteProducts'));
+    }
+
+    match /tenants/{t}/logo/{file} {
+      allow read: if member(t);
+      allow create, update: if subscribed() && can(t, 'canEditSettings') && validImage();
+      allow delete: if subscribed() && can(t, 'canEditSettings');
+    }
+  }
+}

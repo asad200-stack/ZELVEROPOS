@@ -8,5 +8,12 @@
     "appIdSha256": ["92f783dbb0e234298208b015a53467eb6b1f52250f3444a961672aceb8daa333"]
   },
   "placeholderProjectIds": ["", "your-new-project-id", "zelvero-pos-REPLACE-ME"],
-  "emulatorProjectPrefix": "demo-"
+  "emulatorProjectPrefix": "demo-",
+  "productionProjectId": "zelvoropos",
+  "stagingProjectId": "zelvoropos-stage",
+  "productionHostingSites": ["zelvoropos", "zelvoropos-staging", "zelvero-web-staging"],
+  "stagingHostingSites": {
+    "pos": "zelvoropos-stage",
+    "marketing": "zelvoropos-stage-web"
+  }
 }

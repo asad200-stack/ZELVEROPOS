@@ -121,6 +121,26 @@ describe('durable queue (IndexedDB)', () => {
     expect(buildCheckoutCall(req).lines[0]).toMatchObject({ customUsdCents: 450, expectedUnitUsdCents: 450 });
   });
 
+  it('D: previous debt is collected without counting as sale revenue', () => {
+    const cart = cartOf('prev-only', []);
+    cart.customerId = 'cust-1';
+    cart.debtLineUsdCents = 10_000;
+    cart.lines = [];
+    const totals = priceCart(cart, new Map(), RATE);
+    const payload = buildCheckoutCall({
+      cart,
+      kind: 'cash',
+      rate: RATE,
+      totals,
+      cash: { receivedUsdCents: 10_000, receivedLbp: 0 },
+    });
+    expect(totals.productsUsdCents).toBe(0);
+    expect(totals.dueUsdCents).toBe(10_000);
+    expect(payload.expectedTotalUsdCents).toBe(0);
+    expect(payload.debtLineUsdCents).toBe(10_000);
+    expect(payload.lines).toEqual([]);
+  });
+
   it('never overwrites an existing operation (same clientOperationId)', async () => {
     const store = await open();
     await store.add(saleOp('dup1'));
@@ -233,6 +253,22 @@ describe('sync engine', () => {
     await retryOperation(store, 'flaky', clock);
     await e.syncNow();
     expect(await store.get('flaky')).toMatchObject({ status: 'SYNCED' });
+  });
+
+  it('a paused earlier sale does not hold later sales', async () => {
+    const store = await open();
+    const first = saleOp('first', clock);
+    first.nextAttemptAt = PAUSED;
+    first.transportFailures = MAX_AUTO_RETRIES;
+    await store.add(first);
+    await store.add(saleOp('second', clock + 1));
+    clock += 5;
+    const server = fakeServer();
+    const e = engine(store, server);
+    await e.syncNow();
+    expect(server.calls.map((c) => c.saleId)).toEqual(['second']);
+    expect(await store.get('first')).toMatchObject({ status: 'PENDING_SYNC', nextAttemptAt: PAUSED });
+    expect((await store.get('second'))?.status).toBe('SYNCED');
   });
 
   it('a waiting earlier sale blocks later ones (keeps stock priority)', async () => {

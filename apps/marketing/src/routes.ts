@@ -1,0 +1,16 @@
+export const MAIN_ROUTES = [
+  '/',
+  '/product',
+  '/solutions',
+  '/industries',
+  '/demo',
+  '/quote',
+  '/trial',
+  '/resources',
+  '/partners',
+  '/contact',
+  '/legal/privacy',
+  '/legal/terms',
+  '/legal/security',
+  '/status',
+] as const;

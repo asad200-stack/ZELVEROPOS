@@ -1,8 +1,8 @@
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { call, clearAuth, createEnv, createUser, PROJECT_ID, seedTenant, T } from './helpers';
+import { call, clearAuth, clearFirestore, createEnv, createUser, FUNCTIONS_ORIGIN, PROJECT_ID, seedTenant, T } from './helpers';
 
-const FUNCTIONS = `http://127.0.0.1:5001/${PROJECT_ID}/europe-west1`;
+const FUNCTIONS = `${FUNCTIONS_ORIGIN}/${PROJECT_ID}/europe-west1`;
 
 let env: RulesTestEnvironment;
 let ownerToken: string;
@@ -19,7 +19,7 @@ async function rawCall(name: string, data: unknown, token?: string) {
 
 beforeAll(async () => {
   env = await createEnv();
-  await env.clearFirestore();
+  await clearFirestore(env);
   await clearAuth();
   await seedTenant(env, T, [
     { uid: T, role: 'owner' },
@@ -43,6 +43,13 @@ describe('callable exposure (public invoker ≠ public business access)', () => 
   it('still allows the public signup-availability probe without an App Check token', async () => {
     const res = await rawCall('checkSignupAvailability', { subdomain: 'phase-f-store' });
     expect(res.json.result).toEqual({ subdomainAvailable: true });
+  });
+
+  it('exposes public sales intake without App Check while keeping admin CRM private', async () => {
+    const lead = await rawCall('submitWebsiteLead', { source: 'contact' });
+    expect(lead.json.error?.status).not.toBe('UNAUTHENTICATED');
+    const crm = await rawCall('adminListLeads', {});
+    expect(crm.json.error?.status).toBe('UNAUTHENTICATED');
   });
 });
 

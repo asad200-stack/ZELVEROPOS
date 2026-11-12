@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TEMP — Activate internal demo (local only)</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.45; }
+    h1 { font-size: 1.15rem; }
+    .warn { background: #fff3cd; border: 1px solid #e6c200; padding: 0.75rem 1rem; border-radius: 6px; }
+    label { display: block; margin-top: 0.75rem; font-size: 0.9rem; }
+    input { width: 100%; box-sizing: border-box; padding: 0.5rem; margin-top: 0.25rem; }
+    button { margin-top: 0.75rem; margin-right: 0.5rem; padding: 0.55rem 0.9rem; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #status { margin-top: 1rem; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+    .ok { color: #0a7a2f; }
+    .err { color: #a40000; }
+  </style>
+</head>
+<body>
+  <h1>Temporary internal demo activator</h1>
+  <p class="warn">
+    Local-only helper. Calls <code>adminProvisionInternalDemo</code> once with an empty payload
+    against project <code>zelvoropos</code>. Delete <code>scripts/tmp-activate-internal-demo/</code> after use.
+  </p>
+
+  <section id="signedOut">
+    <label>Email <input id="email" type="email" autocomplete="username" /></label>
+    <label>Password <input id="password" type="password" autocomplete="current-password" /></label>
+    <button type="button" id="signIn">Sign in</button>
+  </section>
+
+  <section id="signedIn" hidden>
+    <p id="sessionInfo"></p>
+    <button type="button" id="provision" disabled>Provision internal demo store</button>
+    <button type="button" id="signOut">Sign out</button>
+  </section>
+
+  <pre id="status"></pre>
+
+  <script type="module">
+    /*__FIREBASE_CONFIG__*/
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
+    import {
+      getAuth,
+      onAuthStateChanged,
+      signInWithEmailAndPassword,
+      signOut,
+      getIdTokenResult,
+    } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js';
+    import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-functions.js';
+
+    const cfg = window.__FIREBASE_CONFIG__;
+    if (!cfg || cfg.projectId !== 'zelvoropos') {
+      throw new Error('Refusing to run: Firebase config project is not zelvoropos');
+    }
+
+    const app = initializeApp(cfg);
+    const auth = getAuth(app);
+    const functions = getFunctions(app, cfg.functionsRegion || 'europe-west1');
+    const provisionFn = httpsCallable(functions, 'adminProvisionInternalDemo');
+
+    const statusEl = document.getElementById('status');
+    const signedOut = document.getElementById('signedOut');
+    const signedIn = document.getElementById('signedIn');
+    const sessionInfo = document.getElementById('sessionInfo');
+    const provisionBtn = document.getElementById('provision');
+    let invoked = false;
+    let eligible = false;
+
+    function setStatus(text, cls) {
+      statusEl.textContent = text;
+      statusEl.className = cls || '';
+    }
+
+    function maskEmail(email) {
+      if (!email || !email.includes('@')) return '(no email)';
+      const [u, d] = email.split('@');
+      return `${u.slice(0, 2)}…@${d}`;
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        eligible = false;
+        signedOut.hidden = false;
+        signedIn.hidden = true;
+        provisionBtn.disabled = true;
+        sessionInfo.textContent = '';
+        return;
+      }
+      signedOut.hidden = true;
+      signedIn.hidden = false;
+      const token = await getIdTokenResult(user, true);
+      const claims = token.claims || {};
+      const isSa = claims.superAdmin === true;
+      const hasTenant = typeof claims.tenantId === 'string';
+      eligible = isSa && user.emailVerified === true && !hasTenant;
+      sessionInfo.textContent =
+        `Signed in as ${maskEmail(user.email || '')}. ` +
+        `emailVerified=${user.emailVerified === true}. ` +
+        `superAdmin=${isSa}. ` +
+        `hasTenantId=${hasTenant}. ` +
+        (eligible ? 'Ready to provision.' : 'Not eligible — Super Admin without tenantId required.');
+      provisionBtn.disabled = !eligible || invoked;
+    });
+
+    document.getElementById('signIn').onclick = async () => {
+      setStatus('Signing in…');
+      try {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        document.getElementById('password').value = '';
+        await signInWithEmailAndPassword(auth, email, password);
+        setStatus('Signed in. Review session info, then confirm provisioning.', 'ok');
+      } catch (e) {
+        setStatus(`Sign-in failed: ${e && e.code ? e.code : 'error'}`, 'err');
+      }
+    };
+
+    document.getElementById('signOut').onclick = async () => {
+      await signOut(auth);
+      setStatus('Signed out.');
+    };
+
+    document.getElementById('provision').onclick = async () => {
+      if (invoked) {
+        setStatus('Already invoked once in this page. Refresh only if you intentionally need a second attempt.', 'err');
+        return;
+      }
+      if (!eligible) {
+        setStatus('Session is not eligible.', 'err');
+        return;
+      }
+      const ok = window.confirm(
+        'Create the internal demo store for the currently signed-in Super Admin?\n\n' +
+          'This calls adminProvisionInternalDemo once with an empty payload.\n' +
+          'No UID or tenant ID will be sent from the browser.',
+      );
+      if (!ok) {
+        setStatus('Cancelled. No request was sent.');
+        return;
+      }
+      invoked = true;
+      provisionBtn.disabled = true;
+      setStatus('Calling adminProvisionInternalDemo once…');
+      try {
+        const result = await provisionFn({});
+        const data = result && result.data ? result.data : result;
+        setStatus(
+          `Success.\nok=${data && data.ok}\ncreated=${data && data.created}\ntenantId length=${data && data.tenantId ? String(data.tenantId).length : 0}\n\n` +
+            'Next: open https://zelvoropos.web.app , hard-reload (or sign out/in), then go to /dashboard and /pos.\n' +
+            'Delete scripts/tmp-activate-internal-demo/ when finished.',
+          'ok',
+        );
+      } catch (e) {
+        setStatus(
+          `Callable failed (no automatic retry).\ncode=${e && e.code ? e.code : 'unknown'}\nmessage=${e && e.message ? e.message : 'error'}`,
+          'err',
+        );
+      }
+    };
+  </script>
+</body>
+</html>

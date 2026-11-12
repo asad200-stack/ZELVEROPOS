@@ -75,8 +75,8 @@ export function CustomerFormModal({ customer, onClose }: { customer: Customer | 
           <TextInput label={t('auth.phone')} type="tel" {...form.bind('phone')} />
           <TextInput label={t('auth.email')} type="email" {...form.bind('email')} />
           <TextInput label={t('customers.address')} {...form.bind('address')} />
-          <MoneyInput label={`${t('customers.creditLimit')} ($)`} required {...form.bind('creditLimit')} />
-          {!customer && <MoneyInput label={`${t('customers.openingDebt')} ($)`} {...form.bind('openingDebt')} />}
+          <MoneyInput currency="usd" label={`${t('customers.creditLimit')} ($)`} required {...form.bind('creditLimit')} />
+          {!customer && <MoneyInput currency="usd" label={`${t('customers.openingDebt')} ($)`} {...form.bind('openingDebt')} />}
         </FormGrid>
         <button type="submit" hidden />
       </form>
@@ -130,8 +130,8 @@ export function PayDebtModal({ customer, onClose }: { customer: Customer; onClos
           </div>
         </div>
         <FormGrid>
-          <MoneyInput label={t('pos.paidUsd')} value={usd} onChange={(e) => setUsd(e.target.value)} autoFocus />
-          <MoneyInput label={t('pos.paidLbp')} value={lbp} onChange={(e) => setLbp(e.target.value)} />
+          <MoneyInput currency="usd" label={t('pos.paidUsd')} value={usd} onChange={(e) => setUsd(e.target.value)} autoFocus />
+          <MoneyInput currency="lbp" label={t('pos.paidLbp')} value={lbp} onChange={(e) => setLbp(e.target.value)} />
         </FormGrid>
         <Button variant="ghost" size="sm" onClick={() => { setUsd(centsToInput(customer.debtUsdCents)); setLbp(''); }}>
           {t('customers.payFull')}
@@ -187,7 +187,7 @@ export function AdjustDebtModal({ customer, onClose }: { customer: Customer; onC
     >
       <div className="stack">
         <p className="muted small">{t('customers.adjustDebtHint')}</p>
-        <MoneyInput label={`${t('customers.newDebt')} ($)`} value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+        <MoneyInput currency="usd" label={`${t('customers.newDebt')} ($)`} value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
         <TextInput label={t('common.note')} required value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
       </div>
     </Modal>

@@ -155,6 +155,7 @@ function CashMoveDialog({
           ]}
         />
         <MoneyInput
+          currency={currency === 'LBP' ? 'lbp' : 'usd'}
           label={t('cash.amount')}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}

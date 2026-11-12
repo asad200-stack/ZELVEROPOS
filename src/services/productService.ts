@@ -32,6 +32,8 @@ export interface ProductInput {
   barcode: string;
   prices: TierPrices;
   costUsdCents: number;
+  /** False when costUsdCents is $0.00 only because the purchase cost was not provided. */
+  costKnown?: boolean;
   minStock: number | null;
   supplierId: string | null;
   supplierName: string;
@@ -56,6 +58,7 @@ function productFields(input: ProductInput): ProductFieldsCall {
     barcode: input.barcode.trim(),
     prices: input.prices,
     costUsdCents: Math.max(0, Math.round(input.costUsdCents)),
+    costKnown: input.costKnown !== false,
     minStock: input.minStock,
     supplierId: input.supplierId,
     supplierName: input.supplierName,
@@ -65,23 +68,28 @@ function productFields(input: ProductInput): ProductFieldsCall {
 }
 
 /** Creates a product server-side (initial stock is recorded as a stock movement). */
-export async function createProduct(input: ProductInput): Promise<string> {
+export async function createProduct(
+  input: ProductInput,
+  clientOperationId = newClientOperationId(),
+): Promise<{ id: string; duplicate: boolean }> {
   requireOnline();
   const trimmed = input.initialImeis.map((s) => s.trim()).filter(Boolean);
   const initialImeis = [...new Set(trimmed)];
-  const duplicate = trimmed.find((serial, index) => trimmed.indexOf(serial) !== index);
-  if (duplicate) throw new AppError('error.imeiExists', { imei: duplicate });
+  const duplicateSerial = trimmed.find((serial, index) => trimmed.indexOf(serial) !== index);
+  if (duplicateSerial) throw new AppError('error.imeiExists', { imei: duplicateSerial });
   const stock = Math.max(0, Math.floor(input.initialStock));
   // Stock 0 still means "use the serial count" for older clients. Any other count must match.
   if (input.imeiTracking && stock !== 0 && stock !== initialImeis.length) {
     throw new AppError('error.initialImeiCount', { stock });
   }
-  const { id } = await posApi.createProduct({
-    product: productFields(input),
-    initialStock: stock,
-    initialImeis: input.imeiTracking ? initialImeis : [],
-  });
-  return id;
+  return retryOnTransport(() =>
+    posApi.createProduct({
+      clientOperationId,
+      product: productFields(input),
+      initialStock: stock,
+      initialImeis: input.imeiTracking ? initialImeis : [],
+    }),
+  );
 }
 
 /** Edits master data only; stock and IMEIs change exclusively through server-side operations. */
@@ -179,6 +187,12 @@ export async function addCategory(tenantId: string, name: string): Promise<void>
   const clean = name.trim();
   if (!clean) throw new AppError('error.required');
   await setDoc(paths.categories(tenantId), { names: arrayUnion(clean) }, { merge: true });
+}
+
+/** True when at least one product has an unknown cost. A stored zero is not treated as a known cost. */
+export async function catalogHasUnknownCost(tenantId: string): Promise<boolean> {
+  const snap = await getDocs(query(paths.col(tenantId, 'products'), where('costKnown', '==', false), limit(1)));
+  return !snap.empty;
 }
 
 async function categoryPage(tenantId: string, name: string, cursor: QueryDocumentSnapshot | null, size: number) {

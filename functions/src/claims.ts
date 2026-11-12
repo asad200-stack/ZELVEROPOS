@@ -1,7 +1,9 @@
 import type { DocumentData } from 'firebase-admin/firestore';
 import { auth, db } from './admin.js';
-import { LIFETIME_UNTIL } from './config.js';
 import { grantedOnly, normalizePermissions } from './permissions.js';
+import { subUntilOf } from './subscriptionUntil.js';
+
+export { LIFETIME_UNTIL, subUntilOf } from './subscriptionUntil.js';
 
 export interface TenantClaims {
   tenantId: string;
@@ -11,14 +13,6 @@ export interface TenantClaims {
   cv: number;
   perms?: Record<string, true>;
   superAdmin?: true;
-}
-
-/** Milliseconds until which the tenant may write (0 = not subscribed). */
-export function subUntilOf(sub: DocumentData | undefined): number {
-  if (!sub || sub.activated !== true) return 0;
-  if (sub.lifetime === true) return LIFETIME_UNTIL;
-  const endsAt = sub.endsAt as { toMillis?: () => number } | null | undefined;
-  return typeof endsAt?.toMillis === 'function' ? endsAt.toMillis() : 0;
 }
 
 export function buildClaims(profile: DocumentData, sub: DocumentData | undefined, cv: number, superAdmin: boolean): TenantClaims {

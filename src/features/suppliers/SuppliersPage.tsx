@@ -25,6 +25,7 @@ import {
 import { countWhere, pageSuppliers } from '@/services/catalogQuery';
 import type { Currency, PaymentMethod, Purchase, PurchaseReturn, Supplier, SupplierPayment } from '@/types/models';
 import { formatDate, formatDateTime, formatLbp, formatUsd } from '@/utils/format';
+import { registerPageUiHost, unregisterPageUiHost } from '@/features/ai/actions/pageUiBridge';
 import { supplierSchema } from '@/validation/schemas';
 
 type Dialog = { type: 'form'; supplier: Supplier | null } | { type: 'pay'; supplier: Supplier } | { type: 'history'; supplier: Supplier } | null;
@@ -38,6 +39,18 @@ export default function SuppliersPage() {
   const [count, setCount] = useState<number | null>(null);
   const deferred = useDeferredValue(search);
   const del = useAsyncAction('supplier-delete');
+
+  useEffect(() => {
+    const host = {
+      openCreateForm: () => {
+        setDialog({ type: 'form', supplier: null });
+        return true;
+      },
+    };
+    registerPageUiHost('/suppliers', host);
+    return () => unregisterPageUiHost('/suppliers', host);
+  }, []);
+
   const fetchPage = useCallback(
     (cursor: QueryDocumentSnapshot | null) => pageSuppliers(tenantId, { search: deferred }, cursor),
     [tenantId, deferred],
@@ -250,7 +263,7 @@ function PaySupplierModal({ supplier, onClose }: { supplier: Supplier; onClose: 
               { value: 'LBP', label: lang === 'ar' ? 'ليرة ل.ل' : 'LBP' },
             ]}
           />
-          <MoneyInput label={t('common.amount')} value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+          <MoneyInput currency={currency === 'LBP' ? 'lbp' : 'usd'} label={t('common.amount')} value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
           <SelectInput
             label={t('suppliers.method')}
             value={method}

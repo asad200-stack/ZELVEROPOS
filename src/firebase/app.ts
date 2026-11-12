@@ -10,6 +10,7 @@ import {
 import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
 import { connectStorageEmulator, getStorage, type FirebaseStorage } from 'firebase/storage';
 import { initAppCheck } from './appCheck';
+import { isolatedProjectAllowed } from './emulatorIsolated';
 import { resolveFirebaseConfig, type ResolvedFirebaseConfig } from './config';
 import { isBlockedProjectId } from './isolation';
 
@@ -22,7 +23,55 @@ interface FirebaseServices {
   config: ResolvedFirebaseConfig;
 }
 
+/** Primary (stock) Emulator Suite ports from firebase.json — unchanged for `emulator` mode. */
+const PRIMARY_EMULATOR = {
+  authOrigin: 'http://127.0.0.1:9099',
+  firestoreHost: '127.0.0.1',
+  firestorePort: 8080,
+  functionsHost: '127.0.0.1',
+  functionsPort: 5001,
+  storageHost: '127.0.0.1',
+  storagePort: 9199,
+} as const;
+
 let services: FirebaseServices | null = null;
+
+/**
+ * Connects SDK services to either the isolated alternate-port harness or the primary local suite.
+ * Cloud paths never enter here (`useEmulators` is false).
+ */
+export function connectFirebaseEmulators(
+  auth: Auth,
+  db: Firestore,
+  functions: Functions,
+  storage: FirebaseStorage,
+  config: ResolvedFirebaseConfig,
+): void {
+  if (!config.useEmulators) {
+    throw new Error('Refusing emulator connect: useEmulators is false.');
+  }
+
+  if (config.isolatedEmulators) {
+    const endpoints = config.isolatedEndpoints;
+    if (!endpoints) {
+      throw new Error('Isolated emulator mode is enabled but endpoints are missing.');
+    }
+    if (!isolatedProjectAllowed(config.projectId, config.isolatedAllowProject)) {
+      throw new Error(`Isolated emulator connect refused for project "${config.projectId}".`);
+    }
+    connectAuthEmulator(auth, endpoints.authOrigin, { disableWarnings: true });
+    connectFirestoreEmulator(db, endpoints.firestoreHost, endpoints.firestorePort);
+    connectFunctionsEmulator(functions, endpoints.functionsHost, endpoints.functionsPort);
+    connectStorageEmulator(storage, endpoints.storageHost, endpoints.storagePort);
+    return;
+  }
+
+  // Existing primary emulator path (dev:emulators / .env.emulator) — unchanged ports.
+  connectAuthEmulator(auth, PRIMARY_EMULATOR.authOrigin, { disableWarnings: true });
+  connectFirestoreEmulator(db, PRIMARY_EMULATOR.firestoreHost, PRIMARY_EMULATOR.firestorePort);
+  connectFunctionsEmulator(functions, PRIMARY_EMULATOR.functionsHost, PRIMARY_EMULATOR.functionsPort);
+  connectStorageEmulator(storage, PRIMARY_EMULATOR.storageHost, PRIMARY_EMULATOR.storagePort);
+}
 
 /**
  * Lazily initialises Firebase exactly once. Throws FirebaseConfigError when the configuration is
@@ -37,6 +86,9 @@ export function getFirebase(): FirebaseServices {
   if (isBlockedProjectId(app.options.projectId ?? '')) {
     throw new Error('Refusing to connect: the initialised Firebase app targets the OLD CATCH POS project.');
   }
+  if (config.isolatedEmulators && !isolatedProjectAllowed(app.options.projectId ?? '', config.isolatedAllowProject)) {
+    throw new Error('Refusing to connect: isolated emulator harness only allows demo-zelvero.');
+  }
 
   initAppCheck(app, config);
 
@@ -49,10 +101,7 @@ export function getFirebase(): FirebaseServices {
   const functions = getFunctions(app, config.functionsRegion);
 
   if (config.useEmulators) {
-    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-    connectFirestoreEmulator(db, '127.0.0.1', 8080);
-    connectFunctionsEmulator(functions, '127.0.0.1', 5001);
-    connectStorageEmulator(storage, '127.0.0.1', 9199);
+    connectFirebaseEmulators(auth, db, functions, storage, config);
   }
 
   services = { app, auth, db, storage, functions, config };

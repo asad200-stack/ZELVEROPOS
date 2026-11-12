@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Compact cart header</title>
+    <link rel="stylesheet" href="/src/styles/pages.css" />
+    <style>
+      :root {
+        --c-bg: #f4f6fa; --c-surface: #fff; --c-surface-2: #f8fafc; --c-border: #e2e8f0; --c-border-strong: #cbd5e1;
+        --c-text: #0f172a; --c-text-muted: #64748b; --c-muted: #64748b; --c-primary: #4f46e5; --c-primary-soft: #eef2ff;
+        --c-on-primary: #fff; --c-warning: #d97706; --c-warning-soft: #fffbeb; --c-danger: #dc2626; --radius-sm: 6px;
+        --radius-lg: 14px; --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06); --shadow-md: 0 8px 24px rgb(15 23 42 / 0.12);
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--c-bg); color: var(--c-text); padding: 16px; }
+      .stage { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+      .lbl { font-size: 11px; color: var(--c-muted); margin-bottom: 4px; }
+      .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+      .field__label { font-size: 0.83rem; font-weight: 600; color: var(--c-text-muted); }
+      .input, select.input { width: 100%; height: 38px; padding: 0 11px; background: var(--c-surface); border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm); }
+      .segmented { display: flex; padding: 3px; gap: 3px; background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--radius-sm); }
+      .segmented__item { flex: 1; height: 34px; border: 0; border-radius: 5px; background: transparent; font-weight: 600; color: var(--c-text-muted); }
+      .segmented__item--active { background: var(--c-surface); color: var(--c-primary); }
+      .btn { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--c-border); border-radius: var(--radius-sm); font-weight: 600; white-space: nowrap; background: #fff; }
+      .btn--sm { height: 30px; padding: 0 10px; font-size: 0.82rem; }
+      .btn--primary { background: var(--c-primary); color: #fff; border-color: transparent; }
+      .pos__cart { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-lg); overflow: hidden; container-type: inline-size; }
+      .pos__lines { height: 72px; background: #f8fafc; }
+    </style>
+  </head>
+  <body>
+    <div class="stage" id="stage"></div>
+    <script>
+      const r1 = `
+        <div class="cart-options">
+          <div class="field"><span class="field__label">Price tier</span><select class="input"><option>Retail</option></select></div>
+          <div class="field"><span class="field__label">Currency</span><select class="input"><option>USD $</option></select></div>
+          <div class="field cart-options__pay"><span class="field__label">Payment method</span>
+            <div class="segmented"><button class="segmented__item segmented__item--active">Full Payment</button><button class="segmented__item">Credit Sale</button></div>
+          </div>
+        </div>`;
+      function row2(kind) {
+        if (kind === 'credit') return `<div class="cart-customer-row"><label class="field cart-customer-row__search"><span class="field__label field__label--warn">Select a customer</span><input class="input" placeholder="Search customers…"></label><button class="btn btn--sm btn--primary">Walk-in</button></div>`;
+        if (kind === 'debt') return `<div class="cart-customer-row"><label class="field cart-customer-row__search"><span class="field__label">Customer</span><input class="input" value="John"></label><button class="btn btn--sm">Walk-in</button><span class="cart-debt-actions"><span class="cart-debt-chip">Debt $40.00</span><button class="cart-debt-btn">Add Previous</button></span></div>`;
+        if (kind === 'prev') return `<div class="cart-customer-row"><label class="field cart-customer-row__search"><span class="field__label">Customer</span><input class="input" value="John"></label><button class="btn btn--sm">Walk-in</button><span class="cart-debt-actions"><span class="cart-debt-chip cart-debt-chip--on">Previous +$40.00</span><button class="cart-debt-btn">Remove</button></span></div>`;
+        return `<div class="cart-customer-row"><label class="field cart-customer-row__search"><span class="field__label">Customer</span><input class="input" placeholder="Search customers…"></label><button class="btn btn--sm btn--primary">Walk-in</button></div>`;
+      }
+      const cases = [
+        [380, 'credit'], [380, 'debt'], [420, 'debt'], [460, 'prev'], [500, 'idle']
+      ];
+      document.getElementById('stage').innerHTML = cases.map(([w, k], i) =>
+        `<div><div class="lbl" data-lbl="${i}">${w}px ${k}</div><section class="pos__cart" style="width:${w}px"><div class="cart-head" data-head>${r1}${row2(k)}</div><div class="pos__lines"></div></section></div>`
+      ).join('');
+      for (const el of document.querySelectorAll('[data-head]')) {
+        const lbl = el.parentElement.parentElement.querySelector('.lbl');
+        lbl.textContent += ' · header ' + el.offsetHeight + 'px · rows ' + el.children.length;
+      }
+    </script>
+  </body>
+</html>

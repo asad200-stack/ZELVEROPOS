@@ -26,13 +26,21 @@ export function serviceWorkerPlugin(): Plugin {
     },
     async closeBundle() {
       const outDir = resolve(config.root, config.build.outDir);
-      const files = precacheList(await listFiles(outDir));
-      if (!files.includes('/index.html')) throw new Error('[sw] index.html missing from the build output');
+      const base = String(config.base || '/').replace(/\/+$/, '') || '';
+      const relative = await listFiles(outDir);
+      const files = precacheList(relative, base);
+      if (!files.includes(`${base}/index.html`) && !files.includes('/index.html')) {
+        throw new Error('[sw] index.html missing from the build output');
+      }
       // The worker's own code is part of the version: a new worker must never install into the cache
       // the running one is serving from (a failed install deletes its cache).
       const hash = createHash('sha256').update(process.env.ZELVERO_BUILD_TAG ?? '');
       for (const src of WORKER_SOURCES) hash.update(await readFile(resolve(config.root, src)));
-      for (const file of files) hash.update(file).update(await readFile(join(outDir, file)));
+      for (const rel of relative) {
+        const url = precacheList([rel], base)[0];
+        if (!url) continue;
+        hash.update(url).update(await readFile(join(outDir, rel)));
+      }
       const version = hash.digest('hex').slice(0, 16);
 
       await build({
@@ -43,6 +51,7 @@ export function serviceWorkerPlugin(): Plugin {
         define: {
           __SW_VERSION__: JSON.stringify(version),
           __SW_PRECACHE__: JSON.stringify(files),
+          __SW_ISOLATED__: JSON.stringify(base !== '' && base !== '/'),
         },
         build: {
           outDir,

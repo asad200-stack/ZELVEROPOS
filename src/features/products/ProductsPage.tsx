@@ -18,13 +18,15 @@ import { deleteProductPermanently, setProductStatus } from '@/services/productSe
 import type { Product } from '@/types/models';
 import { downloadCsv } from '@/utils/csv';
 import { formatDate, formatUsd } from '@/utils/format';
+import type { ProductDraftFields } from '@/features/ai/actions/productDraft';
+import { registerPageUiHost, unregisterPageUiHost } from '@/features/ai/actions/pageUiBridge';
 import { ProductFormModal } from './ProductFormModal';
 import { CategoriesModal, ImportProductsModal, LabelsModal, MovementsModal } from './ProductTools';
 import { StockAdjustModal } from './StockAdjustModal';
 
 type Filter = 'all' | 'low' | 'out' | 'archived';
 type Dialog =
-  | { type: 'form'; product: Product | null }
+  | { type: 'form'; product: Product | null; seed?: ProductDraftFields | null }
   | { type: 'adjust'; product: Product }
   | { type: 'movements'; product: Product }
   | { type: 'labels'; products: Product[] }
@@ -44,10 +46,25 @@ export default function ProductsPage() {
   const [category, setCategory] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [createEpoch, setCreateEpoch] = useState(0);
   const [counts, setCounts] = useState<{ active: number; archived: number } | null>(null);
   const deferred = useDeferredValue(search);
   const del = useAsyncAction('product-delete');
   const canSeeCost = can('canViewCosts');
+  const canAdd = can('canAddProducts');
+
+  useEffect(() => {
+    const host = {
+      openCreateForm: (seed?: ProductDraftFields) => {
+        if (!canAdd) return false;
+        setCreateEpoch((n) => n + 1);
+        setDialog({ type: 'form', product: null, seed: seed ?? null });
+        return true;
+      },
+    };
+    registerPageUiHost('/products', host);
+    return () => unregisterPageUiHost('/products', host);
+  }, [canAdd]);
   const spec = useMemo(
     () => emptyProductQuery({ mode: MODE[filter], category, search: deferred, lowStockAt: settings.lowStockThreshold }),
     [filter, category, deferred, settings.lowStockThreshold],
@@ -83,7 +100,7 @@ export default function ProductsPage() {
         (p.prices.wholesale.usdCents / 100).toFixed(2),
         (p.prices.vip.usdCents / 100).toFixed(2),
         p.prices.retail.lbp ?? '',
-        ...(canSeeCost ? [(p.costUsdCents / 100).toFixed(2)] : []),
+        ...(canSeeCost ? [p.costKnown === false ? 'unknown' : (p.costUsdCents / 100).toFixed(2)] : []),
         p.stock,
         p.minStock ?? '',
         p.expiryDate ?? '',
@@ -223,7 +240,9 @@ export default function ProductsPage() {
                       <td>{p.category || '—'}</td>
                       <td className="num">{formatUsd(p.prices.retail.usdCents)}</td>
                       <td className="num hide-sm">{formatUsd(p.prices.wholesale.usdCents)}</td>
-                      {canSeeCost && <td className="num hide-sm">{formatUsd(p.costUsdCents)}</td>}
+                      {canSeeCost && (
+                        <td className="num hide-sm">{p.costKnown === false ? t('products.costUnknown') : formatUsd(p.costUsdCents)}</td>
+                      )}
                       <td className="num">
                         <Badge tone={p.stock <= 0 ? 'danger' : isLowStock(p, settings.lowStockThreshold) ? 'warning' : 'success'}>{p.stock}</Badge>
                       </td>
@@ -268,7 +287,14 @@ export default function ProductsPage() {
         </>
       )}
 
-      {dialog?.type === 'form' && <ProductFormModal product={dialog.product} onClose={() => setDialog(null)} />}
+      {dialog?.type === 'form' && (
+        <ProductFormModal
+          key={dialog.product?.id ?? (dialog.seed ? `ai-${createEpoch}` : 'manual')}
+          product={dialog.product}
+          seed={dialog.seed}
+          onClose={() => setDialog(null)}
+        />
+      )}
       {dialog?.type === 'adjust' && <StockAdjustModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'movements' && <MovementsModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'labels' && <LabelsModal products={dialog.products} onClose={() => setDialog(null)} />}

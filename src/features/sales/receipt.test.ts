@@ -14,6 +14,7 @@ const settings: StoreSettings = {
   logoPath: null,
   receiptFooter: xss,
   printFormat: 'thermal80',
+  autoPrintInvoice: false,
   exchangeRate: 89500,
   defaultCurrency: 'USD',
   lowStockAlert: false,
@@ -73,11 +74,59 @@ const sale: Sale = {
   localDate: '2026-10-09',
 };
 
+describe('receipt format', () => {
+  it('prints the same sale as 80mm or A4 without changing the amounts', () => {
+    const ctx = { settings, lang: 'en' as const, t };
+    const thermal = buildSaleReceipt(sale, { ...ctx, format: 'thermal80' });
+    const a4 = buildSaleReceipt(sale, { ...ctx, format: 'a4' });
+    expect(thermal).toContain('size:80mm auto');
+    expect(thermal).not.toContain('size:A4');
+    expect(a4).toContain('size:A4');
+    expect(a4).not.toContain('size:80mm auto');
+    for (const html of [thermal, a4]) {
+      expect(html).toContain('INV-1');
+      expect(html).toContain('$1.00');
+      expect(html).toContain('&lt;script&gt;');
+      expect(html).not.toContain('<script>');
+    }
+    expect(settings.printFormat).toBe('thermal80');
+  });
+});
+
 describe('receipt XSS', () => {
   it('escapes user-controlled names, notes and IMEI in printed HTML', () => {
     const html = buildSaleReceipt(sale, { settings, lang: 'en', t });
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('javascript:alert');
+  });
+});
+
+describe('receipt previous debt', () => {
+  it('I: lists previous debt paid separately from sale items and revenue', () => {
+    const html = buildSaleReceipt(
+      {
+        ...sale,
+        customerName: 'Ada',
+        totalUsdCents: 10_000,
+        payment: {
+          ...sale.payment,
+          receivedUsdCents: 14_000,
+          previousDebtUsdCents: 4_000,
+          settledPreviousUsdCents: 4_000,
+          debtAfterUsdCents: 0,
+        },
+      },
+      { settings, lang: 'en', t },
+    );
+    expect(html).toContain('pos.totalSale');
+    expect(html).toContain('receipt.previousDebtPaid');
+    expect(html).toContain('$40.00');
+    expect(html).toContain('receipt.totalCollected');
+    expect(html).toContain('$140.00');
+    expect(html).toContain('receipt.balanceAfter');
+    expect(html).not.toMatch(/<td>Previous balance<\/td>/);
+    const itemTable = html.slice(html.indexOf('<tbody>'), html.indexOf('</tbody>'));
+    expect(itemTable).not.toContain('$40.00');
   });
 });

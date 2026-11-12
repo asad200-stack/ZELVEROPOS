@@ -1,15 +1,43 @@
 import { httpsCallable } from 'firebase/functions';
+import { API_COMPAT_VERSION, APP_RELEASE_VERSION } from '@/constants/app';
+import { isAdminPreviewBuild } from '@/domain/adminPreview';
+import { customerReleaseCutoverAllowed } from '@/domain/previewAccess';
 import { firebase } from '@/firebase/app';
 import type { PermissionMap } from '@/constants/permissions';
 import { withoutUndefined } from './callableData';
+import { requirePreviewCredential } from './previewCredential';
 
 /** Typed wrappers for the callable Cloud Functions (see functions/src). */
 function callable<Req, Res>(name: string) {
   return async (data: Req): Promise<Res> => {
-    const fn = httpsCallable<Req, Res>(firebase.functions, name, { timeout: 60_000 });
-    const result = await fn(withoutUndefined(data));
+    const fn = httpsCallable<Req & { clientApiVersion: number; clientReleaseVersion: string }, Res>(firebase.functions, name, { timeout: 60_000 });
+    const result = await fn(withoutUndefined({ ...(data as object), clientApiVersion: API_COMPAT_VERSION, clientReleaseVersion: APP_RELEASE_VERSION } as Req & { clientApiVersion: number; clientReleaseVersion: string }));
     return result.data;
   };
+}
+
+/** Customer builds call the POS function directly. The preview build must present its server credential. */
+function posOperation<Req, Res>(operation: string) {
+  if (!isAdminPreviewBuild(import.meta.env)) return callable<Req, Res>(operation);
+  return async (data: Req): Promise<Res> => {
+    const cred = requirePreviewCredential();
+    return callable<{ credentialId: string; secret: string; operation: string; payload: Req }, Res>('previewPos')({
+      credentialId: cred.credentialId,
+      secret: cred.secret,
+      operation,
+      payload: data,
+    });
+  };
+}
+
+/** The preview bundle cannot start a customer release. The normal Super Admin app still can. */
+function releaseCutover<Req, Res>(name: string) {
+  if (!customerReleaseCutoverAllowed(isAdminPreviewBuild(import.meta.env))) {
+    return async (): Promise<Res> => {
+      throw new Error('preview-release-cutover-blocked');
+    };
+  }
+  return callable<Req, Res>(name);
 }
 
 export interface SignupInput {
@@ -21,6 +49,7 @@ export interface SignupInput {
 
 export interface AdminAccount {
   uid: string;
+  tenantId?: string;
   email: string;
   fullName: string;
   storeName: string;
@@ -29,7 +58,15 @@ export interface AdminAccount {
   createdAt: number | null;
   lastSignInAt: number | null;
   subUserCount: number;
-  subscription: { activated: boolean; lifetime: boolean; startsAt: number | null; endsAt: number | null };
+  internalDemo?: boolean;
+  subscription: {
+    activated: boolean;
+    lifetime: boolean;
+    startsAt: number | null;
+    endsAt: number | null;
+    trial?: boolean;
+    status?: string | null;
+  };
 }
 
 export type SubscriptionAction =
@@ -47,6 +84,7 @@ export interface CheckoutCall {
   saleId: string;
   kind: 'cash' | 'credit';
   currency: 'USD' | 'LBP';
+  tier?: Tier;
   rate: number;
   customerId: string | null;
   debtLineUsdCents: number | null;
@@ -80,6 +118,8 @@ export interface ProductFieldsCall {
   barcode: string;
   prices: PricesInput;
   costUsdCents: number;
+  /** False when the number is a placeholder because the purchase cost was not provided. */
+  costKnown?: boolean;
   minStock: number | null;
   supplierId: string | null;
   supplierName: string;
@@ -100,16 +140,19 @@ export interface ImportRowCall {
 
 /** Money and stock operations: executed and validated server-side (functions/src/pos). */
 export const posApi = {
-  checkout: callable<CheckoutCall, CheckoutResponse>('posCheckout'),
-  processReturn: callable<
+  checkout: posOperation<CheckoutCall, CheckoutResponse>('posCheckout'),
+  processReturn: posOperation<
     { clientOperationId: string; saleId: string; lines: { index: number; quantity: number }[]; reason: string },
     { saleReturn: Record<string, unknown> & { id: string }; duplicate: boolean }
   >('posReturn'),
-  createProduct: callable<{ product: ProductFieldsCall; initialStock: number; initialImeis: string[] }, { id: string }>('posCreateProduct'),
-  importProducts: callable<{ rows: ImportRowCall[] }, { imported: number }>('posImportProducts'),
-  setProductStatus: callable<{ productId: string; status: 'active' | 'archived' }, Ok>('posSetProductStatus'),
-  deleteProduct: callable<{ productId: string }, Ok>('posDeleteProduct'),
-  adjustStock: callable<
+  createProduct: posOperation<
+    { clientOperationId: string; product: ProductFieldsCall; initialStock: number; initialImeis: string[] },
+    { id: string; duplicate: boolean }
+  >('posCreateProduct'),
+  importProducts: posOperation<{ rows: ImportRowCall[] }, { imported: number }>('posImportProducts'),
+  setProductStatus: posOperation<{ productId: string; status: 'active' | 'archived' }, Ok>('posSetProductStatus'),
+  deleteProduct: posOperation<{ productId: string }, Ok>('posDeleteProduct'),
+  adjustStock: posOperation<
     {
       clientOperationId: string;
       productId: string;
@@ -123,7 +166,7 @@ export const posApi = {
     },
     Ok
   >('posAdjustStock'),
-  createCustomer: callable<
+  createCustomer: posOperation<
     {
       clientOperationId: string;
       customer: { name: string; phone: string; email: string; address: string; creditLimitUsdCents: number };
@@ -131,12 +174,12 @@ export const posApi = {
     },
     { id: string; duplicate: boolean }
   >('posCreateCustomer'),
-  payDebt: callable<
+  payDebt: posOperation<
     { clientOperationId: string; customerId: string; usdCents: number; lbp: number; rate: number; note: string },
     Ok
   >('posPayDebt'),
-  adjustDebt: callable<{ clientOperationId: string; customerId: string; newDebtUsdCents: number; note: string }, Ok>('posAdjustDebt'),
-  cashMove: callable<
+  adjustDebt: posOperation<{ clientOperationId: string; customerId: string; newDebtUsdCents: number; note: string }, Ok>('posAdjustDebt'),
+  cashMove: posOperation<
     {
       clientOperationId: string;
       type: 'deposit' | 'expense' | 'withdrawal';
@@ -147,8 +190,8 @@ export const posApi = {
     },
     Ok
   >('posCashMove'),
-  adjustDrawer: callable<{ clientOperationId: string; usdCents: number; lbp: number; note: string }, Ok>('posAdjustDrawer'),
-  createPurchase: callable<
+  adjustDrawer: posOperation<{ clientOperationId: string; usdCents: number; lbp: number; note: string }, Ok>('posAdjustDrawer'),
+  createPurchase: posOperation<
     {
       clientOperationId: string;
       supplierId: string;
@@ -162,7 +205,7 @@ export const posApi = {
     },
     { id: string; duplicate: boolean }
   >('posCreatePurchase'),
-  paySupplier: callable<
+  paySupplier: posOperation<
     {
       clientOperationId: string;
       supplierId: string;
@@ -174,7 +217,7 @@ export const posApi = {
     },
     Ok
   >('posPaySupplier'),
-  returnToSupplier: callable<
+  returnToSupplier: posOperation<
     { clientOperationId: string; purchaseId: string; lines: { index: number; quantity: number }[]; note: string },
     Ok
   >('posReturnToSupplier'),
@@ -196,6 +239,190 @@ export const api = {
   testTelegram: callable<Record<string, never>, { ok: true }>('testTelegram'),
   bootstrapSuperAdmin: callable<Record<string, never>, { ok: true }>('bootstrapSuperAdmin'),
   adminListAccounts: callable<Record<string, never>, { accounts: AdminAccount[] }>('adminListAccounts'),
-  adminSetSubscription: callable<{ uid: string } & SubscriptionAction, { ok: true }>('adminSetSubscription'),
-  adminDeleteAccount: callable<{ uid: string; confirm: string }, { ok: true }>('adminDeleteAccount'),
+  adminProvisionInternalDemo: callable<Record<string, never>, { ok: true; tenantId: string; created: boolean }>('adminProvisionInternalDemo'),
+  /** Zelvero AI (internal demo only). Server resolves the store and refuses everyone else. */
+  aiCopilotAccess: callable<Record<string, never>, { allowed: true; tenantId: string }>('aiCopilotAccess'),
+  aiCopilotRead: callable<Record<string, unknown>, unknown>('aiCopilotRead'),
+  issuePreviewCredential: callable<Record<string, never>, { credentialId: string; secret: string; tenantId: string; expiresAtMs: number }>('issuePreviewCredential'),
+  adminListLeads: callable<
+    Record<string, never>,
+    {
+      leads: {
+        id: string;
+        name: string;
+        businessName: string;
+        email: string;
+        phone: string;
+        businessType: string;
+        source: string;
+        status: string;
+        referralCode: string | null;
+        assignedTo: string | null;
+        notes: string;
+        interestedFeatures: string[];
+        createdAt: number | null;
+        updatedAt: number | null;
+      }[];
+    }
+  >('adminListLeads'),
+  adminSetLeadStatus: callable<{ leadId: string; status: string; notes?: string; assignedTo?: string }, { ok: true }>('adminSetLeadStatus'),
+  adminListTrials: callable<
+    Record<string, never>,
+    {
+      trials: {
+        tenantId: string;
+        business: string;
+        owner: string;
+        ownerEmail: string;
+        startDate: number | null;
+        endDate: number | null;
+        daysRemaining: number;
+        status: string;
+        referralCode: string | null;
+        converted: boolean;
+      }[];
+    }
+  >('adminListTrials'),
+  adminSetSubscription: callable<{ uid: string } & SubscriptionAction, { ok: true; writesEnabled: boolean; closed: boolean }>('adminSetSubscription'),
+  adminDeleteAccount: callable<{ uid: string; confirm: string }, { ok: true; accountDeleted: boolean; tenantId: string; storageCleanup: 'complete' | 'pending'; outcome: 'complete' | 'storage-failed' | 'account-remains' | 'unverified' }>('adminDeleteAccount'),
+  adminRetryStorageCleanup: callable<{ tenantId: string }, { ok: true; accountDeleted: boolean; storageCleanup: 'complete' | 'pending'; outcome: 'complete' | 'storage-failed' | 'account-remains' | 'unverified' }>('adminRetryStorageCleanup'),
+  adminListStorageCleanup: callable<Record<string, never>, {
+    records: {
+      tenantId: string;
+      storageCleanup: 'pending';
+      lastOutcome: 'storage-failed' | 'account-remains' | 'unverified' | null;
+      updatedAt: number | null;
+      lastAttemptAt: number | null;
+    }[];
+  }>('adminListStorageCleanup'),
+  createRelease: callable<
+    { version: string; title: string; notes: string; releaseType: 'patch' | 'minor' | 'major'; buildId: string; gitSha?: string; requiresMigration?: boolean },
+    { ok: true }
+  >('createRelease'),
+  setReleaseStatus: callable<{ version: string; status: 'testing' | 'ready' | 'draft' }, { ok: true }>('setReleaseStatus'),
+  assignReleaseTenants: releaseCutover<{ version: string; tenantIds: string[]; confirm: string }, { ok: true; tenantCount: number }>('assignReleaseTenants'),
+  releaseToEveryone: releaseCutover<{ version: string; confirm: string; emergency?: boolean; emergencyReason?: string }, { ok: true }>('releaseToEveryone'),
+  pauseRelease: callable<{ version: string }, { ok: true }>('pauseRelease'),
+  rollbackRelease: callable<{ fromVersion: string; toVersion: string; confirm: string }, { ok: true; rollbackSafe: boolean }>('rollbackRelease'),
+  setMinSupportedVersion: callable<{ version: string }, { ok: true }>('setMinSupportedVersion'),
+  getMyReleaseAssignment: callable<
+    Record<string, never>,
+    {
+      assignedVersion: string | null;
+      productionVersion: string | null;
+      stagingVersion: string | null;
+      minSupportedVersion: string | null;
+      paused: boolean;
+      title: string | null;
+      notes: string | null;
+      buildId: string | null;
+      status?: string | null;
+    }
+  >('getMyReleaseAssignment'),
+  listReleases: callable<
+    Record<string, never>,
+    {
+      manifest: {
+        productionVersion: string | null;
+        previousProductionVersion: string | null;
+        stagingVersion: string | null;
+        minSupportedVersion: string | null;
+        paused: boolean;
+      };
+      releases: {
+        version: string;
+        buildId: string;
+        gitSha: string;
+        title: string;
+        notes: string;
+        releaseType: string;
+        status: string;
+        targetType: string;
+        targetTenantIds: string[];
+        createdAt: number | null;
+        releasedAt: number | null;
+        releasedBy: string | null;
+        requiresMigration: boolean;
+        rollbackSafe: boolean;
+      }[];
+      audit: { id: string; action: string; version: string; at: number | null; actorUid: string }[];
+    }
+  >('listReleases'),
+  checkReleaseTreeRetention: callable<{ trees: string[] }, { deletable: string[]; kept: string[] }>('checkReleaseTreeRetention'),
+  listFeatureCatalog: callable<Record<string, never>, FeatureCatalogResult>('listFeatureCatalog'),
+  markFeatureReady: callable<{ featureId: string }, { ok: true; duplicate: boolean }>('markFeatureReady'),
+  publishFeature: callable<
+    { featureId: string; confirmPublication: true; confirmAllEligible: boolean; allEligible: boolean; tenantIds: string[] },
+    { ok: true; duplicate: boolean; tenants: number }
+  >('publishFeature'),
+  pauseFeature: callable<{ featureId: string; confirm: true }, { ok: true }>('pauseFeature'),
+  rollbackFeature: callable<{ featureId: string; confirm: true }, { ok: true }>('rollbackFeature'),
+  grantFeaturePurchase: callable<{ featureId: string; tenantId: string; confirm: true }, { ok: true }>('grantFeaturePurchase'),
+  setFeatureKillSwitch: callable<{ killed: boolean; confirm: true }, { ok: true; killed: boolean }>('setFeatureKillSwitch'),
+  recordFeaturePreview: callable<{ featureId: string }, { ok: true; path: string }>('recordFeaturePreview'),
+  listMyFeatureUpdates: callable<Record<string, never>, { updates: CustomerFeatureUpdate[] }>('listMyFeatureUpdates'),
+  activateMyFeature: callable<{ featureId: string }, { ok: true; duplicate: boolean; reloadRequired: boolean; stages: Array<'checked' | 'entitled' | 'active'> }>(
+    'activateMyFeature',
+  ),
 };
+
+export interface FeatureCatalogItem {
+  id: string;
+  title: string;
+  description: string;
+  version: string;
+  icon: string;
+  screenshots: string[];
+  category: string;
+  classification: 'new' | 'existing' | 'improvement';
+  pricing: 'free' | 'paid';
+  priceUsdCents: number | null;
+  capabilities: string[];
+  requirements: string[];
+  compatibility: string;
+  customerExecution: 'unavailable' | 'ready';
+  navPath: string | null;
+  navLabel: string;
+  activation: 'server';
+  reloadRequired: boolean;
+  publication: 'internal_testing' | 'ready' | 'published' | 'paused' | 'rolled_back';
+  testingStatus: 'untested' | 'in_testing' | 'passed';
+  audienceCount: number;
+  allEligible: boolean;
+  history: { at: number; action: string; version: string; actorUid: string; tenantCount: number }[];
+  blockers: string[];
+}
+
+export interface FeatureDelivery {
+  featureId: string;
+  notified: number;
+  active: number;
+  paused: number;
+  revoked: number;
+}
+
+export interface FeatureCatalogResult {
+  killed: boolean;
+  features: FeatureCatalogItem[];
+  delivery: FeatureDelivery[];
+}
+
+export interface CustomerFeatureUpdate {
+  featureId: string;
+  title: string;
+  description: string;
+  version: string;
+  icon: string;
+  screenshots: string[];
+  capabilities: string[];
+  requirements: string[];
+  compatibility: string;
+  pricing: 'free' | 'paid';
+  priceUsdCents: number | null;
+  status: 'notified' | 'active' | 'paused' | 'revoked' | 'unavailable';
+  navPath: string | null;
+  navLabel: string;
+  reloadRequired: boolean;
+  canActivate: boolean;
+  canRequestPurchase: boolean;
+}

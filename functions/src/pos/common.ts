@@ -16,7 +16,18 @@ import type {
   SaleItem,
   TierPrice,
 } from '../shared/models.js';
+import { CURRENT_API_COMPAT, clientApiAllowed } from '../shared/release.js';
+import { previewBinding } from '../previewContext.js';
 import { caller } from '../validate.js';
+
+const MIN_CLIENT_API = CURRENT_API_COMPAT;
+const MAX_CLIENT_API = CURRENT_API_COMPAT;
+
+export function assertClientApi(request: CallableRequest): void {
+  const raw = request.data as { clientApiVersion?: unknown } | null;
+  const version = raw && typeof raw === 'object' ? raw.clientApiVersion : undefined;
+  if (!clientApiAllowed(version, MIN_CLIENT_API, MAX_CLIENT_API)) fail('failed-precondition', 'error.updateRequired');
+}
 
 /* ================================================================ access */
 
@@ -34,17 +45,38 @@ export interface PosActor {
  * including for offline sales being synced later (the subscription is checked at sync time).
  * `anyOf`: the caller needs at least one of these permissions (owners have all).
  */
-export async function posActor(request: CallableRequest, anyOf: PermissionKey[]): Promise<PosActor> {
+/**
+ * Tenant a POS write is allowed to touch. A preview binding, set only inside previewPos,
+ * replaces the token tenant. Ordinary calls keep the token tenant.
+ */
+export function posWriteTenant(request: CallableRequest): string {
   const c = caller(request);
-  if (!c.tenantId || !c.emailVerified) fail('permission-denied', 'error.permissionDenied');
-  if (!c.active) fail('permission-denied', 'error.userInactive');
-  const tenantId = c.tenantId;
+  const bound = previewBinding();
+  if (!c.emailVerified) fail('permission-denied', 'error.permissionDenied');
+  if (bound) {
+    if (bound.uid !== c.uid || !c.superAdmin) fail('permission-denied', 'error.permissionDenied');
+    return bound.tenantId;
+  }
+  if (!c.tenantId) fail('permission-denied', 'error.permissionDenied');
+  return c.tenantId;
+}
+
+export async function posActor(request: CallableRequest, anyOf: PermissionKey[]): Promise<PosActor> {
+  assertClientApi(request);
+  const c = caller(request);
+  const bound = previewBinding();
+  if (!c.emailVerified) fail('permission-denied', 'error.permissionDenied');
+  if (!bound && !c.tenantId) fail('permission-denied', 'error.permissionDenied');
+  if (!c.active && !bound) fail('permission-denied', 'error.userInactive');
+  if (bound && (bound.uid !== c.uid || !c.superAdmin)) fail('permission-denied', 'error.permissionDenied');
+  const tenantId = bound ? bound.tenantId : c.tenantId!;
   const [profileSnap, subSnap] = await Promise.all([db.doc(`users/${c.uid}`).get(), db.doc(`subscriptions/${tenantId}`).get()]);
   const profile = profileSnap.data();
   if (!profile || profile.tenantId !== tenantId) fail('permission-denied', 'error.permissionDenied');
+  if (bound && (profile.internalDemo !== true || subSnap.get('internalDemo') !== true)) fail('permission-denied', 'error.fn.notAllowed');
   if (profile.isActive === false) fail('permission-denied', 'error.userInactive');
 
-  const isOwner = profile.role !== 'subUser' && c.uid === tenantId;
+  const isOwner = profile.role === 'owner';
   const perms = normalizePermissions(profile.permissions);
   const can = (perm: PermissionKey) => isOwner || perms[perm];
   if (anyOf.length && !anyOf.some(can)) fail('permission-denied', 'error.permissionDenied');
@@ -132,10 +164,10 @@ export async function runClientOp(
   extraAuth?: (actor: PosActor) => void,
 ): Promise<ClientOpResult & { duplicate: boolean }> {
   const auth = caller(request);
-  if (!auth.tenantId || !auth.emailVerified) fail('permission-denied', 'error.permissionDenied');
-  const early = await replayClientOp(auth.tenantId, opId, auth.uid, kind);
+  const tenantId = posWriteTenant(request);
+  const early = await replayClientOp(tenantId, opId, auth.uid, kind);
   if (early) return early;
-  const opRef = tenantPaths(auth.tenantId).doc('clientOps', opId);
+  const opRef = tenantPaths(tenantId).doc('clientOps', opId);
   try {
     const actor = await posActor(request, anyOf);
     extraAuth?.(actor);
@@ -158,7 +190,7 @@ export async function runClientOp(
       return { ...result, duplicate: false };
     });
   } catch (error) {
-    const recovered = await replayClientOp(auth.tenantId, opId, auth.uid, kind);
+    const recovered = await replayClientOp(tenantId, opId, auth.uid, kind);
     if (recovered) return recovered;
     if (isRetryableCommitError(error)) fail('unavailable', 'error.network');
     throw error;
@@ -219,6 +251,7 @@ export function toProduct(id: string, d: DocumentData): Product {
     barcode: str(d.barcode),
     prices: { retail: tierPrice(prices.retail), wholesale: tierPrice(prices.wholesale), vip: tierPrice(prices.vip) },
     costUsdCents: int(d.costUsdCents),
+    costKnown: d.costKnown !== false,
     stock: int(d.stock),
     minStock: typeof d.minStock === 'number' ? d.minStock : null,
     supplierId: strOrNull(d.supplierId),

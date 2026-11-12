@@ -1,29 +1,49 @@
 import { useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
+import { LeadsPanel } from '@/features/admin/LeadsPanel';
+import { StorageCleanupPanel } from '@/features/admin/StorageCleanupPanel';
+import { cleanupOutcomeKey } from '@/features/admin/storageCleanupLabels';
+import { TrialsPanel } from '@/features/admin/TrialsPanel';
+import { FeatureCenterPanel } from '@/features/features/FeatureCenterPanel';
+import { PreviewTestingPanel } from '@/features/admin/PreviewTestingPanel';
+import { ReleaseManagementPanel } from '@/features/releases/ReleaseManagementPanel';
 import { Button } from '@/components/ui/Button';
 import { TextInput } from '@/components/ui/Form';
 import { Alert, Badge, EmptyState, PageHeader, SearchBox, StatCard, TableWrap, Toolbar } from '@/components/ui/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useFeedback } from '@/contexts/feedback';
+import { useSession } from '@/contexts/session';
+import { reloadUser } from '@/services/authService';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { useI18n } from '@/i18n/i18n';
 import { api, type AdminAccount, type SubscriptionAction } from '@/services/functionsClient';
+import { subscriptionPhase, type SubscriptionPhase } from '@/domain/trial';
 import { formatDate, normalizeSearch } from '@/utils/format';
 
-type SubState = 'active' | 'lifetime' | 'expired' | 'inactive';
+type SubState = SubscriptionPhase;
 
 function subState(a: AdminAccount, now: number): SubState {
-  const s = a.subscription;
-  if (!s.activated) return 'inactive';
-  if (s.lifetime) return 'lifetime';
-  return s.endsAt && s.endsAt > now ? 'active' : 'expired';
+  return subscriptionPhase(a.subscription, now);
 }
 
-const STATE_TONE: Record<SubState, 'success' | 'info' | 'warning' | 'danger'> = { active: 'success', lifetime: 'info', expired: 'warning', inactive: 'danger' };
+const STATE_TONE: Record<SubState, 'success' | 'info' | 'warning' | 'danger'> = {
+  active: 'success',
+  lifetime: 'info',
+  expired: 'warning',
+  trial_expired: 'warning',
+  inactive: 'danger',
+};
 
 export default function SuperAdminPage() {
   const { t, lang } = useI18n();
+  const [params, setParams] = useSearchParams();
+  const rawTab = params.get('tab');
+  const tab =
+    rawTab === 'releases' || rawTab === 'preview' || rawTab === 'features' || rawTab === 'leads' || rawTab === 'trials' || rawTab === 'cleanup'
+      ? rawTab
+      : 'accounts';
   const [token, setToken] = useState(0);
   const accounts = useAsyncData(`admin|${token}`, async () => (await api.adminListAccounts({})).accounts);
   const [search, setSearch] = useState('');
@@ -40,7 +60,7 @@ export default function SuperAdminPage() {
   }, [accounts.data, search, filter, now]);
 
   const counts = useMemo(() => {
-    const c: Record<SubState, number> = { active: 0, lifetime: 0, expired: 0, inactive: 0 };
+    const c: Record<SubState, number> = { active: 0, lifetime: 0, expired: 0, trial_expired: 0, inactive: 0 };
     for (const a of accounts.data ?? []) c[subState(a, now)] += 1;
     return c;
   }, [accounts.data, now]);
@@ -50,16 +70,56 @@ export default function SuperAdminPage() {
       <PageHeader
         title={t('admin.title')}
         actions={
-          <Button variant="secondary" icon="refresh" onClick={() => setToken((n) => n + 1)}>
-            {t('common.refresh')}
-          </Button>
+          <div className="row-gap">
+            <Button variant={tab === 'accounts' ? 'primary' : 'secondary'} onClick={() => setParams({})}>
+              {t('admin.accounts')}
+            </Button>
+            <Button variant={tab === 'leads' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'leads' })}>
+              {t('admin.leads')}
+            </Button>
+            <Button variant={tab === 'trials' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'trials' })}>
+              {t('admin.trials')}
+            </Button>
+            <Button variant={tab === 'cleanup' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'cleanup' })}>
+              {t('admin.cleanup')}
+            </Button>
+            <Button variant={tab === 'preview' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'preview' })}>
+              {t('previewCenter.title')}
+            </Button>
+            <Button variant={tab === 'features' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'features' })}>
+              {t('feature.center')}
+            </Button>
+            <Button variant={tab === 'releases' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'releases' })}>
+              {t('release.title')}
+            </Button>
+            <Button variant="secondary" icon="refresh" onClick={() => setToken((n) => n + 1)}>
+              {t('common.refresh')}
+            </Button>
+          </div>
         }
       />
+      {tab === 'preview' ? (
+        <PreviewTestingPanel />
+      ) : tab === 'features' ? (
+        <FeatureCenterPanel />
+      ) : tab === 'releases' ? (
+        <ReleaseManagementPanel />
+      ) : tab === 'leads' ? (
+        <LeadsPanel />
+      ) : tab === 'trials' ? (
+        <TrialsPanel />
+      ) : tab === 'cleanup' ? (
+        <StorageCleanupPanel reloadKey={token} />
+      ) : (
+      <>
+      <InternalDemoCard />
+
       <div className="stats">
         <StatCard icon="users" label={t('admin.accounts')} value={accounts.data?.length ?? '—'} />
         <StatCard icon="check" tone="success" label={t('admin.state.active')} value={counts.active} />
         <StatCard icon="shield" tone="info" label={t('admin.state.lifetime')} value={counts.lifetime} />
         <StatCard icon="clock" tone="warning" label={t('admin.state.expired')} value={counts.expired} />
+        <StatCard icon="clock" tone="warning" label={t('admin.state.trial_expired')} value={counts.trial_expired} />
         <StatCard icon="x" tone="danger" label={t('admin.state.inactive')} value={counts.inactive} />
       </div>
       <Toolbar>
@@ -101,7 +161,7 @@ export default function SuperAdminPage() {
                 return (
                   <tr key={a.uid}>
                     <td>
-                      {a.storeName}
+                      {a.storeName} {a.internalDemo && <Badge tone="info">{t('demo.badge')}</Badge>}
                       <div className="small muted" dir="ltr">
                         {a.subdomain}
                       </div>
@@ -145,7 +205,48 @@ export default function SuperAdminPage() {
           }}
         />
       )}
+      </>
+      )}
     </div>
+  );
+}
+
+/** The super admin's own internal demo store: open it, or create it once (server-checked). */
+function InternalDemoCard() {
+  const { t } = useI18n();
+  const session = useSession();
+  const navigate = useNavigate();
+  const { confirm } = useFeedback();
+  const { busy, run } = useAsyncAction('internal-demo');
+
+  if (session.tenantId) {
+    return (
+      <Alert tone="info">
+        {session.isInternalDemo ? t('demo.adminHasDemo') : t('demo.adminHasTenant')}{' '}
+        <Button size="sm" variant="secondary" icon="cart" onClick={() => navigate('/dashboard')}>
+          {t('demo.open')}
+        </Button>
+      </Alert>
+    );
+  }
+
+  const create = async () => {
+    const ok = await confirm({ title: t('demo.createTitle'), message: t('demo.createMessage') });
+    if (!ok) return;
+    await run(async () => {
+      await api.adminProvisionInternalDemo({});
+      await reloadUser();
+      navigate('/dashboard');
+    });
+  };
+
+  return (
+    <Alert tone="info">
+      {t('demo.adminNone')}{' '}
+      <Button size="sm" variant="secondary" loading={busy} onClick={() => void create()}>
+        {t('demo.create')}
+      </Button>
+    </Alert>
   );
 }
 
@@ -162,8 +263,10 @@ function ManageAccountModal({ account, onClose, onChanged }: { account: AdminAcc
       if (!ok) return;
     }
     await run(async () => {
-      await api.adminSetSubscription({ uid: account.uid, ...action });
-      notify('success', t('common.saved'));
+      const result = await api.adminSetSubscription({ uid: account.uid, ...action });
+      if (result.writesEnabled) notify('success', t('admin.accessEnabled'));
+      else if (result.closed) notify('warning', t('admin.accessStillClosed'));
+      else notify('warning', t('admin.accessDisabled'));
       onChanged();
     });
   };
@@ -209,8 +312,17 @@ function ManageAccountModal({ account, onClose, onChanged }: { account: AdminAcc
             disabled={deleteText !== account.subdomain || busy}
             onClick={() =>
               void run(async () => {
-                await api.adminDeleteAccount({ uid: account.uid, confirm: account.subdomain });
-                notify('success', t('common.deleted'));
+                const result = await api.adminDeleteAccount({ uid: account.uid, confirm: account.subdomain });
+                if (result.storageCleanup === 'complete') {
+                  notify('success', t('admin.accountDeleted'));
+                } else {
+                  notify('warning', t('admin.storageCleanupPending'));
+                  const retry = await confirm({ title: t('admin.retryStorageCleanup'), message: account.storeName });
+                  if (retry) {
+                    const again = await api.adminRetryStorageCleanup({ tenantId: result.tenantId });
+                    notify(again.outcome === 'complete' ? 'success' : 'warning', t(cleanupOutcomeKey(again.outcome)));
+                  }
+                }
                 onChanged();
               })
             }

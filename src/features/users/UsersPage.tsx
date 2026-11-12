@@ -118,7 +118,17 @@ function PermissionsEditor({ value, onChange, disabled }: { value: PermissionMap
             {g.permissions.map((p) => (
               <Checkbox
                 key={p}
-                label={t(`perm.${p}`)}
+                label={
+                  p === 'canUseZelveroAI' ? (
+                    <>
+                      {t('perm.canUseZelveroAI')}
+                      <span className="muted small"> — {t('users.permDesc.canUseZelveroAI')}</span>
+                    </>
+                  ) : (
+                    t(`perm.${p}`)
+                  )
+                }
+                title={p === 'canUseZelveroAI' ? t('users.permDesc.canUseZelveroAI') : undefined}
                 checked={value[p]}
                 disabled={(p !== 'canViewProducts' && g.key === 'products' && !value.canViewProducts) || (p === 'canEditSettings' && !value.canViewSettings)}
                 onChange={(e) => toggle(p, e.target.checked)}

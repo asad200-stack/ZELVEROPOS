@@ -5,6 +5,7 @@ import {
   asAdmin,
   callOk,
   clearAuth,
+  clearFirestore,
   createEnv,
   createUser,
   RATE,
@@ -33,7 +34,7 @@ afterAll(async () => {
   await env?.cleanup();
 });
 beforeEach(async () => {
-  await env.clearFirestore();
+  await clearFirestore(env);
   await seedTenant(env, T, [{ uid: T, role: 'owner' }, ...STAFF]);
 });
 
@@ -67,7 +68,7 @@ describe('non-checkout money mutations are idempotent on clientOperationId', () 
 
   it('deposit, withdrawal and expense', async () => {
     for (const type of ['deposit', 'withdrawal', 'expense'] as const) {
-      await env.clearFirestore();
+      await clearFirestore(env);
       await seedTenant(env, T, [{ uid: T, role: 'owner' }, ...STAFF]);
       const { again } = await twice(
         'posCashMove',

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { where, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
 import { initialRange, type DateRange } from '@/domain/dates';
@@ -15,17 +16,33 @@ import { useI18n } from '@/i18n/i18n';
 import { listCashTransactions } from '@/services/cashboxService';
 import { countWhere, pageCustomers } from '@/services/catalogQuery';
 import { loadDailyStats, netFigures, sumStats } from '@/services/reportService';
+import { catalogHasUnknownCost } from '@/services/productService';
 import { downloadCsv } from '@/utils/csv';
 import { formatDate, formatLbp, formatUsd } from '@/utils/format';
 
-type Tab = 'sales' | 'profit' | 'inventory' | 'customers' | 'capital' | 'expenses';
+const REPORT_TABS = ['sales', 'profit', 'inventory', 'customers', 'capital', 'expenses'] as const;
+type Tab = (typeof REPORT_TABS)[number];
+
+function isTab(value: string | null): value is Tab {
+  return !!value && (REPORT_TABS as readonly string[]).includes(value);
+}
 
 export default function ReportsPage() {
   const { t } = useI18n();
   const { can } = useTenant();
-  const [tab, setTab] = useState<Tab>('sales');
+  const [params, setParams] = useSearchParams();
   const [range, setRange] = useState<DateRange>(() => initialRange('month'));
   const canCosts = can('canViewCosts');
+  const requested = params.get('tab');
+  const tab: Tab =
+    isTab(requested) && !((requested === 'capital' || requested === 'profit') && !canCosts) ? requested : 'sales';
+
+  function selectTab(next: Tab) {
+    const copy = new URLSearchParams(params);
+    if (next === 'sales') copy.delete('tab');
+    else copy.set('tab', next);
+    setParams(copy, { replace: true });
+  }
 
   const tabs: { value: Tab; label: string }[] = [
     { value: 'sales', label: t('reports.sales') },
@@ -41,7 +58,7 @@ export default function ReportsPage() {
   return (
     <div className="page">
       <PageHeader title={t('nav.reports')} />
-      <Tabs tabs={tabs} value={tab} onChange={setTab} />
+      <Tabs tabs={tabs} value={tab} onChange={selectTab} />
       {needsRange && (
         <Toolbar>
           <DateRangeFilter value={range} onChange={setRange} />
@@ -139,19 +156,22 @@ function ProfitReport({ range }: { range: DateRange }) {
   const { t } = useI18n();
   const { tenantId } = useTenant();
   const data = useAsyncData(`${tenantId}|profit|${range.from}|${range.to}`, () => loadDailyStats(tenantId, range.from, range.to));
+  const unknownCost = useAsyncData(`${tenantId}|unknown-cost`, () => catalogHasUnknownCost(tenantId));
   if (data.error) return <Alert tone="error" onRetry={data.reload} retryLabel={t('common.retry')}>{t('error.loadFailed')}</Alert>;
-  if (data.loading || !data.data) return <PageLoader />;
+  if (data.loading || !data.data || unknownCost.loading) return <PageLoader />;
   const total = sumStats(data.data);
   const net = netFigures(total);
-  const margin = net.netRevenue > 0 ? ((net.grossProfit / net.netRevenue) * 100).toFixed(1) : '0.0';
+  const profitUnknown = unknownCost.data === true || !!unknownCost.error;
+  const money = (cents: number) => (profitUnknown ? t('products.costUnknown') : formatUsd(cents));
+  const margin = !profitUnknown && net.netRevenue > 0 ? ((net.grossProfit / net.netRevenue) * 100).toFixed(1) : '0.0';
   return (
     <div className="stack">
       <div className="stats">
         <StatCard icon="dollar" label={t('reports.netSales')} value={formatUsd(net.netRevenue)} />
-        <StatCard icon="box" label={t('reports.costOfGoods')} value={formatUsd(net.netCost)} />
-        <StatCard icon="chart" tone="success" label={t('reports.grossProfit')} value={formatUsd(net.grossProfit)} sub={t('reports.margin', { value: margin })} />
+        <StatCard icon="box" label={t('reports.costOfGoods')} value={money(net.netCost)} />
+        <StatCard icon="chart" tone="success" label={t('reports.grossProfit')} value={money(net.grossProfit)} sub={profitUnknown ? t('products.costUnknown') : t('reports.margin', { value: margin })} />
         <StatCard icon="arrowUp" tone="warning" label={t('reports.expenses')} value={formatUsd(total.expensesUsdCents)} />
-        <StatCard icon="check" tone={net.netProfit >= 0 ? 'success' : 'danger'} label={t('reports.netProfit')} value={formatUsd(net.netProfit)} />
+        <StatCard icon="check" tone={net.netProfit >= 0 ? 'success' : 'danger'} label={t('reports.netProfit')} value={money(net.netProfit)} />
       </div>
       <p className="muted small">{t('reports.profitHint')}</p>
     </div>
