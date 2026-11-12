@@ -281,6 +281,14 @@ export function stockBelowOf(text: string): number | null {
   return asked - 1;
 }
 
+/** General stock-status phrasing ("low stock", "products running low") — never a single named product. */
+const GENERAL_STOCK_QUESTION =
+  /\b(?:products?|items?)\b.*\b(?:stock|available|left)\b|low[- ]?(?:in\s+)?stock|out of stock|stock\s+(?:is\s+)?low|منخفض|نفاذ|خلص(?:ت|ان)?|قرب\s*يخلص/i;
+
+/** "this one", "it", "هيدا المنتج" — a reference to a product already in play, never a literal name. */
+const STARTS_WITH_DEMONSTRATIVE =
+  /^(?:it|that|this|the)\b|^(?:هيدا|هيدي|هاد|هاي|هالمنتج|هالغرض)(?=\s|$)/i;
+
 export function stockLookupOf(text: string): { name: string | null; qty: number | null } {
   // Imperative stock changes are refusals — never a named stock-item read.
   if (isStockExecutionRequest(text)) return { name: null, qty: null };
@@ -293,7 +301,14 @@ export function stockLookupOf(text: string): { name: string | null; qty: number 
   const named = text.match(/\bstock of\s+(.+)$/i)
     ?? text.match(/\bhow many\s+(.+?)\s+(?:do we have|are left)\b/i)
     ?? text.match(/شو مخزون\s+(.+)$/)
-    ?? text.match(/(?:قديش|كم)\s+في\s+(?:عنا\s+|عندنا\s+|فيه\s+)?(?:من\s+)?(.+)$/);
+    ?? text.match(/(?:قديش|كم)\s+في\s+(?:عنا\s+|عندنا\s+|فيه\s+)?(?:من\s+)?(.+)$/)
+    // Name-first phrasing: "<product name> stock / quantity / available / left" (no leading keyword).
+    ?? (GENERAL_STOCK_QUESTION.test(text) || STARTS_WITH_DEMONSTRATIVE.test(text.trim())
+        ? null
+        : text.match(/^(.{2,80}?)\s+(?:in\s+stock|stock|quantity|qty|available|left)\s*[؟?]?$/i))
+    ?? (GENERAL_STOCK_QUESTION.test(text) || STARTS_WITH_DEMONSTRATIVE.test(text.trim())
+        ? null
+        : text.match(/^(.{2,80}?)\s+(?:بالمخزون|بالمخزن|موجود|متوفر|باقي)\s*[؟?]?$/));
   return { name: named ? tidyStockName(named[1] ?? '') : null, qty: null };
 }
 
