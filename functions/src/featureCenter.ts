@@ -41,6 +41,46 @@ const entitlementRef = (tenantId: string, featureId: string) => db.doc(`platform
 
 const featureId = trimmed(40).regex(/^[a-z][a-z0-9_]{1,40}$/);
 
+/**
+ * Grants a brand-new tenant a 'notified' entitlement for every feature currently published to
+ * "everyone" (audience.allEligible), so a new signup gets the normal in-app update notification
+ * for rollouts that already happened, without a super admin re-publishing per new customer.
+ * Features published to a specific tenant list only are untouched; that targeting stays
+ * deliberate and is not retroactively widened. Never throws: a hiccup here must not block signup.
+ */
+export async function grantEveryoneEntitlementsForNewTenant(tenantId: string): Promise<void> {
+  try {
+    const published = await db.collection('platformFeatures').where('publication', '==', 'published').get();
+    if (published.empty) return;
+    const batch = db.batch();
+    let any = false;
+    for (const doc of published.docs) {
+      const feature = findFeature(doc.id);
+      if (!feature) continue;
+      const record = recordFrom(doc.data(), feature);
+      if (!record.audience.allEligible) continue;
+      any = true;
+      batch.set(
+        entitlementRef(tenantId, feature.id),
+        {
+          tenantId,
+          featureId: feature.id,
+          version: record.version,
+          pricing: feature.pricing,
+          priceUsdCents: feature.priceUsdCents,
+          status: 'notified',
+          paidGrant: false,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+    if (any) await batch.commit();
+  } catch (err) {
+    console.error('grantEveryoneEntitlementsForNewTenant failed', { tenantId, err });
+  }
+}
+
 function body(data: unknown): unknown {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
   const copy = { ...(data as Record<string, unknown>) };

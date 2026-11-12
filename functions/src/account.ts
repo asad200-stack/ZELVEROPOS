@@ -3,6 +3,7 @@ import { onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
 import { auth, db } from './admin.js';
 import { syncUserClaims } from './claims.js';
+import { grantEveryoneEntitlementsForNewTenant } from './featureCenter.js';
 import { DAY_MS, REGION, SIGNUP_TRIAL_DAYS, SUBDOMAIN_RE } from './config.js';
 import { fail } from './errors.js';
 import { tenantIdReserved, type CleanupRecord } from './storageCleanup.js';
@@ -141,6 +142,7 @@ export const completeSignup = onCall({ region: REGION }, async (request) => {
   });
 
   await syncUserClaims(c.uid);
+  await grantEveryoneEntitlementsForNewTenant(tenantId);
   return { tenantId };
 });
 
