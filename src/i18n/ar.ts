@@ -354,6 +354,8 @@ export const ar: Record<TranslationKey, string> = {
   'pos.discount': 'الخصم',
   'pos.duplicateSale': 'تم تسجيل هذا البيع مسبقاً.',
   'pos.editPrice': 'تعديل السعر',
+  'pos.markFree': 'مجاني',
+  'pos.free': 'مجاني',
   'pos.error.invalidAmount': 'أدخل مبلغاً صحيحاً.',
   'pos.error.nothingDue': 'لا يوجد مبلغ للدفع.',
   'pos.error.overpay': 'المبلغ المستلم أكبر من المجموع. أدخل المبلغ المستحق كحد أقصى.',

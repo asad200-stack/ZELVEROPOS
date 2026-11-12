@@ -60,7 +60,8 @@ export function CartPanel({ totals, products, canEditPrice, customerName, onChan
                 <div className="cart-line__meta">
                   {line.imei && <span className="cart-line__imei">IMEI {line.imei}</span>}
                   {line.discountUsdCents > 0 && <span className="text-success">−{formatUsd(line.discountUsdCents)}</span>}
-                  {line.customUsdCents !== null && line.discountUsdCents === 0 && <span className="text-warning">*</span>}
+                  {line.customUsdCents === 0 && <span className="cart-line__free-badge">{t('pos.free')}</span>}
+                  {line.customUsdCents !== null && line.customUsdCents !== 0 && line.discountUsdCents === 0 && <span className="text-warning">*</span>}
                   {overStock && <span className="text-danger">{t('pos.overStock', { stock: product.stock })}</span>}
                   {line.missing && <span className="text-danger">{t('pos.productRemoved')}</span>}
                 </div>
@@ -152,6 +153,9 @@ function LinePriceModal({ line, onClose, onSave }: { line: PricedLine; onClose: 
         <>
           <Button variant="secondary" onClick={() => onSave(line.originalUnitUsdCents)}>
             {t('pos.resetPrice')}
+          </Button>
+          <Button variant="secondary" onClick={() => onSave(0)}>
+            {t('pos.markFree')}
           </Button>
           <Button disabled={cents === null} onClick={() => cents !== null && onSave(cents)}>
             {t('common.save')}

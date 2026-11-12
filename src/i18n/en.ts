@@ -364,6 +364,8 @@ export const en = {
   'pos.discount': 'Discount',
   'pos.duplicateSale': 'This sale was already recorded.',
   'pos.editPrice': 'Edit price',
+  'pos.markFree': 'Mark free',
+  'pos.free': 'Free',
   'pos.error.invalidAmount': 'Enter a valid amount.',
   'pos.error.nothingDue': 'There is nothing to pay.',
   'pos.error.overpay': 'The amount received is greater than the total. Enter at most the total due.',
