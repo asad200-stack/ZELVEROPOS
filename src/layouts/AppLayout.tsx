@@ -67,8 +67,14 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
     }
   });
   const closeMenu = () => setMenuOpen(false);
-  // Internal-only rollout: the UI gate below is UX; the server (aiCopilotAccess / aiCopilotRead) enforces it.
-  const aiCandidate = shouldShowAiEntry({ ...session, adminOnly }) && session.isInternalDemo && session.isSuperAdmin;
+  // Gated by the canUseZelveroAI permission (owners have it implicitly; sub-users need the explicit
+  // grant) AND by this tenant's own Feature Center entitlement being active (published to this
+  // tenant specifically, and the customer has pressed Update). The server (aiCopilotAccess /
+  // aiCopilotRead) independently re-checks the permission on every call, so this is UX only.
+  const aiEntitlementActive = featureUpdates.some(
+    (update) => update.featureId === 'zelvero_ai' && update.status === 'active',
+  );
+  const aiCandidate = shouldShowAiEntry({ ...session, adminOnly }) && aiEntitlementActive;
   const aiServer = useAiServerAccess(session.user?.uid ?? null, aiCandidate, askAiAccess);
   const mayUseAi = aiCandidate && aiServer === 'allowed';
   useEffect(() => {
