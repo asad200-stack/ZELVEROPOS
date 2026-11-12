@@ -67,14 +67,18 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
     }
   });
   const closeMenu = () => setMenuOpen(false);
-  // Gated by the canUseZelveroAI permission (owners have it implicitly; sub-users need the explicit
-  // grant) AND by this tenant's own Feature Center entitlement being active (published to this
-  // tenant specifically, and the customer has pressed Update). The server (aiCopilotAccess /
-  // aiCopilotRead) independently re-checks the permission on every call, so this is UX only.
+  // Internal demo (the platform super admin's own test tenant) always sees the AI entry, since it
+  // has no Feature Center entitlement doc of its own. A real customer is gated by the
+  // canUseZelveroAI permission (owners have it implicitly; sub-users need the explicit grant) AND
+  // by this tenant's own Feature Center entitlement being active (published to this tenant
+  // specifically, and the customer has pressed Update). The server (aiCopilotAccess / aiCopilotRead)
+  // independently re-checks the permission on every call, so this is UX only.
   const aiEntitlementActive = featureUpdates.some(
     (update) => update.featureId === 'zelvero_ai' && update.status === 'active',
   );
-  const aiCandidate = shouldShowAiEntry({ ...session, adminOnly }) && aiEntitlementActive;
+  const aiCandidate =
+    shouldShowAiEntry({ ...session, adminOnly }) &&
+    (session.isInternalDemo || aiEntitlementActive);
   const aiServer = useAiServerAccess(session.user?.uid ?? null, aiCandidate, askAiAccess);
   const mayUseAi = aiCandidate && aiServer === 'allowed';
   useEffect(() => {
