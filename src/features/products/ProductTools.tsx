@@ -230,7 +230,7 @@ export function LabelsModal({ products, onClose }: { products: Product[]; onClos
 
 /* ----------------------------------------------------------------- import */
 
-const IMPORT_HEADERS = ['name', 'barcode', 'category', 'retail', 'wholesale', 'vip', 'retail_lbp', 'cost', 'stock', 'min_stock', 'expiry_date'];
+const IMPORT_HEADERS = ['name', 'barcode', 'category', 'retail', 'wholesale', 'vip', 'retail_lbp', 'cost', 'stock', 'min_stock', 'expiry_date', 'image_url'];
 
 export function ImportProductsModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
@@ -266,6 +266,7 @@ export function ImportProductsModal({ onClose }: { onClose: () => void }) {
         const wholesale = parseUsdInput(get('wholesale')) ?? retail;
         const vip = parseUsdInput(get('vip')) ?? retail;
         const expiry = get('expiry_date');
+        const imageUrl = get('image_url');
         parsed.push({
           name: name.slice(0, 150),
           barcode: barcode.slice(0, 64),
@@ -279,6 +280,7 @@ export function ImportProductsModal({ onClose }: { onClose: () => void }) {
           stock: Math.max(0, Math.floor(Number(get('stock')) || 0)),
           minStock: get('min_stock') ? Math.max(0, Math.floor(Number(get('min_stock')) || 0)) : null,
           expiryDate: /^\d{4}-\d{2}-\d{2}$/.test(expiry) ? expiry : null,
+          imageUrl: imageUrl ? imageUrl.slice(0, 2000) : null,
         });
       });
     setRows(parsed);

@@ -136,6 +136,7 @@ export interface ImportRowCall {
   stock: number;
   minStock: number | null;
   expiryDate: string | null;
+  imageUrl?: string | null;
 }
 
 /** Money and stock operations: executed and validated server-side (functions/src/pos). */

@@ -127,6 +127,7 @@ const importSchema = z.object({
         stock: z.number().int().min(0).max(1_000_000),
         minStock: z.number().int().min(0).max(1_000_000).nullable(),
         expiryDate: dateField.nullable(),
+        imageUrl: z.string().trim().url().max(2000).nullable().optional(),
       }),
     )
     .min(1)
@@ -159,14 +160,15 @@ export const posImportProducts = onCall(async (request) => {
         ...audit,
       });
     }
+    const { imageUrl, ...rowFields } = row;
     batch.set(ref, {
-      ...row,
+      ...rowFields,
       nameNormalized: nameNormalized(row.name),
       supplierId: null,
       supplierName: '',
       imeiTracking: false,
       imeis: [],
-      imageUrl: null,
+      imageUrl: imageUrl ?? null,
       imagePath: null,
       lastMovementId,
       status: 'active',

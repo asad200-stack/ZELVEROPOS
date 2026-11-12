@@ -236,6 +236,7 @@ export interface ImportRow {
   stock: number;
   minStock: number | null;
   expiryDate: string | null;
+  imageUrl?: string | null;
 }
 
 const IMPORT_CHUNK = 200;
