@@ -218,6 +218,7 @@ export const adminBackfillClientAssignments = onCall({ region: REGION, timeoutSe
         return;
       }
       const tenantId = chunk[idx];
+      if (tenantId === undefined) return;
       batch.set(assignmentRef(tenantId), {
         tenantId,
         acquisition: { source: 'direct' as const, partnerId: null, referralCode: null, capturedAt: now, capturedAtMs: nowMs },
