@@ -576,6 +576,36 @@ describe('platform sales CRM', () => {
   });
 });
 
+describe('Marketing Partner & Client Assignment platform collections', () => {
+  const admin = () => db(env, 'admin', { superAdmin: true, tenantId: T });
+  const partner = () => db(env, 'partnerUid', { marketingPartner: true, tenantId: null, emailVerified: true });
+  const other = () => db(env, 'anotherTenant', { tenantId: OTHER, role: 'owner' });
+
+  it('is fully client-inaccessible — not even to its own marketing partner or Super Admin', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fs = ctx.firestore() as unknown as Firestore;
+      await setDoc(doc(fs, 'marketingPartners/partnerUid'), { uid: 'partnerUid', active: true, referralCode: 'rc1' });
+      await setDoc(doc(fs, `platformClientAssignments/${T}`), { tenantId: T, assignedTo: 'partner', assignedPartnerId: 'partnerUid' });
+      await setDoc(doc(fs, 'platformPartnerAuditLog/entry1'), { action: 'assigned', tenantId: T });
+    });
+
+    // The assigned partner cannot read its own assignment doc directly — only through the
+    // partnerListMyClients callable, which resolves and shapes the result server-side.
+    await assertFails(getDoc(doc(partner(), `platformClientAssignments/${T}`)));
+    await assertFails(getDoc(doc(partner(), 'marketingPartners/partnerUid')));
+    // Super Admin reads this through adminListClientAssignments, never directly either.
+    await assertFails(getDoc(doc(admin(), `platformClientAssignments/${T}`)));
+    await assertFails(getDoc(doc(admin(), 'marketingPartners/partnerUid')));
+    await assertFails(getDoc(doc(admin(), 'platformPartnerAuditLog/entry1')));
+    // An unrelated tenant owner has no access whatsoever.
+    await assertFails(getDoc(doc(other(), `platformClientAssignments/${T}`)));
+    // Nobody can write any of it from the client, including a super admin.
+    await assertFails(setDoc(doc(partner(), `platformClientAssignments/${T}`), { assignedTo: 'partner', assignedPartnerId: 'partnerUid' }));
+    await assertFails(updateDoc(doc(admin(), `platformClientAssignments/${T}`), { assignedTo: 'superAdmin' }));
+    await assertFails(setDoc(doc(admin(), 'marketingPartners/intruder'), { active: true }));
+  });
+});
+
 describe('settings', () => {
   it('telegram secrets are hidden from staff', async () => {
     const staff = db(env, 'staff', { role: 'subUser', perms: { canViewSettings: true, canEditSettings: true } });

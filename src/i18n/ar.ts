@@ -904,6 +904,12 @@ export const ar: Record<TranslationKey, string> = {
   'error.release.invalidStatus': 'تغيير الحالة هذا غير مسموح.',
   'error.release.emergencyReason': 'سبب الطوارئ مطلوب.',
   'error.release.rollbackUnsafe': 'التراجع غير آمن لهذه الإصدارات. استخدم إصلاحاً أمامياً.',
+  'error.partner.alreadySuperAdmin': 'هذا الحساب هو أصلاً سوبر أدمن على المنصة.',
+  'error.partner.hasTenant': 'هذا الحساب يملك متجر زبون أصلاً.',
+  'error.partner.missing': 'الشريك التسويقي غير موجود.',
+  'error.partner.tenantUnknown': 'هذا الزبون غير معروف بعد.',
+  'error.partner.inactive': 'هذا الشريك التسويقي غير مفعّل.',
+  'error.partner.noChange': 'هذا الزبون معيّن هناك أصلاً.',
   'error.updateRequired': 'حدّث زيلفيرو للمتابعة.',
 
   'update.available': 'يتوفر إصدار جديد — حدّث الصفحة عندما تكون جاهزاً',

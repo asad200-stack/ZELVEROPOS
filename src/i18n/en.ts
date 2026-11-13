@@ -926,6 +926,12 @@ export const en = {
   'error.release.invalidStatus': 'That status change is not allowed.',
   'error.release.emergencyReason': 'An emergency reason is required.',
   'error.release.rollbackUnsafe': 'Rollback is not safe for this pair of versions (migration or API mismatch). Use a forward fix.',
+  'error.partner.alreadySuperAdmin': 'That account is already a platform Super Admin.',
+  'error.partner.hasTenant': 'That account already owns a customer store.',
+  'error.partner.missing': 'Marketing partner not found.',
+  'error.partner.tenantUnknown': 'This customer is not recognized yet.',
+  'error.partner.inactive': 'That marketing partner is not active.',
+  'error.partner.noChange': 'This customer is already assigned there.',
   'error.updateRequired': 'Update ZELVERO to continue.',
 
   // offline sales queue

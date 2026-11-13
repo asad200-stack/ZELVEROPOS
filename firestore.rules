@@ -196,6 +196,24 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Marketing Partner & Client Assignment. A partner is never handed a tenant id to look up —
+    // every partner-facing read (partnerListMyClients) and every Super Admin read/write
+    // (adminListClientAssignments, adminAssignClient, grantMarketingPartner, ...) is a callable
+    // that resolves its own caller-scoped result server-side. Nothing here is client-readable or
+    // client-writable, not even for a marketing partner reading their own data: this is
+    // deliberately stricter than the tenant-scoped rules above, since there is no per-document
+    // field a security rule could safely key on here without re-deriving the whole assignment
+    // graph in rules language. See functions/src/partners.ts.
+    match /marketingPartners/{id} {
+      allow read, write: if false;
+    }
+    match /platformClientAssignments/{id} {
+      allow read, write: if false;
+    }
+    match /platformPartnerAuditLog/{id} {
+      allow read, write: if false;
+    }
+
     // ------------------------------------------------------------------ tenant
 
     match /tenants/{t} {

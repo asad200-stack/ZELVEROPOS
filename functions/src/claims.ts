@@ -32,19 +32,27 @@ export function buildClaims(profile: DocumentData, sub: DocumentData | undefined
 /**
  * Recomputes a user's custom claims from Firestore (profile + tenant subscription). Claims are set
  * before `claimsVersion` is bumped so the client's forced token refresh always sees the new claims.
+ *
+ * A marketing partner has no `users/{uid}` profile and no tenant of its own — the `marketingPartner`
+ * claim is granted exclusively by `grantMarketingPartner` (functions/src/partners.ts) and is only
+ * ever read back here (never recomputed from a tenant profile), exactly like `superAdmin`.
  */
 export async function syncUserClaims(uid: string): Promise<void> {
   const userRef = db.doc(`users/${uid}`);
   const [snap, record] = await Promise.all([userRef.get(), auth.getUser(uid)]);
   const superAdmin = record.customClaims?.superAdmin === true;
+  const marketingPartner = record.customClaims?.marketingPartner === true;
   const profile = snap.data();
   if (!profile?.tenantId) {
-    await auth.setCustomUserClaims(uid, superAdmin ? { superAdmin: true } : null);
+    const preserved: Record<string, true> = {};
+    if (superAdmin) preserved.superAdmin = true;
+    if (marketingPartner) preserved.marketingPartner = true;
+    await auth.setCustomUserClaims(uid, Object.keys(preserved).length ? preserved : null);
     return;
   }
   const sub = (await db.doc(`subscriptions/${profile.tenantId}`).get()).data();
   const cv = (typeof profile.claimsVersion === 'number' ? profile.claimsVersion : 0) + 1;
-  await auth.setCustomUserClaims(uid, { ...buildClaims(profile, sub, cv, superAdmin) });
+  await auth.setCustomUserClaims(uid, { ...buildClaims(profile, sub, cv, superAdmin), ...(marketingPartner ? { marketingPartner: true } : {}) });
   await userRef.update({ claimsVersion: cv });
 }
 

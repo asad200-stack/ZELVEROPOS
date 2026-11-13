@@ -30,6 +30,14 @@ export {
 } from './releases.js';
 export { clearTenantData } from './tenantData.js';
 export {
+  grantMarketingPartner,
+  revokeMarketingPartner,
+  adminListClientAssignments,
+  adminAssignClient,
+  adminListClientAssignmentAudit,
+  partnerListMyClients,
+} from './partners.js';
+export {
   listFeatureCatalog,
   markFeatureReady,
   publishFeature,

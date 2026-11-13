@@ -19,27 +19,34 @@ export async function createEnv(): Promise<RulesTestEnvironment> {
 type Perms = Partial<Record<string, boolean>>;
 
 export interface ClaimOptions {
-  tenantId?: string;
+  /** null means a pure platform account with no tenant membership at all (e.g. a marketing partner). */
+  tenantId?: string | null;
   role?: 'owner' | 'subUser';
   perms?: Perms;
   active?: boolean;
   subUntil?: number;
   emailVerified?: boolean;
   superAdmin?: boolean;
+  /** Platform marketing-partner claim. Pass with no tenantId for a "pure" partner (the real shape — a partner owns no tenant). */
+  marketingPartner?: boolean;
 }
 
 export function claims(o: ClaimOptions = {}) {
   const role = o.role ?? 'owner';
-  return {
-    tenantId: o.tenantId ?? T,
-    role,
-    active: o.active ?? true,
-    subUntil: o.subUntil ?? Date.now() + 30 * DAY,
-    cv: 1,
-    email_verified: o.emailVerified ?? true,
-    ...(role === 'subUser' ? { perms: o.perms ?? {} } : {}),
-    ...(o.superAdmin ? { superAdmin: true } : {}),
-  };
+  const base: Record<string, unknown> = { email_verified: o.emailVerified ?? true };
+  if (o.tenantId !== null) {
+    Object.assign(base, {
+      tenantId: o.tenantId ?? T,
+      role,
+      active: o.active ?? true,
+      subUntil: o.subUntil ?? Date.now() + 30 * DAY,
+      cv: 1,
+      ...(role === 'subUser' ? { perms: o.perms ?? {} } : {}),
+    });
+  }
+  if (o.superAdmin) base.superAdmin = true;
+  if (o.marketingPartner) base.marketingPartner = true;
+  return base;
 }
 
 export function db(env: RulesTestEnvironment, uid: string, o: ClaimOptions = {}): Firestore {

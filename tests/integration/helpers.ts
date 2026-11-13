@@ -129,11 +129,13 @@ async function authPost(path: string, body: unknown, admin = false) {
 
 export interface TestUser {
   uid: string;
-  tenantId: string;
-  role: 'owner' | 'subUser';
+  /** null = a pure platform account with no tenant at all (e.g. a marketing partner). */
+  tenantId: string | null;
+  role?: 'owner' | 'subUser';
   perms?: Record<string, boolean>;
   active?: boolean;
   superAdmin?: boolean;
+  marketingPartner?: boolean;
 }
 
 /** Creates an Auth emulator user with custom claims (as syncUserClaims would) and returns an ID token. */
@@ -141,13 +143,18 @@ export async function createUser(u: TestUser): Promise<string> {
   const email = `${u.uid.toLowerCase()}@test.local`;
   await authPost(`projects/${PROJECT_ID}/accounts`, { localId: u.uid, email, password: PASSWORD, emailVerified: true }, true);
   const claims = {
-    tenantId: u.tenantId,
-    role: u.role,
-    active: u.active ?? true,
-    subUntil: Date.now() + 30 * DAY,
-    cv: 1,
-    ...(u.role === 'subUser' ? { perms: Object.fromEntries(Object.entries(u.perms ?? {}).filter(([, v]) => v)) } : {}),
+    ...(u.tenantId !== null
+      ? {
+          tenantId: u.tenantId,
+          role: u.role ?? 'owner',
+          active: u.active ?? true,
+          subUntil: Date.now() + 30 * DAY,
+          cv: 1,
+          ...(u.role === 'subUser' ? { perms: Object.fromEntries(Object.entries(u.perms ?? {}).filter(([, v]) => v)) } : {}),
+        }
+      : {}),
     ...(u.superAdmin ? { superAdmin: true } : {}),
+    ...(u.marketingPartner ? { marketingPartner: true } : {}),
   };
   await authPost(`projects/${PROJECT_ID}/accounts:update`, { localId: u.uid, customAttributes: JSON.stringify(claims), emailVerified: true }, true);
   const signIn = await authPost('accounts:signInWithPassword', { email, password: PASSWORD, returnSecureToken: true });

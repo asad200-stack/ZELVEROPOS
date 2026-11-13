@@ -6,6 +6,7 @@ import { syncUserClaims } from './claims.js';
 import { grantEveryoneEntitlementsForNewTenant } from './featureCenter.js';
 import { DAY_MS, REGION, SIGNUP_TRIAL_DAYS, SUBDOMAIN_RE } from './config.js';
 import { fail } from './errors.js';
+import { createClientAssignmentForNewTenant, resolvePartnerReferral } from './partners.js';
 import { tenantIdReserved, type CleanupRecord } from './storageCleanup.js';
 import { caller, parse, trimmed } from './validate.js';
 
@@ -89,6 +90,10 @@ const signupSchema = z.object({
   storeName: trimmed(80),
   subdomain: subdomainField,
   phone: z.string().trim().min(3).max(30),
+  // Optional referral code from a marketing partner's signup link. Never a partner id directly —
+  // resolvePartnerReferral() is the only thing allowed to turn a code into a partner identity,
+  // and it does so server-side, against platformReferrals, never trusting anything else here.
+  referralCode: z.string().trim().max(40).optional(),
 });
 
 /**
@@ -143,6 +148,11 @@ export const completeSignup = onCall({ region: REGION }, async (request) => {
 
   await syncUserClaims(c.uid);
   await grantEveryoneEntitlementsForNewTenant(tenantId);
+  // Best-effort, same convention as the entitlement grant above: never blocks account creation.
+  // A signup with no valid referral code (missing, malformed, or an inactive/unknown code) is
+  // simply Unassigned — exactly as a normal signup would be — never an error back to the client.
+  const referral = await resolvePartnerReferral(input.referralCode);
+  await createClientAssignmentForNewTenant(tenantId, referral);
   return { tenantId };
 });
 
