@@ -36,6 +36,7 @@ export {
   adminListClientAssignments,
   adminAssignClient,
   adminListClientAssignmentAudit,
+  adminBackfillClientAssignments,
   partnerListMyClients,
 } from './partners.js';
 export {

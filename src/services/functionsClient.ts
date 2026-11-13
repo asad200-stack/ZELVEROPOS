@@ -386,6 +386,9 @@ export const api = {
     { entries: ClientAssignmentAuditEntry[] }
   >('adminListClientAssignmentAudit'),
   partnerListMyClients: callable<Record<string, never>, { clients: PartnerClientRow[] }>('partnerListMyClients'),
+  adminBackfillClientAssignments: callable<Record<string, never>, { scanned: number; created: number; skipped: number }>(
+    'adminBackfillClientAssignments',
+  ),
 };
 
 export interface MarketingPartnerRow {

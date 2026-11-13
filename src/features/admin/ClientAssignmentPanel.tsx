@@ -167,6 +167,20 @@ function PartnersSection({
   const { t } = useI18n();
   const { notify, confirm } = useFeedback();
   const { busy, run } = useAsyncAction('partner-revoke');
+  const backfill = useAsyncAction('clients-backfill');
+
+  const runBackfill = async () => {
+    const ok = await confirm({
+      title: t('admin.clients.backfill'),
+      message: t('admin.clients.backfillConfirm'),
+    });
+    if (!ok) return;
+    await backfill.run(async () => {
+      const result = await api.adminBackfillClientAssignments({});
+      notify('success', t('admin.clients.backfillResult', { scanned: result.scanned, created: result.created, skipped: result.skipped }));
+      onChanged();
+    });
+  };
 
   const copy = async (code: string) => {
     try {
@@ -196,6 +210,9 @@ function PartnersSection({
       <div className="card__header">
         <h2 className="card__title">{t('admin.partners')}</h2>
         <div className="card__actions">
+          <Button size="sm" variant="secondary" icon="refresh" loading={backfill.busy} onClick={() => void runBackfill()}>
+            {t('admin.clients.backfill')}
+          </Button>
           <Button size="sm" icon="plus" onClick={onGrant}>
             {t('admin.partners.grant')}
           </Button>

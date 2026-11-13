@@ -183,6 +183,60 @@ export const adminListPartners = onCall({ region: REGION }, async (request) => {
   return { partners };
 });
 
+/* ------------------------------------------------------------------ one-time backfill */
+
+/**
+ * Backfills `platformClientAssignments` for every tenant that existed BEFORE this feature
+ * shipped (completeSignup only writes this doc for brand-new signups going forward). Every
+ * backfilled tenant lands exactly where an organic, non-referred signup would: `direct`
+ * acquisition, Unassigned. Idempotent — safe to run more than once, and safe to run while new
+ * signups are happening (each one checks `existing.exists` before writing, same as
+ * createClientAssignmentForNewTenant). Super Admin only; never touches a tenant that already
+ * has an assignment doc, so it can never overwrite real attribution or a manual assignment.
+ */
+export const adminBackfillClientAssignments = onCall({ region: REGION, timeoutSeconds: 540 }, async (request) => {
+  const c = caller(request);
+  requireSuperAdmin(c);
+
+  const storesSnap = await db.collection('stores').select().get();
+  const tenantIds = storesSnap.docs.map((d) => d.id);
+  if (tenantIds.length === 0) return { scanned: 0, created: 0, skipped: 0 };
+
+  let created = 0;
+  let skipped = 0;
+  const CHUNK = 300; // Firestore getAll/batch limits — process in chunks for large stores collections.
+  for (let i = 0; i < tenantIds.length; i += CHUNK) {
+    const chunk = tenantIds.slice(i, i + CHUNK);
+    const existingSnaps = await db.getAll(...chunk.map((t) => assignmentRef(t)));
+    const batch = db.batch();
+    const now = FieldValue.serverTimestamp();
+    const nowMs = Date.now();
+    let chunkCreated = 0;
+    existingSnaps.forEach((snap, idx) => {
+      if (snap.exists) {
+        skipped += 1;
+        return;
+      }
+      const tenantId = chunk[idx];
+      batch.set(assignmentRef(tenantId), {
+        tenantId,
+        acquisition: { source: 'direct' as const, partnerId: null, referralCode: null, capturedAt: now, capturedAtMs: nowMs },
+        assignedTo: null,
+        assignedPartnerId: null,
+        assignedBy: null,
+        assignedAt: now,
+        updatedAtMs: nowMs,
+      });
+      chunkCreated += 1;
+    });
+    if (chunkCreated > 0) await batch.commit();
+    created += chunkCreated;
+  }
+
+  await audit({ actorUid: c.uid, action: 'backfill-client-assignments', meta: { scanned: tenantIds.length, created, skipped } });
+  return { scanned: tenantIds.length, created, skipped };
+});
+
 const revokePartnerSchema = z.object({ partnerId: trimmed(128) });
 
 /** Revokes a partner's access immediately (claim cleared, referral code deactivated). History and existing client assignments are preserved untouched. */
