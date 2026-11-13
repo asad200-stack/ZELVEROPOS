@@ -26,6 +26,7 @@ function parseClaims(raw: Record<string, unknown>): Claims {
     tenantId: typeof raw.tenantId === 'string' ? raw.tenantId : null,
     role: raw.role === 'owner' || raw.role === 'subUser' ? raw.role : null,
     superAdmin: raw.superAdmin === true,
+    marketingPartner: raw.marketingPartner === true,
     active: raw.active === true,
     subUntil: typeof raw.subUntil === 'number' ? raw.subUntil : 0,
     claimsVersion: typeof raw.cv === 'number' ? raw.cv : 0,
@@ -201,6 +202,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const currentSub = subscription && subscription.key === tenantId ? subscription.data : null;
     const currentError = error && error.key === uid ? error.data : null;
     const isSuperAdmin = !!currentClaims?.superAdmin;
+    const isMarketingPartner = !!currentClaims?.marketingPartner;
     const isOwner = currentProfile?.role === 'owner';
     const permissions = isOwner ? ALL_PERMISSIONS : normalizePermissions(currentProfile?.permissions);
 
@@ -227,6 +229,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       tenantId: currentProfile ? tenantId : null,
       isOwner,
       isSuperAdmin,
+      isMarketingPartner,
       isInternalDemo: !!currentProfile && !!tenantId && currentSub?.internalDemo === true,
       permissions,
       actor,

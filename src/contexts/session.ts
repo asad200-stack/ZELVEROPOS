@@ -9,6 +9,8 @@ export interface Claims {
   tenantId: string | null;
   role: Role | null;
   superAdmin: boolean;
+  /** Platform-level Marketing Partner role (functions/src/partners.ts) — never a tenant role, never a Super Admin. */
+  marketingPartner: boolean;
   active: boolean;
   subUntil: number;
   claimsVersion: number;
@@ -33,6 +35,8 @@ export interface Session {
   tenantId: string | null;
   isOwner: boolean;
   isSuperAdmin: boolean;
+  /** Platform-level Marketing Partner (see Claims.marketingPartner); never also a tenant member or Super Admin. */
+  isMarketingPartner: boolean;
   /** The current tenant is the platform's internal demo store (server-written subscription marker). */
   isInternalDemo: boolean;
   permissions: PermissionMap;

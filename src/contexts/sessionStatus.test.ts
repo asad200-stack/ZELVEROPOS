@@ -6,7 +6,7 @@ import { deriveSessionStatus, type SessionStatusInput } from './sessionStatus';
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 9, 30);
 
-const claims = (o: Partial<Claims> = {}): Claims => ({ tenantId: 't1', role: 'owner', superAdmin: false, active: true, subUntil: NOW + DAY, claimsVersion: 1, ...o });
+const claims = (o: Partial<Claims> = {}): Claims => ({ tenantId: 't1', role: 'owner', superAdmin: false, marketingPartner: false, active: true, subUntil: NOW + DAY, claimsVersion: 1, ...o });
 const profile = (o: Partial<UserProfile> = {}): UserProfile => ({
   uid: 'u1',
   email: '',
@@ -58,6 +58,11 @@ describe('deriveSessionStatus', () => {
 
   it('a pure super admin (no tenant) is ready without a profile or subscription', () => {
     const s = input({ claims: claims({ superAdmin: true, tenantId: null, role: null }), profile: null, subscription: null, tenantId: null });
+    expect(deriveSessionStatus(s, NOW)).toBe('ready');
+  });
+
+  it('a pure marketing partner (no tenant) is ready without a profile or subscription', () => {
+    const s = input({ claims: claims({ marketingPartner: true, tenantId: null, role: null }), profile: null, subscription: null, tenantId: null });
     expect(deriveSessionStatus(s, NOW)).toBe('ready');
   });
 

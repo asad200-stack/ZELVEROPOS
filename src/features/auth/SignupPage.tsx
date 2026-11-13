@@ -6,6 +6,7 @@ import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useForm } from '@/hooks/useForm';
 import { useI18n } from '@/i18n/i18n';
 import { register } from '@/services/authService';
+import { peekReferralCode } from '@/services/referralCapture';
 import { signupSchema } from '@/validation/schemas';
 
 export default function SignupPage() {
@@ -25,7 +26,7 @@ export default function SignupPage() {
     e.preventDefault();
     const data = form.validate(signupSchema);
     if (!data) return;
-    void run(() => register(data));
+    void run(() => register({ ...data, referralCode: peekReferralCode() }));
   };
 
   return (

@@ -234,6 +234,7 @@ describe('Marketing Partner & Client Assignment', () => {
       'PERMISSION_DENIED',
     );
     expect((await call(customerToken, 'grantMarketingPartner', { email: 'x@test.local', name: 'x' })).error?.status).toBe('PERMISSION_DENIED');
+    expect((await call(customerToken, 'adminListPartners', {})).error?.status).toBe('PERMISSION_DENIED');
 
     // A marketing partner cannot escalate into Super-Admin-only actions either.
     expect((await call(partnerA.token, 'adminListClientAssignments', { group: 'all' })).error?.status).toBe('PERMISSION_DENIED');
@@ -242,6 +243,7 @@ describe('Marketing Partner & Client Assignment', () => {
     );
     expect((await call(partnerA.token, 'grantMarketingPartner', { email: 'y@test.local', name: 'y' })).error?.status).toBe('PERMISSION_DENIED');
     expect((await call(partnerA.token, 'revokeMarketingPartner', { partnerId: partnerA.partnerId })).error?.status).toBe('PERMISSION_DENIED');
+    expect((await call(partnerA.token, 'adminListPartners', {})).error?.status).toBe('PERMISSION_DENIED');
 
     // partnerListMyClients takes no tenant/partner id input at all — there is nothing for a partner
     // to submit to "ask for someone else's list"; the callable always resolves strictly from its own

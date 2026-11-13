@@ -23,6 +23,9 @@ export function deriveSessionStatus(s: SessionStatusInput, now: number = Date.no
   if (s.user === null) return 'signedOut';
   if (!s.claims) return s.error ? 'error' : 'loading';
   if (s.claims.superAdmin && !s.tenantId) return 'ready';
+  // A Marketing Partner is a pure platform account too: no tenant, no profile doc, no subscription
+  // to wait on — exactly like the Super Admin bypass above.
+  if (s.claims.marketingPartner && !s.tenantId) return 'ready';
   if (!s.user.emailVerified) return 'needsVerification';
   if (s.profile === undefined) return s.error ? 'error' : 'loading';
   if (s.profile === null) return 'needsSetup';

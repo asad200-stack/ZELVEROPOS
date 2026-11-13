@@ -6,7 +6,7 @@ import type { PermissionKey } from '@/constants/permissions';
 import { useSession } from '@/contexts/session';
 import { useI18n } from '@/i18n/i18n';
 import { AccountStatusScreen } from '@/features/auth/AccountStatusScreen';
-import { publicRouteDecision, superAdminRouteDecision, tenantRouteDecision } from './routeAccess';
+import { marketingPartnerRouteDecision, publicRouteDecision, superAdminRouteDecision, tenantRouteDecision } from './routeAccess';
 
 /**
  * Route protection. These guards are UX only; the real enforcement is in Firestore/Storage rules
@@ -28,6 +28,8 @@ export function RequireTenant() {
       return <AccountStatusScreen status={session.status as 'disabled' | 'inactive' | 'error'} />;
     case 'admin':
       return <Navigate to="/admin" replace />;
+    case 'partner':
+      return <Navigate to="/partner" replace />;
     case 'allow':
       return <Outlet />;
   }
@@ -44,6 +46,20 @@ export function RequirePermission({ permission, ownerOnly, children }: { permiss
 export function RequireSuperAdmin() {
   const session = useSession();
   switch (superAdminRouteDecision(session)) {
+    case 'loader':
+      return <PageLoader />;
+    case 'login':
+      return <Navigate to="/login" replace />;
+    case 'home':
+      return <Navigate to="/" replace />;
+    case 'allow':
+      return <Outlet />;
+  }
+}
+
+export function RequireMarketingPartner() {
+  const session = useSession();
+  switch (marketingPartnerRouteDecision(session)) {
     case 'loader':
       return <PageLoader />;
     case 'login':

@@ -32,6 +32,7 @@ export { clearTenantData } from './tenantData.js';
 export {
   grantMarketingPartner,
   revokeMarketingPartner,
+  adminListPartners,
   adminListClientAssignments,
   adminAssignClient,
   adminListClientAssignmentAudit,

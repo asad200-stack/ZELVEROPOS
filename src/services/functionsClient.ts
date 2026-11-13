@@ -45,6 +45,8 @@ export interface SignupInput {
   storeName: string;
   subdomain: string;
   phone: string;
+  /** Captured from a Marketing Partner's referral link (?ref=CODE), if any. */
+  referralCode?: string;
 }
 
 export interface AdminAccount {
@@ -365,7 +367,69 @@ export const api = {
   activateMyFeature: callable<{ featureId: string }, { ok: true; duplicate: boolean; reloadRequired: boolean; stages: Array<'checked' | 'entitled' | 'active'> }>(
     'activateMyFeature',
   ),
+  /* ---------------------------------------------------- Marketing Partner & Client Assignment */
+  grantMarketingPartner: callable<{ email: string; name: string; contactAuthorized: boolean }, { ok: true; partnerId: string; referralCode: string }>(
+    'grantMarketingPartner',
+  ),
+  revokeMarketingPartner: callable<{ partnerId: string }, { ok: true }>('revokeMarketingPartner'),
+  adminListPartners: callable<Record<string, never>, { partners: MarketingPartnerRow[] }>('adminListPartners'),
+  adminListClientAssignments: callable<
+    { group?: 'all' | 'mine' | 'partner' | 'unassigned'; search?: string; partnerId?: string },
+    { rows: ClientAssignmentRow[] }
+  >('adminListClientAssignments'),
+  adminAssignClient: callable<
+    { tenantId: string; assignTo: 'superAdmin' | 'partner'; partnerId?: string; confirm: string },
+    { ok: true }
+  >('adminAssignClient'),
+  adminListClientAssignmentAudit: callable<
+    { tenantId?: string; limit?: number },
+    { entries: ClientAssignmentAuditEntry[] }
+  >('adminListClientAssignmentAudit'),
+  partnerListMyClients: callable<Record<string, never>, { clients: PartnerClientRow[] }>('partnerListMyClients'),
 };
+
+export interface MarketingPartnerRow {
+  uid: string;
+  email: string;
+  name: string;
+  referralCode: string;
+  contactAuthorized: boolean;
+  active: boolean;
+  createdAtMs: number | null;
+}
+
+export interface ClientAssignmentRow {
+  tenantId: string;
+  storeName: string;
+  ownerEmail: string;
+  ownerName: string;
+  createdAtMs: number | null;
+  subscriptionStatus: 'trial' | 'active' | 'expired' | 'unknown';
+  acquisition: { source: 'referral' | 'direct'; partnerId: string | null; referralCode: string | null };
+  assignedTo: 'superAdmin' | 'partner' | null;
+  assignedPartnerId: string | null;
+  assignedBy: string | null;
+  assignedAtMs: number | null;
+}
+
+export interface ClientAssignmentAuditEntry {
+  id: string;
+  action: string;
+  actorUid: string;
+  tenantId?: string;
+  partnerId?: string;
+  meta?: Record<string, unknown>;
+  atMs: number;
+}
+
+export interface PartnerClientRow {
+  tenantId: string;
+  storeName: string;
+  signupAtMs: number | null;
+  subscriptionStatus: 'trial' | 'active' | 'expired' | 'unknown';
+  activationStatus: 'active' | 'inactive';
+  contact: { email: string; phone: string } | null;
+}
 
 export interface FeatureCatalogItem {
   id: string;

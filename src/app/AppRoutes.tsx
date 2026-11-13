@@ -7,8 +7,9 @@ import { adminPreviewDecision, isAdminPreviewBuild } from '@/domain/adminPreview
 import { resetTenantStore } from '@/stores/tenantStore';
 import { AppLayout } from '@/layouts/AppLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
+import { PartnerLayout } from '@/layouts/PartnerLayout';
 import { NAV_ITEMS } from './navigation';
-import { PublicOnly, RequirePermission, RequireSuperAdmin, RequireTenant } from './guards';
+import { PublicOnly, RequireMarketingPartner, RequirePermission, RequireSuperAdmin, RequireTenant } from './guards';
 import { UpdateNotice } from './UpdateNotice';
 import { PreviewAccess } from './PreviewAccess';
 import { signOut } from '@/services/authService';
@@ -23,6 +24,7 @@ const VerifyEmailPage = page(() => import('@/features/auth/VerifyEmailPage'));
 const AuthActionPage = page(() => import('@/features/auth/AuthActionPage'));
 const SetupPage = page(() => import('@/features/auth/SetupPage'));
 const SuperAdminPage = page(() => import('@/features/admin/SuperAdminPage'));
+const PartnerDashboardPage = page(() => import('@/features/partners/PartnerDashboardPage'));
 const NotFoundPage = page(() => import('@/pages/NotFoundPage'));
 
 const SCREENS: Record<string, LazyExoticComponent<ComponentType>> = {
@@ -95,6 +97,12 @@ export function AppRoutes() {
         <Route element={<RequireSuperAdmin />}>
           <Route element={<AppLayout adminOnly />}>
             <Route path="/admin" element={<SuperAdminPage />} />
+          </Route>
+        </Route>
+
+        <Route element={<RequireMarketingPartner />}>
+          <Route element={<PartnerLayout />}>
+            <Route path="/partner" element={<PartnerDashboardPage />} />
           </Route>
         </Route>
 

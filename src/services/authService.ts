@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { firebase } from '@/firebase/app';
 import { api, type SignupInput } from './functionsClient';
+import { clearReferralCode } from './referralCapture';
 import { emailCooldown, type SendOutcome } from './emailCooldown';
 import { AppError } from './errors';
 
@@ -38,12 +39,14 @@ export async function register(input: SignupInput & { email: string; password: s
     storeName: input.storeName,
     subdomain: input.subdomain,
     phone: input.phone,
+    referralCode: input.referralCode,
   });
 }
 
 /** Creates the tenant server-side (idempotent) and refreshes the ID token to pick up claims. */
 export async function completeSignup(input: SignupInput): Promise<void> {
   await api.completeSignup(input);
+  clearReferralCode(); // single-use, whether or not it actually resolved to a partner
   await firebase.auth.currentUser?.getIdToken(true);
 }
 

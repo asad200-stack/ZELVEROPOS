@@ -9,6 +9,7 @@ import { useForm } from '@/hooks/useForm';
 import { useI18n } from '@/i18n/i18n';
 import { completeSignup, signOut } from '@/services/authService';
 import { api } from '@/services/functionsClient';
+import { peekReferralCode } from '@/services/referralCapture';
 import { setupSchema } from '@/validation/schemas';
 
 /** Shown when an Auth account exists but its store was never created (e.g. interrupted signup). */
@@ -27,7 +28,7 @@ export default function SetupPage() {
     e.preventDefault();
     const data = form.validate(setupSchema);
     if (!data) return;
-    void run(() => completeSignup(data));
+    void run(() => completeSignup({ ...data, referralCode: peekReferralCode() }));
   };
 
   return (

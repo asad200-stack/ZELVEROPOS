@@ -154,6 +154,35 @@ export const grantMarketingPartner = onCall({ region: REGION }, async (request) 
   return { ok: true as const, partnerId: uid, referralCode };
 });
 
+interface PartnerRow {
+  uid: string;
+  email: string;
+  name: string;
+  referralCode: string;
+  contactAuthorized: boolean;
+  active: boolean;
+  createdAtMs: number | null;
+}
+
+/** Super Admin only. Lists every Marketing Partner account (active and revoked) for management. */
+export const adminListPartners = onCall({ region: REGION }, async (request) => {
+  requireSuperAdmin(caller(request));
+  const snap = await db.collection(PARTNER_COLLECTION).orderBy('createdAt', 'desc').get();
+  const partners: PartnerRow[] = snap.docs.map((d) => {
+    const p = d.data();
+    return {
+      uid: d.id,
+      email: String(p.email ?? ''),
+      name: String(p.name ?? ''),
+      referralCode: String(p.referralCode ?? ''),
+      contactAuthorized: p.contactAuthorized === true,
+      active: p.active === true,
+      createdAtMs: typeof p.createdAt?.toMillis === 'function' ? p.createdAt.toMillis() : null,
+    };
+  });
+  return { partners };
+});
+
 const revokePartnerSchema = z.object({ partnerId: trimmed(128) });
 
 /** Revokes a partner's access immediately (claim cleared, referral code deactivated). History and existing client assignments are preserved untouched. */

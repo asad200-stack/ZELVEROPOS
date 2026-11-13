@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { ClientAssignmentPanel } from '@/features/admin/ClientAssignmentPanel';
 import { LeadsPanel } from '@/features/admin/LeadsPanel';
 import { StorageCleanupPanel } from '@/features/admin/StorageCleanupPanel';
 import { cleanupOutcomeKey } from '@/features/admin/storageCleanupLabels';
@@ -41,7 +42,7 @@ export default function SuperAdminPage() {
   const [params, setParams] = useSearchParams();
   const rawTab = params.get('tab');
   const tab =
-    rawTab === 'releases' || rawTab === 'preview' || rawTab === 'features' || rawTab === 'leads' || rawTab === 'trials' || rawTab === 'cleanup'
+    rawTab === 'releases' || rawTab === 'preview' || rawTab === 'features' || rawTab === 'leads' || rawTab === 'trials' || rawTab === 'cleanup' || rawTab === 'clients'
       ? rawTab
       : 'accounts';
   const [token, setToken] = useState(0);
@@ -77,6 +78,9 @@ export default function SuperAdminPage() {
             <Button variant={tab === 'leads' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'leads' })}>
               {t('admin.leads')}
             </Button>
+            <Button variant={tab === 'clients' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'clients' })}>
+              {t('admin.clients')}
+            </Button>
             <Button variant={tab === 'trials' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'trials' })}>
               {t('admin.trials')}
             </Button>
@@ -106,6 +110,8 @@ export default function SuperAdminPage() {
         <ReleaseManagementPanel />
       ) : tab === 'leads' ? (
         <LeadsPanel />
+      ) : tab === 'clients' ? (
+        <ClientAssignmentPanel />
       ) : tab === 'trials' ? (
         <TrialsPanel />
       ) : tab === 'cleanup' ? (

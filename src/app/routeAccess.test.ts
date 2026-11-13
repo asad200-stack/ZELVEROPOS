@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionStatus } from '@/contexts/session';
-import { publicRouteDecision, superAdminRouteDecision, tenantRouteDecision } from './routeAccess';
+import { marketingPartnerRouteDecision, publicRouteDecision, superAdminRouteDecision, tenantRouteDecision } from './routeAccess';
 
 const session = (status: SessionStatus, tenantId: string | null, isSuperAdmin: boolean) => ({ status, tenantId, isSuperAdmin });
 
@@ -33,6 +33,20 @@ describe('route access', () => {
   it('customer owners cannot open /admin', () => {
     expect(superAdminRouteDecision(customerOwner)).toBe('home');
     expect(superAdminRouteDecision(session('inactive', 'customer-tenant', false))).toBe('home');
+  });
+
+  it('a pure marketing partner (no tenant) is sent to /partner, not /admin', () => {
+    const partner = { ...session('ready', null, false), isMarketingPartner: true };
+    expect(tenantRouteDecision(partner)).toBe('partner');
+    expect(publicRouteDecision(partner, undefined)).toEqual({ kind: 'redirect', to: '/partner' });
+  });
+
+  it('a marketing partner can open /partner; everyone else is sent home', () => {
+    expect(marketingPartnerRouteDecision({ ...pureSuperAdmin, isMarketingPartner: true })).toBe('allow');
+    expect(marketingPartnerRouteDecision(pureSuperAdmin)).toBe('home');
+    expect(marketingPartnerRouteDecision(customerOwner)).toBe('home');
+    expect(marketingPartnerRouteDecision(session('signedOut', null, false))).toBe('login');
+    expect(marketingPartnerRouteDecision(session('loading', null, false))).toBe('loader');
   });
 
   it('customer flows are unchanged', () => {
