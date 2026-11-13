@@ -94,7 +94,7 @@ export async function createClientAssignmentForNewTenant(tenantId: string, refer
     actorUid: referral ? referral.partnerId : 'signup',
     action: referral ? 'signup-assigned-referral' : 'signup-unassigned',
     tenantId,
-    partnerId: referral?.partnerId,
+    ...(referral ? { partnerId: referral.partnerId } : {}),
   });
 }
 
@@ -392,7 +392,7 @@ export const adminAssignClient = onCall({ region: REGION }, async (request) => {
     assignedAt: FieldValue.serverTimestamp(),
     updatedAtMs: Date.now(),
   });
-  await audit({ actorUid: c.uid, action: from.assignedTo ? 'transferred' : 'assigned', tenantId: input.tenantId, partnerId: to.assignedPartnerId ?? undefined, meta: { from, to } });
+  await audit({ actorUid: c.uid, action: from.assignedTo ? 'transferred' : 'assigned', tenantId: input.tenantId, ...(to.assignedPartnerId ? { partnerId: to.assignedPartnerId } : {}), meta: { from, to } });
   return { ok: true as const };
 });
 
