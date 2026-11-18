@@ -4,7 +4,7 @@ import { MoneyInput } from '@/components/ui/Form';
 import { Alert } from '@/components/ui/Layout';
 import type { CartTotals } from '@/domain/cart';
 import { autoFillCashTender, type CashTenderPlan, type ChangeManual, type CreditResult } from '@/domain/checkout';
-import { applyTypedMoney, completeMoneyInput, parseUsdInput } from '@/domain/money';
+import { applyTypedMoney, completeMoneyInput, formatUsdCentsInput, parseUsdInput } from '@/domain/money';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
 import type { Customer, SaleKind } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
@@ -104,7 +104,7 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
     const filled =
       draft.kind === 'cash'
         ? autoFillCashTender({
-            dueUsdCents: totals.dueUsdCents,
+            dueUsdCents: totals.payableUsdCents,
             rate,
             receivedUsd: kind === 'usd' ? typed.value : draft.receivedUsd,
             receivedLbp: kind === 'lbp' ? typed.value : draft.receivedLbp,
@@ -132,7 +132,7 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
     const filled =
       draft.kind === 'cash'
         ? autoFillCashTender({
-            dueUsdCents: totals.dueUsdCents,
+            dueUsdCents: totals.payableUsdCents,
             rate,
             receivedUsd: kind === 'usd' ? completed : draft.receivedUsd,
             receivedLbp: kind === 'lbp' ? completed : draft.receivedLbp,
@@ -166,6 +166,29 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
     if (cents === null || cents <= 0) return;
     onApplyFixedDiscount(cents);
     setDiscountInput('');
+    if (draft.kind !== 'cash') return;
+    // The discount replaces any earlier one, so take off only the change in what is payable:
+    // 119.60 received + 19.60 discount → the USD cash field drops straight to 100.00.
+    const nextPayable = Math.max(0, totals.dueUsdCents - Math.min(cents, totals.dueUsdCents));
+    const reduction = totals.payableUsdCents - nextPayable;
+    const receivedUsdCents = parseUsdInput(draft.receivedUsd) ?? 0;
+    if (reduction === 0 || receivedUsdCents <= 0) return;
+    const nextUsdCents = Math.max(0, receivedUsdCents - reduction);
+    const filled = autoFillCashTender({
+      dueUsdCents: nextPayable,
+      rate,
+      receivedUsd: nextUsdCents > 0 ? formatUsdCentsInput(nextUsdCents) : '',
+      receivedLbp: draft.receivedLbp,
+      edited: 'usd',
+      usdManual: draft.tenderUsdManual,
+      lbpManual: draft.tenderLbpManual,
+    });
+    onDraft({
+      receivedUsd: filled.receivedUsd,
+      receivedLbp: filled.receivedLbp,
+      tenderUsdManual: filled.usdManual,
+      tenderLbpManual: filled.lbpManual,
+    });
   };
 
   return (
