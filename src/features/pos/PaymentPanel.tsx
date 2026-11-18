@@ -59,7 +59,6 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
   const receivedUsdRef = useRef<HTMLInputElement>(null);
   const receivedLbpRef = useRef<HTMLInputElement>(null);
   const [discountInput, setDiscountInput] = useState('');
-  const [customDiscountOpen, setCustomDiscountOpen] = useState(false);
 
   const creditError = !customer
     ? 'error.creditNeedsCustomer'
@@ -167,7 +166,6 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
     if (cents === null || cents <= 0) return;
     onApplyFixedDiscount(cents);
     setDiscountInput('');
-    setCustomDiscountOpen(false);
   };
 
   return (
@@ -258,11 +256,54 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
                   onFocus={(e) => e.currentTarget.select()}
                   onChange={(e) => onReceived('lbp', e.target.value, e.target.selectionStart ?? e.target.value.length, e.currentTarget)}
                   onBlur={(e) => onReceivedBlur('lbp', e.target.value)}
-                  onKeyDown={(e) => focusNext(e, 'sale-note')}
+                  onKeyDown={(e) => focusNext(e, canDiscount ? 'checkout-discount' : 'sale-note')}
                 />
               </label>
             </div>
           </div>
+
+          {canDiscount && (
+            <div className="payment__block payment__block--discount">
+              <div className="payment__kicker">{t('pos.applyDiscount')}</div>
+              <div className="payment__pair">
+                <label className="payment__money">
+                  <span>{t('pos.discountAmountUsd')}</span>
+                  <input
+                    id="checkout-discount"
+                    className="input"
+                    inputMode="decimal"
+                    dir="ltr"
+                    autoComplete="off"
+                    placeholder="0.00"
+                    aria-label={t('pos.discountAmountUsd')}
+                    value={discountInput}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onChange={(e) => setDiscountInput(e.target.value)}
+                    onBlur={(e) => setDiscountInput(completeMoneyInput('usd', e.target.value))}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter') return;
+                      // Empty Enter just moves on; it must never round down the sale by surprise.
+                      if (!discountInput.trim()) {
+                        focusNext(e, 'sale-note');
+                        return;
+                      }
+                      e.preventDefault();
+                      e.stopPropagation();
+                      applyFixedDiscount();
+                    }}
+                  />
+                </label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={discountInput.trim() ? parseUsdInput(discountInput) === null : phase !== 'due'}
+                  onClick={applyFixedDiscount}
+                >
+                  {t('pos.applyDiscountAction')}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {phase === 'due' && canDiscount && (
             <div className="payment__block payment__status-row payment__status-row--due">
@@ -285,54 +326,6 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
               <div className="payment__total-line">
                 <FitAmount value={formatUsd(cash.remainingUsdCents)} />
                 <FitAmount value={formatLbp(cash.remainingLbp, lang)} className="fit-amount--sub" />
-              </div>
-            </div>
-          )}
-          {canDiscount && draft.kind === 'cash' && !customDiscountOpen && (
-            <button type="button" className="payment__custom-link" onClick={() => setCustomDiscountOpen(true)}>
-              {t('pos.enterCustomDiscount')}
-            </button>
-          )}
-          {canDiscount && draft.kind === 'cash' && customDiscountOpen && (
-            <div className="payment__block payment__block--discount">
-              <div className="payment__change-head">
-                <div className="payment__kicker">{t('pos.applyDiscount')}</div>
-                <button
-                  type="button"
-                  className="payment__discount-remove"
-                  aria-label={t('common.cancel')}
-                  title={t('common.cancel')}
-                  onClick={() => {
-                    setCustomDiscountOpen(false);
-                    setDiscountInput('');
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="payment__pair">
-                <label className="payment__money">
-                  <span>{t('pos.discountAmountUsd')}</span>
-                  <input
-                    className="input"
-                    inputMode="decimal"
-                    dir="ltr"
-                    autoComplete="off"
-                    placeholder="0.00"
-                    aria-label={t('pos.discountAmountUsd')}
-                    value={discountInput}
-                    onChange={(e) => setDiscountInput(e.target.value)}
-                    onBlur={(e) => setDiscountInput(completeMoneyInput('usd', e.target.value))}
-                  />
-                </label>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={discountInput.trim() ? parseUsdInput(discountInput) === null : phase !== 'due'}
-                  onClick={applyFixedDiscount}
-                >
-                  {t('pos.applyDiscountAction')}
-                </Button>
               </div>
             </div>
           )}
