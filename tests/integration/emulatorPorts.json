@@ -6,7 +6,7 @@
     "auth": 9099,
     "functions": 5001,
     "storage": 9199,
-    "pubsub": 8085,
+    "pubsub": 8086,
     "ui": 4000,
     "hub": 4400
   },

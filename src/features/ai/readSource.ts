@@ -6,7 +6,7 @@ import { getDoc, where } from 'firebase/firestore';
 import { addDays } from '@/domain/dates';
 import { emptyProductQuery, looksLikeCode } from '@/domain/catalogPlan';
 import { nameNormalized } from '@/domain/searchKey';
-import { countWhere, getProductsByIds, pageCustomers, pageProducts } from '@/services/catalogQuery';
+import { countWhere, getProductsByIds, loadLowStock, pageCustomers, pageProducts } from '@/services/catalogQuery';
 import { paths, toCashbox, toSettings } from '@/services/db';
 import { loadDailyStats } from '@/services/reportService';
 import { listSales, type SalesCursor } from '@/services/salesService';
@@ -15,6 +15,9 @@ import { AI_LIST_CAP, EXPIRY_SOON_DAYS, type AiReadSource } from './readSnapshot
 
 /** Eight pages of the sales history page size. A later page means the ranking is not shown. */
 const RANK_PAGE_CAP = 8;
+
+/** Same size as one catalog page, which the flat low-stock list returns. */
+const LOW_LIST_CAP = 50;
 
 export function firestoreAiReadSource(): AiReadSource {
   return {
@@ -28,7 +31,14 @@ export function firestoreAiReadSource(): AiReadSource {
       const snap = await getDoc(paths.settings(tenantId));
       return toSettings(snap.data()).lowStockThreshold;
     },
-    async stockCounts(tenantId, threshold) {
+    async stockCounts(tenantId, threshold, perItem) {
+      if (perItem) {
+        const [low, out] = await Promise.all([
+          loadLowStock(tenantId, threshold),
+          countWhere(tenantId, 'products', [where('status', '==', 'active'), where('stock', '==', 0)]),
+        ]);
+        return low.complete ? { low: low.items.length, out } : null;
+      }
       const [low, out] = await Promise.all([
         countWhere(tenantId, 'products', [where('status', '==', 'active'), where('stock', '>', 0), where('stock', '<=', threshold)]),
         countWhere(tenantId, 'products', [where('status', '==', 'active'), where('stock', '==', 0)]),
@@ -48,7 +58,15 @@ export function firestoreAiReadSource(): AiReadSource {
         complete: !page.hasMore,
       };
     },
-    async products(tenantId, mode, threshold) {
+    async products(tenantId, mode, threshold, perItem) {
+      if (mode === 'low' && perItem) {
+        const low = await loadLowStock(tenantId, threshold);
+        const sorted = [...low.items].sort((a, b) => a.stock - b.stock || a.name.localeCompare(b.name));
+        return {
+          items: sorted.slice(0, LOW_LIST_CAP).map((item) => ({ id: item.id, name: item.name, stock: item.stock })),
+          hasMore: !low.complete || sorted.length > LOW_LIST_CAP,
+        };
+      }
       const page = await pageProducts(tenantId, emptyProductQuery({ mode, lowStockAt: threshold }), null);
       return {
         items: page.items.map((item) => ({ id: item.id, name: item.name, stock: item.stock })),

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Alert } from '@/components/ui/Layout';
 import { claimAutoPrint, shouldAutoPrintInvoice } from '@/features/sales/autoPrint';
@@ -18,9 +18,13 @@ interface Props {
 
 export function CheckoutPrintMenu({ result, settings, onClose }: Props) {
   const { t, lang } = useI18n();
-  const [printing, setPrinting] = useState<PrintFormat | null>(null);
+  const [printing, setPrinting] = useState<PrintFormat | null>(() =>
+    shouldAutoPrintInvoice(result, settings) && result.mode === 'online' && !autoPrintedSales.has(result.sale.id)
+      ? settings.printFormat
+      : null,
+  );
   const [failed, setFailed] = useState(false);
-  const lock = useRef(false);
+  const lock = useRef(printing !== null);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,31 +47,44 @@ export function CheckoutPrintMenu({ result, settings, onClose }: Props) {
     onClose();
   };
 
-  const print = async (format: PrintFormat) => {
+  /** Runs the print and resolves true on success. Touches no React state. */
+  const runPrint = useCallback(
+    (format: PrintFormat): Promise<boolean> => {
+      const ctx = { settings, lang, t, format };
+      return result.mode === 'online' ? printSaleReceipt(result.sale, ctx) : printOfflineReceipt(result.operation, ctx);
+    },
+    [result, settings, lang, t],
+  );
+
+  /** Applies a finished print: close on success, unlock and show the error otherwise. */
+  const settle = useCallback(
+    (ok: boolean) => {
+      if (ok) {
+        onClose();
+        return;
+      }
+      lock.current = false;
+      setPrinting(null);
+      setFailed(true);
+    },
+    [onClose],
+  );
+
+  const print = (format: PrintFormat) => {
     if (lock.current) return;
     lock.current = true;
     setFailed(false);
     setPrinting(format);
-    const ctx = { settings, lang, t, format };
-    const ok =
-      result.mode === 'online'
-        ? await printSaleReceipt(result.sale, ctx)
-        : await printOfflineReceipt(result.operation, ctx);
-    if (!ok) {
-      lock.current = false;
-      setPrinting(null);
-      setFailed(true);
-      return;
-    }
-    onClose();
+    void runPrint(format).then(settle, () => settle(false));
   };
 
   useEffect(() => {
     if (!shouldAutoPrintInvoice(result, settings)) return;
     if (result.mode !== 'online') return;
     if (!claimAutoPrint(autoPrintedSales, result.sale.id)) return;
-    void print(settings.printFormat);
-  }, [result, settings, print]);
+    lock.current = true;
+    void runPrint(settings.printFormat).then(settle, () => settle(false));
+  }, [result, settings, runPrint, settle]);
 
   const reference = result.mode === 'online' ? result.sale.invoiceNumber : result.operation.offlineRef;
   const snapshot = result.mode === 'queued' ? result.operation.snapshot : null;
@@ -93,12 +110,12 @@ export function CheckoutPrintMenu({ result, settings, onClose }: Props) {
           <Alert tone="warning">{t(result.cause === 'network' ? 'offline.savedAfterNetworkError' : 'offline.savedNotInvoice')}</Alert>
         )}
         {cashTaken && <Alert tone="error">{t('offline.cashWarning', { amount: received })}</Alert>}
-        <button type="button" className="print-menu__item" role="menuitem" disabled={printing !== null} onClick={() => void print('thermal80')}>
+        <button type="button" className="print-menu__item" role="menuitem" disabled={printing !== null} onClick={() => print('thermal80')}>
           <Icon name="receipt" size={18} />
           <span>{t('pos.print80')}</span>
           {printing === 'thermal80' && <span className="print-menu__wait">{t('pos.printPreparing')}</span>}
         </button>
-        <button type="button" className="print-menu__item" role="menuitem" disabled={printing !== null} onClick={() => void print('a4')}>
+        <button type="button" className="print-menu__item" role="menuitem" disabled={printing !== null} onClick={() => print('a4')}>
           <Icon name="printer" size={18} />
           <span>{t('pos.printA4')}</span>
           {printing === 'a4' && <span className="print-menu__wait">{t('pos.printPreparing')}</span>}

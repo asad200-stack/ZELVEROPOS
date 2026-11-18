@@ -14,7 +14,7 @@ import { usePagedQuery } from '@/hooks/usePagedQuery';
 import { useCashbox, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { listCashTransactions } from '@/services/cashboxService';
-import { countWhere, pageCustomers } from '@/services/catalogQuery';
+import { countWhere, loadLowStock, pageCustomers } from '@/services/catalogQuery';
 import { loadDailyStats, netFigures, sumStats } from '@/services/reportService';
 import { catalogHasUnknownCost } from '@/services/productService';
 import { downloadCsv } from '@/utils/csv';
@@ -183,16 +183,16 @@ function InventoryReport() {
   const { t } = useI18n();
   const { tenantId } = useTenant();
   const settings = useSettings();
-  const [counts, setCounts] = useState<{ products: number; out: number; low: number } | null>(null);
+  const [counts, setCounts] = useState<{ products: number; out: number; low: string } | null>(null);
   useEffect(() => {
     let cancelled = false;
     Promise.all([
       countWhere(tenantId, 'products', [where('status', '==', 'active')]),
       countWhere(tenantId, 'products', [where('status', '==', 'active'), where('stock', '==', 0)]),
-      countWhere(tenantId, 'products', [where('status', '==', 'active'), where('stock', '>', 0), where('stock', '<=', settings.lowStockThreshold)]),
+      loadLowStock(tenantId, settings.lowStockThreshold),
     ])
       .then(([products, out, low]) => {
-        if (!cancelled) setCounts({ products, out, low });
+        if (!cancelled) setCounts({ products, out, low: low.complete ? String(low.items.length) : `${low.items.length}+` });
       })
       .catch((error: unknown) => console.error('[reports] inventory counts', error));
     return () => {

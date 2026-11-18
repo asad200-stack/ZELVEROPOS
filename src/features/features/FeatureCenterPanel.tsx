@@ -48,13 +48,16 @@ export function FeatureCenterPanel() {
   const selected = features.find((feature) => feature.id === selectedId) ?? features[0] ?? null;
   const delivery = catalog.data?.delivery.find((row) => row.featureId === selected?.id);
 
-  const now = Date.now();
+  const [now, setNow] = useState(() => Date.now());
   const eligible = useMemo(() => {
     return (accounts.data ?? []).map(asCustomer).filter((account) => isEligibleCustomer(account, now));
   }, [accounts.data, now]);
 
   const say = (key: string) => (isTranslationKey(key) ? t(key) : key);
-  const reload = () => setToken((value) => value + 1);
+  const reload = () => {
+    setToken((value) => value + 1);
+    setNow(Date.now());
+  };
   const run = async (fn: () => Promise<{ duplicate?: boolean; ok?: true } | null>) => {
     const result = await action.run(fn);
     if (!result) return;

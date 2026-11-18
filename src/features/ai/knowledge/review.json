@@ -5,6 +5,10 @@
   "note": "Approved extracted facts from the local working tree. Not a production deployment attestation. Conversations were not used.",
   "items": [
     {
+      "id": "callable:adminAssignClient",
+      "sourceHash": "5876e2dd05eea6df90a1e1d98c78e63bae976b3cd611f175fd10905c4d87b7e4"
+    },
+    {
       "id": "callable:adminDeleteAccount",
       "sourceHash": "2a1445df416c1e138d263102112fa80d2977964265fdeced96c4ddcc8e3a3307"
     },
@@ -13,8 +17,20 @@
       "sourceHash": "7a10bfb85b26dabe3d5160c9c594cfffe3e9f8287740019f6eefcf304d026bb5"
     },
     {
+      "id": "callable:adminListClientAssignmentAudit",
+      "sourceHash": "0399920620772d78c40592dc4640d3bd0ac6bb75b145c2374e103258f5e8c0b0"
+    },
+    {
+      "id": "callable:adminListClientAssignments",
+      "sourceHash": "f99c2903ee6d05f41f9daa86888713c4b20fab05597503b53938b9e6ef5ade11"
+    },
+    {
       "id": "callable:adminListLeads",
       "sourceHash": "b006990aa5e682b8e33388a541e27165a4613140dbdb5e5d622747fe547fc0e6"
+    },
+    {
+      "id": "callable:adminListPartners",
+      "sourceHash": "6ce1065101cb7cbac46d2aa7639a26d80bc3f8bc6c3db180443bbc2704a2176c"
     },
     {
       "id": "callable:adminListStorageCleanup",
@@ -41,8 +57,16 @@
       "sourceHash": "40e89a561011acb13eee5a7c6975ac860e6ad582aeb89cd9b0cdd3efc4bf4304"
     },
     {
+      "id": "callable:aiCopilotAccess",
+      "sourceHash": "d28025c22a1837a70cc9b052df3b8f315e8217d65a29aa40c600cf5dbc611376"
+    },
+    {
+      "id": "callable:aiCopilotRead",
+      "sourceHash": "f741b2be7abeb3cc61bf4e09a44549cd528c1d6a3603877f33dc2294fbe2c12a"
+    },
+    {
       "id": "callable:assignReleaseTenants",
-      "sourceHash": "039a34f8fdb8908ba538da343701122570817c1546c84acd0179a609a0476185"
+      "sourceHash": "36650032fb5ab11785508effdc6220207a289bfc111e171e84b7e8c8813e954c"
     },
     {
       "id": "callable:bootstrapSuperAdmin",
@@ -77,8 +101,40 @@
       "sourceHash": "e355aef66471030c292e95b1f3fa68c085e4a10f5953299948ea3ba273053ff5"
     },
     {
+      "id": "callable:grantFeaturePurchase",
+      "sourceHash": "43c4be4e101022c4380edb811ef8b71fa99e5be994858961438aab5f3259f30c"
+    },
+    {
+      "id": "callable:grantMarketingPartner",
+      "sourceHash": "f75c0e28756a1174cfc682bcffc8c767e5fd716f3cbb3b49fd6188763f955dc5"
+    },
+    {
+      "id": "callable:issuePreviewCredential",
+      "sourceHash": "8c7894dcb76cd54cba90dcbf8ce8d9d94a739f7d57aeb151cf9404d9ec0208c6"
+    },
+    {
+      "id": "callable:listFeatureCatalog",
+      "sourceHash": "f7536c45bfcc6fab7c30386f43db748ba72c05b09514ff35495e4bd71a5993c2"
+    },
+    {
+      "id": "callable:listMyFeatureUpdates",
+      "sourceHash": "569759d38b83eadfa51b7ca0b42aea2e9e17b5256596b2e79ba26b26913bf21a"
+    },
+    {
       "id": "callable:listReleases",
       "sourceHash": "f4a6056a6536099cfb71ee8744914d0875e11f0d5d6fe82af0aa3153018dad6f"
+    },
+    {
+      "id": "callable:markFeatureReady",
+      "sourceHash": "04a6b9feb2b29f9324dc7be3d89e5ac87402ca26dd7832118a3280105428ba23"
+    },
+    {
+      "id": "callable:partnerListMyClients",
+      "sourceHash": "1396d0b3a17352b0d0b01d23feadbe630830ccd5da6ac27d143f57f6d017e7dd"
+    },
+    {
+      "id": "callable:pauseFeature",
+      "sourceHash": "c390907ddf78c7f793e916f82f4aef8929fa2dba136a7d8c2f98a59033cef175"
     },
     {
       "id": "callable:pauseRelease",
@@ -86,11 +142,11 @@
     },
     {
       "id": "callable:posAdjustDebt",
-      "sourceHash": "141daf2167fcc37049e538ef30544400b10583d703bb816f3af16397ad3d789e"
+      "sourceHash": "33d7930ba8494f43c7b4d065eda773c99ce0b2e0aa542edae18707ec97f55f3f"
     },
     {
       "id": "callable:posAdjustDrawer",
-      "sourceHash": "6c0089557921b9d1a97e0c854dbc1a1a6d8f2d64a91588fa30deb87a34644bac"
+      "sourceHash": "0431347385d68c0fca11145356cd4ceb02301684ff13d5ce17a6f0d3263ce627"
     },
     {
       "id": "callable:posAdjustStock",
@@ -102,7 +158,7 @@
     },
     {
       "id": "callable:posCheckout",
-      "sourceHash": "63b7e592b120c037245c0fd1b6abad99f5c6187337fe0e84d92c199599e525a1"
+      "sourceHash": "bffa8d34ae123487afeeff6e4122589b4e692e7a369352e10910e9aa82e65387"
     },
     {
       "id": "callable:posCreateCustomer",
@@ -110,7 +166,7 @@
     },
     {
       "id": "callable:posCreateProduct",
-      "sourceHash": "cc76c8604f11d4e533f69f5bf5f524b683a4843e40d4331621b38ad52e8db929"
+      "sourceHash": "267954beca62e377530a467d3355414af986f9d7d47ade4e9dc9b6ac11990bdf"
     },
     {
       "id": "callable:posCreatePurchase",
@@ -118,11 +174,11 @@
     },
     {
       "id": "callable:posDeleteProduct",
-      "sourceHash": "302fd2275ea9550ec45e31770f15ee1719d3938b2afba2772e4d062c8d26a33a"
+      "sourceHash": "7796b4359ce0ca75c9f279ead0a1f9cf3af7a4a3965bcd7168e2df07ec7d405c"
     },
     {
       "id": "callable:posImportProducts",
-      "sourceHash": "fa79eed2b7f0bbb2d79936f841c3159ec64033e341a0dc907ad0c1ef77d2e47f"
+      "sourceHash": "9e6695f187af74f7ac28687bc42dccc7678bbade617b30a4b8fd16ef446a437e"
     },
     {
       "id": "callable:posPayDebt",
@@ -134,7 +190,7 @@
     },
     {
       "id": "callable:posReturn",
-      "sourceHash": "684f6422ce6411adc1c9299ac7559df169f22df5bea813da9768c304a5e928b1"
+      "sourceHash": "2ff9b74a2b4f3cf314b824f569c6c8b46ddd0a244fc9dc47b9af6a4b283e6750"
     },
     {
       "id": "callable:posReturnToSupplier",
@@ -142,7 +198,19 @@
     },
     {
       "id": "callable:posSetProductStatus",
-      "sourceHash": "a95f802198aa8b15eda1d494db5d52c0506518c1b192e856d2fe315ba7692b3f"
+      "sourceHash": "bd94068373d8cbe489b7535dd7385c731e3b6f294cd0534128dfab2a20b3b645"
+    },
+    {
+      "id": "callable:previewPos",
+      "sourceHash": "3169c51ed9967fac8080204301081a1a4e8fa394dac2728e67034b7d356440d7"
+    },
+    {
+      "id": "callable:publishFeature",
+      "sourceHash": "5361e6dd2c664956fddd243bdd103ba52c6afb165513ab23f29640bfa0be63a3"
+    },
+    {
+      "id": "callable:recordFeaturePreview",
+      "sourceHash": "650a53d618735a0e818e79c8e2a5eafee8aad39bf3739c6ab8862e909ff3cf9c"
     },
     {
       "id": "callable:refreshMyClaims",
@@ -150,11 +218,23 @@
     },
     {
       "id": "callable:releaseToEveryone",
-      "sourceHash": "86e2090ae442a28772bcfaddbc8e2c8855168923bc5e0518c049a090d18cc62b"
+      "sourceHash": "03bca8e0b6af04888da2d3d8317a65e30de2919341de00c6eac43fe0fb40d5a2"
+    },
+    {
+      "id": "callable:revokeMarketingPartner",
+      "sourceHash": "76de024ce6155e08d01794016d85b60e85a4dd493d88afa192122bb6bb9e0d79"
+    },
+    {
+      "id": "callable:rollbackFeature",
+      "sourceHash": "9352af591bdb3d61a1bedf42e8164107d54bdeaeea8d387f3d35100e127194bb"
     },
     {
       "id": "callable:rollbackRelease",
       "sourceHash": "c244f228d0ec2181f9626571c8953cdb6625e78f4188c82d5ed00b6abc0b76eb"
+    },
+    {
+      "id": "callable:setFeatureKillSwitch",
+      "sourceHash": "15eca3817fc4171ac86d1d0b5e76efc6d2e8fc6b8ee475199476801876e44811"
     },
     {
       "id": "callable:setMinSupportedVersion",
@@ -534,7 +614,7 @@
     },
     {
       "id": "route:/admin",
-      "sourceHash": "6df0594f6864b4f0974ba705cff4181f7326f068edcd22fc4d49f38a74a717c8"
+      "sourceHash": "af43adc21595685294c51e59011be78b66ed1d7a158317912194392d9598a157"
     },
     {
       "id": "route:/auth/action",
@@ -610,166 +690,190 @@
     },
     {
       "id": "rule:permissions-server-side",
-      "sourceHash": "36435f209251f59e58ab3737801a1b805da5d22e466bfd0ff93980cbc03c38ba"
+      "sourceHash": "0407a6b675befe130ff88145936fd1fceac5ec7f7ca054a0f37cd092f8df1c5f"
     },
     {
-      "id": "test:src/domain/checkout.test.ts#103",
-      "sourceHash": "8b329920b396d1b70472853e68705dfb11d7e877514d35f1cbd65a2ea1df5bd6"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#116",
-      "sourceHash": "6a539ad7f6cc6caab1017251cf86de4bd4e435ad1ac62aef3c79e7c4a646a943"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#121",
-      "sourceHash": "1d3c212b925181945ed1e8f471e4e624476e04be902484371afe63e31b032e59"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#126",
-      "sourceHash": "b45a58dd8b5eb00924bd0b5f1f3177b90ce1af76d7853b3ebb93187222f86eb3"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#135",
-      "sourceHash": "08a41e84acc13f7033a7aa5f1d2a25f55585d27d3326bafb0fedc7a57fa9138e"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#142",
-      "sourceHash": "7942c8b98095abc972998b9da383d67689e3ab707c31eaaef9aa67654b9762af"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#171",
-      "sourceHash": "9d30c063fa4663c3b6ed53efbc9e2a1e6c13fc8676d9800dfe347fbdb888c4c4"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#18",
-      "sourceHash": "09c6dd5ea83b1c3cf283bc116b0f04ec6d250edfbd538770803714c3bf281c6c"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#180",
-      "sourceHash": "50e8a473d127751ab76eab3f7adda1fbbf6e0e714d7ac77d40f7abaf377621f3"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#185",
-      "sourceHash": "19202a6c631eaf9a404a97d0b74371bcee626efbbdf0cf2043799de1a29f1b2e"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#204",
-      "sourceHash": "fd96f377785b4546e80a70bf54f83aadc655824f61d777e695e368d38faa8cfb"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#223",
-      "sourceHash": "1550ea1e41ffb8aee6cc2f807d6e61d0574972ada46b9a50deadf64085afa22d"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#23",
-      "sourceHash": "a09ddcd34b49de5bd7de6d9da04badbc619e09e051c3b742e8369b2c3685d156"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#242",
-      "sourceHash": "142ce1d74b172411c326c9954bd96fd701b01cd771b87fe7f0c487e78a67b176"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#261",
-      "sourceHash": "e64fbaaf39c5635696b5a58491be2bb93a7f8ffc2b633de857d81ad5f1a43383"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#270",
-      "sourceHash": "026225d36257eb39bbce857fbf8f26dabdb6a8fd668f9c2a171fe811654c27ac"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#274",
-      "sourceHash": "57e15fd72cc20dfd11b34f80ed23843cc4482f841b130504279a13cf37b3f118"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#293",
-      "sourceHash": "85416df1883ef181464ae8a0626888d10a0ef973b88862a1866c27568d5f70fc"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#307",
-      "sourceHash": "a6409a958dee4633d1dec751180135debde8e3ee7c6c3c3119db5e21ca6fffd3"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#315",
-      "sourceHash": "453d755424fe2a5db232d6bcb330571a173cd572b01a6c755ed790a823649e2d"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#321",
-      "sourceHash": "c1b98f50ff9b93a304c9d7948d3a1360a56ef80873be2acc92116ef498e5d191"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#326",
-      "sourceHash": "f12efae66587e55ef975f2370beb1dc9de1a8d26cec7ee03a3e9799e7f60d48d"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#33",
-      "sourceHash": "efe95e34b7fdb7337b7025d547cd7c730ee552b48f52b0cb3ffefb1f579f41c6"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#339",
-      "sourceHash": "7dcc43f0889dbde552d05fa65b93f510480685e12f5771ca15af6efb9f9821b9"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#344",
-      "sourceHash": "6eddb3c23a481b632853113cafff23ef2870db3d2950da591e61da08003de844"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#349",
-      "sourceHash": "d6b69ef0de3f24491c6aea9cf5a5b484d8f0040c07baf993575f194623534556"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#354",
-      "sourceHash": "f2669862332600be7584e1524c97a25fa146688c32851aad5557b943006d754d"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#381",
-      "sourceHash": "61e157e228797da1414369c0c26e28e6cecdecf331390d1f4ec4adb8692f9f14"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#402",
-      "sourceHash": "ac9b1d47bc1c2d31ad4dc63fac45653dd945ae47e1827c74a2305ab4bdf5d52f"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#421",
-      "sourceHash": "bcbae7d9b9445e2a0b4fde9113482d5c84141253a188d0045787cb2c3ea25406"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#43",
-      "sourceHash": "8c852703917ed21a03bedd03dcae1c8901718effb6eb367620b669d7d7fdfe07"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#436",
-      "sourceHash": "72ecfb879c6f541fe5be9150584fd7019e9634616f89a9676f1340d0329c25fb"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#48",
-      "sourceHash": "1352da30b88da9bff746a2beb47f0d28d03b654f70e63e17feb276fef5ce7db5"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#53",
-      "sourceHash": "a70bcd39df972b616394773ce250e3026dd04511d3b3bf61f437b4bda795e2ad"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#58",
-      "sourceHash": "d21bcb5de1d8c3853fb3b7209d120c74a21b9ac0874efa3b1f561a1345b8e283"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#63",
-      "sourceHash": "694f5421d8fcedcd45f037c3dd2e8b8f5ea4962514a098a01a7d0963614fb4af"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#70",
-      "sourceHash": "7d8a933983811b2ada6589d52151a9bfcf18fad65d6bd12347f05139bed1080d"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#84",
-      "sourceHash": "211d23a17fbbe8320fb44a773b3cb2b928689c290b9f6a5ca4090bd445e0a111"
-    },
-    {
-      "id": "test:src/domain/checkout.test.ts#9",
+      "id": "test:src/domain/checkout.test.ts#10",
       "sourceHash": "d90b7796af735e560411a7bcb212057ef046693a039e7867d587785275219318"
     },
     {
-      "id": "test:src/domain/checkout.test.ts#98",
+      "id": "test:src/domain/checkout.test.ts#104",
+      "sourceHash": "8b329920b396d1b70472853e68705dfb11d7e877514d35f1cbd65a2ea1df5bd6"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#117",
+      "sourceHash": "6a539ad7f6cc6caab1017251cf86de4bd4e435ad1ac62aef3c79e7c4a646a943"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#122",
+      "sourceHash": "1d3c212b925181945ed1e8f471e4e624476e04be902484371afe63e31b032e59"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#127",
+      "sourceHash": "b45a58dd8b5eb00924bd0b5f1f3177b90ce1af76d7853b3ebb93187222f86eb3"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#136",
+      "sourceHash": "08a41e84acc13f7033a7aa5f1d2a25f55585d27d3326bafb0fedc7a57fa9138e"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#143",
+      "sourceHash": "7942c8b98095abc972998b9da383d67689e3ab707c31eaaef9aa67654b9762af"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#172",
+      "sourceHash": "9d30c063fa4663c3b6ed53efbc9e2a1e6c13fc8676d9800dfe347fbdb888c4c4"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#181",
+      "sourceHash": "50e8a473d127751ab76eab3f7adda1fbbf6e0e714d7ac77d40f7abaf377621f3"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#186",
+      "sourceHash": "19202a6c631eaf9a404a97d0b74371bcee626efbbdf0cf2043799de1a29f1b2e"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#19",
+      "sourceHash": "09c6dd5ea83b1c3cf283bc116b0f04ec6d250edfbd538770803714c3bf281c6c"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#205",
+      "sourceHash": "fd96f377785b4546e80a70bf54f83aadc655824f61d777e695e368d38faa8cfb"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#224",
+      "sourceHash": "1550ea1e41ffb8aee6cc2f807d6e61d0574972ada46b9a50deadf64085afa22d"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#24",
+      "sourceHash": "a09ddcd34b49de5bd7de6d9da04badbc619e09e051c3b742e8369b2c3685d156"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#243",
+      "sourceHash": "142ce1d74b172411c326c9954bd96fd701b01cd771b87fe7f0c487e78a67b176"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#262",
+      "sourceHash": "e64fbaaf39c5635696b5a58491be2bb93a7f8ffc2b633de857d81ad5f1a43383"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#271",
+      "sourceHash": "026225d36257eb39bbce857fbf8f26dabdb6a8fd668f9c2a171fe811654c27ac"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#275",
+      "sourceHash": "57e15fd72cc20dfd11b34f80ed23843cc4482f841b130504279a13cf37b3f118"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#294",
+      "sourceHash": "85416df1883ef181464ae8a0626888d10a0ef973b88862a1866c27568d5f70fc"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#308",
+      "sourceHash": "a6409a958dee4633d1dec751180135debde8e3ee7c6c3c3119db5e21ca6fffd3"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#316",
+      "sourceHash": "453d755424fe2a5db232d6bcb330571a173cd572b01a6c755ed790a823649e2d"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#322",
+      "sourceHash": "c1b98f50ff9b93a304c9d7948d3a1360a56ef80873be2acc92116ef498e5d191"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#327",
+      "sourceHash": "f12efae66587e55ef975f2370beb1dc9de1a8d26cec7ee03a3e9799e7f60d48d"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#34",
+      "sourceHash": "efe95e34b7fdb7337b7025d547cd7c730ee552b48f52b0cb3ffefb1f579f41c6"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#340",
+      "sourceHash": "7dcc43f0889dbde552d05fa65b93f510480685e12f5771ca15af6efb9f9821b9"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#345",
+      "sourceHash": "6eddb3c23a481b632853113cafff23ef2870db3d2950da591e61da08003de844"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#350",
+      "sourceHash": "d6b69ef0de3f24491c6aea9cf5a5b484d8f0040c07baf993575f194623534556"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#355",
+      "sourceHash": "f2669862332600be7584e1524c97a25fa146688c32851aad5557b943006d754d"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#382",
+      "sourceHash": "61e157e228797da1414369c0c26e28e6cecdecf331390d1f4ec4adb8692f9f14"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#403",
+      "sourceHash": "ac9b1d47bc1c2d31ad4dc63fac45653dd945ae47e1827c74a2305ab4bdf5d52f"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#422",
+      "sourceHash": "bcbae7d9b9445e2a0b4fde9113482d5c84141253a188d0045787cb2c3ea25406"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#44",
+      "sourceHash": "8c852703917ed21a03bedd03dcae1c8901718effb6eb367620b669d7d7fdfe07"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#442",
+      "sourceHash": "1accdb5b678bce91c051132e5a9562a5571f671e26dde6a02a45a27f8e932136"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#446",
+      "sourceHash": "977ca4412c4a90317c712f0638586bc0908fcae959c65d688b93e2f9fb39dcc1"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#450",
+      "sourceHash": "5ae2edafba559fb8b1be302ff3d6af395549324e77d75161830cb76b93593051"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#455",
+      "sourceHash": "065bd7893b425038554071d0b357ce0ce8c5c8ccc3287f3ad48a20f3c3c5af39"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#462",
+      "sourceHash": "65522a2e0b94c5cd651f0f9365e7b29611ff595d9a751c58f247f4206a66ca50"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#469",
+      "sourceHash": "9b8736ddc692f45169d26a37cebbaba5ce4d71149ec0d4685a9c0dbbd911e9c3"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#478",
+      "sourceHash": "72ecfb879c6f541fe5be9150584fd7019e9634616f89a9676f1340d0329c25fb"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#49",
+      "sourceHash": "1352da30b88da9bff746a2beb47f0d28d03b654f70e63e17feb276fef5ce7db5"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#54",
+      "sourceHash": "a70bcd39df972b616394773ce250e3026dd04511d3b3bf61f437b4bda795e2ad"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#59",
+      "sourceHash": "d21bcb5de1d8c3853fb3b7209d120c74a21b9ac0874efa3b1f561a1345b8e283"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#64",
+      "sourceHash": "694f5421d8fcedcd45f037c3dd2e8b8f5ea4962514a098a01a7d0963614fb4af"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#71",
+      "sourceHash": "7d8a933983811b2ada6589d52151a9bfcf18fad65d6bd12347f05139bed1080d"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#85",
+      "sourceHash": "211d23a17fbbe8320fb44a773b3cb2b928689c290b9f6a5ca4090bd445e0a111"
+    },
+    {
+      "id": "test:src/domain/checkout.test.ts#99",
       "sourceHash": "7cb4146fc6776e7223a776b684f373be830684d2cd7ec9f21e377b03048ba3bf"
     },
     {
@@ -778,6 +882,18 @@
     },
     {
       "id": "test:src/domain/inventory.test.ts#18",
+      "sourceHash": "13982dae40c85b19578940f36cf8f216b3178b9d83d07379a7bf6b0f51c6b0ac"
+    },
+    {
+      "id": "test:src/domain/inventory.test.ts#25",
+      "sourceHash": "4e2a6f36e2e9157f0e22bb6193eddbc7ece68a4f19c11449a91c66ea2973f8fc"
+    },
+    {
+      "id": "test:src/domain/inventory.test.ts#31",
+      "sourceHash": "612422f705741a5aadf28906ddbfb04aa4cdad34af3b2b85eb10dee343f7de35"
+    },
+    {
+      "id": "test:src/domain/inventory.test.ts#41",
       "sourceHash": "fb683b3f39fd57f1d1171aea28eee41c93bb4c00257ada5d6a425def43170ac3"
     },
     {
@@ -797,135 +913,139 @@
       "sourceHash": "775045c76fb124f61fa2bacf1dc63c401bd8619f10177635acef0d52523b4295"
     },
     {
-      "id": "test:src/offline/offline.test.ts#115",
+      "id": "test:src/offline/offline.test.ts#117",
       "sourceHash": "b4d1c462b3764d96cce0f622972c8e258628043f504005f044099355798a0499"
     },
     {
-      "id": "test:src/offline/offline.test.ts#124",
+      "id": "test:src/offline/offline.test.ts#126",
       "sourceHash": "bafa812f582be8446c567a3712e01fcb78bc0c1d44da8255dd501a91e0fb20d1"
     },
     {
-      "id": "test:src/offline/offline.test.ts#144",
+      "id": "test:src/offline/offline.test.ts#146",
       "sourceHash": "e1882349e68c1f77d7b5146492619104bad23aa4be5575295cf39d9ba5dd034b"
     },
     {
-      "id": "test:src/offline/offline.test.ts#151",
+      "id": "test:src/offline/offline.test.ts#153",
       "sourceHash": "3cdb3a821a55170422c3f709d82187539e74f8b94113c76c90bb54c8c260e21f"
     },
     {
-      "id": "test:src/offline/offline.test.ts#162",
+      "id": "test:src/offline/offline.test.ts#164",
       "sourceHash": "e038eba53adee440f9809f29732513c2cf98f018e8c942c62862380048c12044"
     },
     {
-      "id": "test:src/offline/offline.test.ts#169",
+      "id": "test:src/offline/offline.test.ts#171",
       "sourceHash": "835caee72eb7a644135cdb1b8d31cac2eaf3a67a2589d005f58ef52069db4faf"
     },
     {
-      "id": "test:src/offline/offline.test.ts#185",
+      "id": "test:src/offline/offline.test.ts#187",
       "sourceHash": "c24ee5a57686acfa91cf567d413931dd037d2aabd375e05224faf33329df4079"
     },
     {
-      "id": "test:src/offline/offline.test.ts#195",
+      "id": "test:src/offline/offline.test.ts#197",
       "sourceHash": "0a07ac5a1eb26d53a8ecec74cdcb7fd9321bc797884a7c29783fcc80492a31ea"
     },
     {
-      "id": "test:src/offline/offline.test.ts#219",
+      "id": "test:src/offline/offline.test.ts#221",
       "sourceHash": "b2fdc348b19c65125c6bacf4d43ab90f4175fb15bc2b26423c16141ec273a139"
     },
     {
-      "id": "test:src/offline/offline.test.ts#235",
+      "id": "test:src/offline/offline.test.ts#237",
       "sourceHash": "085af70498c943a82bbbdd9c833503e3fffbfa9c314af078eb095e07dc465d3c"
     },
     {
-      "id": "test:src/offline/offline.test.ts#258",
+      "id": "test:src/offline/offline.test.ts#260",
+      "sourceHash": "a79443ff92c417065d55b3d1ea3846c802ec378bed5eb5c62f28de4802418cd8"
+    },
+    {
+      "id": "test:src/offline/offline.test.ts#276",
       "sourceHash": "89a8a9222c6108f88d1f7ca72b8d7ee2f94b9d67abd035de7ee3e2c2c8ac3ca8"
     },
     {
-      "id": "test:src/offline/offline.test.ts#271",
+      "id": "test:src/offline/offline.test.ts#289",
       "sourceHash": "cd5bea817b495a51adc611447ea81a4263a3ae78d6481b2c32f8f66412285acf"
     },
     {
-      "id": "test:src/offline/offline.test.ts#293",
+      "id": "test:src/offline/offline.test.ts#311",
       "sourceHash": "a895f4bd55ecbaf4a05887cb66ac35d49a202a3caf2b9229f38b2329ef7fc536"
     },
     {
-      "id": "test:src/offline/offline.test.ts#303",
+      "id": "test:src/offline/offline.test.ts#321",
       "sourceHash": "2c6ac93254e359020f85688149e6212f446cd0846b0e6c0d7fd451e43c82d024"
     },
     {
-      "id": "test:src/offline/offline.test.ts#317",
+      "id": "test:src/offline/offline.test.ts#335",
       "sourceHash": "cba0f1b0044862d626308fef49fbbaaa9789c24f196564ced4967a98280460d4"
     },
     {
-      "id": "test:src/offline/offline.test.ts#338",
+      "id": "test:src/offline/offline.test.ts#356",
       "sourceHash": "37ff9ce405295287f3134320a092dd9181fe3b3b791de7a9154d719f151eb41f"
     },
     {
-      "id": "test:src/offline/offline.test.ts#346",
+      "id": "test:src/offline/offline.test.ts#364",
       "sourceHash": "ed55de37b5e0a07663decf7e7f0b20e20ce20f81be254046e823bbc0c18e6949"
     },
     {
-      "id": "test:src/offline/offline.test.ts#356",
+      "id": "test:src/offline/offline.test.ts#374",
       "sourceHash": "4ff3ff9d63f99288fdd1bcc2dbe9627571051f38cc4a5df6c383913c8e2e2599"
     },
     {
-      "id": "test:src/offline/offline.test.ts#377",
+      "id": "test:src/offline/offline.test.ts#395",
       "sourceHash": "db9929d7f36959a45a5aea2e0fee73cd172af748f7e98ab76dc107ec2d18710f"
     },
     {
-      "id": "test:src/offline/offline.test.ts#397",
+      "id": "test:src/offline/offline.test.ts#415",
       "sourceHash": "85ed97c9edbc47c9bf9f7df31f1ab4749aa7d886662a3628a65dcaa226e52c37"
     },
     {
-      "id": "test:src/offline/offline.test.ts#405",
+      "id": "test:src/offline/offline.test.ts#423",
       "sourceHash": "f0c8d173480c8ac1f8b74fb5a03499010f4519cb9c312437ef3a0556751c3ee4"
     },
     {
-      "id": "test:src/offline/offline.test.ts#417",
+      "id": "test:src/offline/offline.test.ts#435",
       "sourceHash": "eb6a0234948bc9c6b9bd989d9f96df23e0d9e1a55354bdba8677dcd002fd5edf"
     },
     {
-      "id": "test:src/offline/offline.test.ts#434",
+      "id": "test:src/offline/offline.test.ts#452",
       "sourceHash": "7c3c16355000a2244739c293028f4423a9c8a37465fc88873707d667c3349807"
     },
     {
-      "id": "test:src/offline/offline.test.ts#443",
+      "id": "test:src/offline/offline.test.ts#461",
       "sourceHash": "0589917ca947c64d422eedcffeec9296b940927d74a4241e7278de1957cb857a"
     },
     {
-      "id": "test:src/offline/offline.test.ts#455",
+      "id": "test:src/offline/offline.test.ts#473",
       "sourceHash": "fd34901ecc4c3089b646cbc81856efae1bac88a0909a248a182eb5d15b3715dd"
     },
     {
-      "id": "test:src/offline/offline.test.ts#479",
+      "id": "test:src/offline/offline.test.ts#497",
       "sourceHash": "e894fed130dfcdc7f0c31f27d619490141396ad39c220b5f69181674d8dbc873"
     },
     {
-      "id": "test:src/offline/offline.test.ts#496",
+      "id": "test:src/offline/offline.test.ts#514",
       "sourceHash": "694ecd0f1d8d6e8e3b4aa6b11544cfa37ad58b28b401372d8b98a92f8117e982"
     },
     {
-      "id": "test:src/offline/offline.test.ts#521",
+      "id": "test:src/offline/offline.test.ts#539",
       "sourceHash": "9e5aa5c62d0eaf54d4d3641a0cdf1b13e64b246a5d2b4547a9e34818058fc9fc"
     },
     {
-      "id": "test:src/offline/offline.test.ts#535",
+      "id": "test:src/offline/offline.test.ts#553",
       "sourceHash": "e22ddd8f9deaa4e487f4fbe42c6a024047f53a196b8fe8f3c0e697a6bd81fc94"
     },
     {
-      "id": "test:src/offline/offline.test.ts#548",
+      "id": "test:src/offline/offline.test.ts#566",
       "sourceHash": "7be49c5def47cd3e199d9bdd4815b7cf1be62f368369f74e625307bc1d32104c"
     },
     {
-      "id": "test:src/offline/offline.test.ts#556",
+      "id": "test:src/offline/offline.test.ts#574",
       "sourceHash": "bc72cccda7933e1dad3e39103c60878e57ff974897b1011b6a0254ce60e68e04"
     },
     {
-      "id": "test:src/offline/offline.test.ts#587",
+      "id": "test:src/offline/offline.test.ts#605",
       "sourceHash": "04aaa3f10099b0b40a2c2d73b87fc668d29236d999d36f5395ce44e555a96043"
     },
     {
-      "id": "test:src/offline/offline.test.ts#97",
+      "id": "test:src/offline/offline.test.ts#99",
       "sourceHash": "7d2b50a5e5c1393808a6e02ea21d7bb9117c2b1382dd5a3c7b4178018360f5f6"
     },
     {

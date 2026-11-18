@@ -291,6 +291,7 @@ export const en = {
   'dashboard.lowStock': 'Low stock ({count})',
   'dashboard.noDebts': 'No outstanding customer debts.',
   'dashboard.openPos': 'Open point of sale',
+  'dashboard.outOfStock': 'Out of stock',
   'dashboard.stockOk': 'All products are sufficiently stocked.',
   'dashboard.subscriptionEnding': 'Your subscription ends on {date}. Contact support to renew.',
   'dashboard.todayProfit': "Today's gross profit",

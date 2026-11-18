@@ -282,6 +282,7 @@ export const ar: Record<TranslationKey, string> = {
   'dashboard.lowStock': 'مخزون منخفض ({count})',
   'dashboard.noDebts': 'لا توجد ديون مستحقة على الزبائن.',
   'dashboard.openPos': 'فتح نقطة البيع',
+  'dashboard.outOfStock': 'نفد من المخزون',
   'dashboard.stockOk': 'جميع المنتجات متوفرة بكمية كافية.',
   'dashboard.subscriptionEnding': 'ينتهي اشتراكك بتاريخ {date}. تواصل مع الدعم للتجديد.',
   'dashboard.todayProfit': 'إجمالي ربح اليوم',

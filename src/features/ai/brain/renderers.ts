@@ -148,7 +148,7 @@ export async function stockListAnswer(mode: 'low' | 'out', request: ReadRequest,
   if (!session.can('canViewProducts')) return { text: L(lang, 'Stock lists need permission to view products.', 'لايحة البضاعة بدها صلاحية تشوف المنتجات.'), suggestions: [] };
   try {
     const threshold = request.stockBelow ?? (await src.threshold(session.tenantId));
-    const page = await src.products(session.tenantId, mode, threshold);
+    const page = await src.products(session.tenantId, mode, threshold, mode === 'low' && request.stockBelow == null);
     if (page.items.length === 0) {
       return {
         text: mode === 'out'

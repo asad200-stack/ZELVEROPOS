@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { setWorkInProgress } from '@/app/serviceWorker';
 import { Button } from '@/components/ui/Button';
 import { SelectInput } from '@/components/ui/Form';
@@ -70,7 +70,9 @@ export default function PosPage() {
   const [quickCustomer, setQuickCustomer] = useState<{ seed: string } | null>(null);
   const { cart, update } = pos;
   const cartRef = useRef(cart);
-  cartRef.current = cart;
+  useLayoutEffect(() => {
+    cartRef.current = cart;
+  });
   useEffect(() => {
     const host = {
       getCart: () => cartRef.current,

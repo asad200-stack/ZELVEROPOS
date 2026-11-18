@@ -127,9 +127,11 @@ export function AiPanel({
     setDraft('');
     setSpeechMessageKey(null);
     setSpeechHint(null);
+  }
+  useEffect(() => {
     pendingRef.current = null;
     memoryRef.current = emptyMemory();
-  }
+  }, [storageKey]);
   if (origin !== probeOrigin) {
     setProbeOrigin(origin);
     setProbe('unknown');

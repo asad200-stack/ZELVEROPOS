@@ -8,6 +8,7 @@
 import { DEFAULTS } from '@/constants/app';
 import { addDays } from '@/domain/dates';
 import { looksLikeCode } from '@/domain/catalogPlan';
+import { isLowNotOut } from '@/domain/inventory';
 import { nameNormalized } from '@/domain/searchKey';
 import type { DailyStats } from '@/services/reportService';
 import type { RankSale } from './productRank';
@@ -24,6 +25,11 @@ export interface CatalogItem {
   supplierId: string | null;
   supplierName: string;
   expiryDate: string | null;
+}
+
+/** Per-item rule by default; one flat threshold for an explicit "below N" question. */
+function isLow(p: Pick<CatalogItem, 'stock' | 'minStock'>, threshold: number, perItem: boolean): boolean {
+  return perItem ? isLowNotOut(p, threshold) : p.stock > 0 && p.stock <= threshold;
 }
 
 export interface CostedLine {
@@ -110,10 +116,10 @@ export function serverAiReadSource(read: AiReadCall, now: () => number = Date.no
       const result = (await read({ op: 'settings' })) as { lowStockThreshold: number | null };
       return result.lowStockThreshold ?? DEFAULTS.lowStockThreshold;
     },
-    async stockCounts(_tenant, threshold) {
+    async stockCounts(_tenant, threshold, perItem) {
       const { items, complete } = await catalog();
       if (!complete) return null;
-      return { low: items.filter((p) => p.stock > 0 && p.stock <= threshold).length, out: items.filter((p) => p.stock === 0).length };
+      return { low: items.filter((p) => isLow(p, threshold, perItem)).length, out: items.filter((p) => p.stock === 0).length };
     },
     async findStock(_tenant, name) {
       const { items, complete } = await catalog();
@@ -123,10 +129,10 @@ export function serverAiReadSource(read: AiReadCall, now: () => number = Date.no
       const chosen = byName.length > 0 ? byName : byCode;
       return { items: chosen.map((p) => ({ id: p.id, name: p.name, stock: p.stock })), complete };
     },
-    async products(_tenant, mode, threshold) {
+    async products(_tenant, mode, threshold, perItem) {
       const { items, complete } = await catalog();
       const picked = items
-        .filter((p) => (mode === 'out' ? p.stock === 0 : p.stock > 0 && p.stock <= threshold))
+        .filter((p) => (mode === 'out' ? p.stock === 0 : isLow(p, threshold, perItem)))
         .sort((a, b) => a.stock - b.stock || a.name.localeCompare(b.name));
       return { items: picked.slice(0, 50).map((p) => ({ id: p.id, name: p.name, stock: p.stock })), hasMore: !complete || picked.length > 50 };
     },

@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import {
   CATALOG_PAGE_SIZE,
+  emptyProductQuery,
   looksLikeCode,
   planBarcode,
   planParty,
@@ -22,6 +23,7 @@ import {
   type ProductQuery,
 } from '@/domain/catalogPlan';
 import { catalogLoadProblem, mergeKnown } from '@/domain/catalogSession';
+import { lowStockScanBound, perItemLowStock } from '@/domain/inventory';
 import { emailKey, nameNormalized, phoneKey } from '@/domain/searchKey';
 import type { Customer, Product, Supplier } from '@/types/models';
 import { paths, toCustomer, toProduct, toSupplier } from './db';
@@ -128,6 +130,44 @@ export async function countWhere(
 ): Promise<number> {
   const snap = await getCountFromServer(query(paths.col(tenantId, collectionName), ...constraints));
   return snap.data().count;
+}
+
+/** Pages the low-stock scan reads before it reports an incomplete list. 10 × 50 = 500 products. */
+export const LOW_STOCK_MAX_PAGES = 10;
+
+export interface LowStockList {
+  /** Active products with stock > 0 that are at or below their own minimum (or the store default). */
+  items: Product[];
+  /** False when the scan stopped at LOW_STOCK_MAX_PAGES before reading every candidate. */
+  complete: boolean;
+}
+
+/** Largest per-product minimum stock, or null when no product sets one. */
+async function largestMinStock(tenantId: string): Promise<number | null> {
+  const snap = await getDocs(query(paths.col(tenantId, 'products'), orderBy('minStock', 'desc'), limit(1)));
+  const value = snap.docs[0]?.data().minStock;
+  return typeof value === 'number' ? value : null;
+}
+
+/**
+ * The one low-stock list the dashboard, reports and the assistant share.
+ *
+ * Firestore cannot compare two fields of the same document, so the scan reads every active
+ * product with 0 < stock <= max(store default, largest minStock) and keeps those that are low by
+ * their own minimum. Out-of-stock products (stock 0) are a separate list, never counted here.
+ */
+export async function loadLowStock(tenantId: string, storeDefault: number): Promise<LowStockList> {
+  const bound = lowStockScanBound(storeDefault, await largestMinStock(tenantId));
+  const spec = emptyProductQuery({ mode: 'low', lowStockAt: bound });
+  const items: Product[] = [];
+  let cursor: QueryDocumentSnapshot | null = null;
+  for (let pageNo = 0; pageNo < LOW_STOCK_MAX_PAGES; pageNo++) {
+    const page: Page<Product> = await pageProducts(tenantId, spec, cursor);
+    items.push(...perItemLowStock(page.items, storeDefault));
+    if (!page.hasMore || !page.cursor) return { items, complete: true };
+    cursor = page.cursor;
+  }
+  return { items, complete: false };
 }
 
 async function pageParty<T>(

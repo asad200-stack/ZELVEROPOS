@@ -29,10 +29,14 @@ export interface ReadSession {
 export interface AiReadSource {
   dailyStats(tenantId: string, from: string, to: string): Promise<DailyStats[]>;
   cashbox(tenantId: string): Promise<{ usdCents: number; lbp: number }>;
-  products(tenantId: string, mode: 'low' | 'out', threshold: number): Promise<{ items: { id?: string; name: string; stock: number }[]; hasMore: boolean }>;
+  /**
+   * perItem: low stock uses each product's own minimum (or the store default) — the dashboard rule.
+   * False only for an explicit "below N" question, which applies one flat threshold.
+   */
+  products(tenantId: string, mode: 'low' | 'out', threshold: number, perItem: boolean): Promise<{ items: { id?: string; name: string; stock: number }[]; hasMore: boolean }>;
   productsByIds(tenantId: string, ids: string[]): Promise<CatalogProduct[]>;
   threshold(tenantId: string): Promise<number>;
-  stockCounts(tenantId: string, threshold: number): Promise<{ low: number; out: number } | null>;
+  stockCounts(tenantId: string, threshold: number, perItem: boolean): Promise<{ low: number; out: number } | null>;
   findStock(tenantId: string, name: string): Promise<{ items: { id: string; name: string; stock: number }[]; complete: boolean }>;
   expiry(tenantId: string, today: string): Promise<{
     expired: number;
@@ -476,8 +480,8 @@ function stockSalesHeader(mode: 'low' | 'out', threshold: number, request: ReadR
         ? `أقل من ${request.stockBelow + 1}: الكمية الحالية من 1 إلى ${threshold}. الكمية صفر ليست هنا. يُستخدم حد واحد لكل المنتجات، بلا حد خاص بكل منتج.`
         : `Below ${request.stockBelow + 1}: on hand stock from 1 through ${threshold}. Quantity zero is not in this list. One threshold is used for every product. A product-specific minimum is not applied.`
       : lang === 'ar'
-        ? `مخزون منخفض: الكمية الحالية أكبر من صفر وحتى ${threshold}. هذا إعداد المتجر، أو الافتراضي 10 إذا لم يُحفظ إعداد. الكمية صفر ليست هنا. بلا حد خاص بكل منتج.`
-        : `Low stock: on hand quantity above zero and at or below ${threshold}. This is the store setting, or the default 10 when that setting is not saved. Quantity zero is not in this list. A product-specific minimum is not applied.`;
+        ? `مخزون منخفض: الكمية الحالية أكبر من صفر وحتى الحد الأدنى للمنتج، أو ${threshold} للمنتج بلا حد خاص (إعداد المتجر، أو الافتراضي 10 إذا لم يُحفظ إعداد). الكمية صفر ليست هنا.`
+        : `Low stock: on hand quantity above zero and at or below the product's own minimum stock, or ${threshold} for a product without one (the store setting, or the default 10 when that setting is not saved). Quantity zero is not in this list.`;
   const basis = lang === 'ar'
     ? `من ${range.from} إلى ${range.to}. الكمية الحالية من المخزون الحالي. الوحدات الصافية من الفواتير المرحلة في هذه الفترة، بعد خصم المرتجع على تاريخ الفاتورة. الفاتورة المكررة تُحسب مرة. الفاتورة المؤجلة غير مشمولة. لا تُجمع الدولار والليرة لأن القائمة بالوحدات فقط. لا تُحسب كمية شراء ولا أيام المخزون.`
     : `From ${range.from} to ${range.to}. On hand is current stock. Net units are from posted invoices in this range, after returns stored on the invoice date. A duplicate invoice id is counted once. A queued offline sale is not included. USD and LBP are not combined because this list uses units only. No purchase quantity or days of stock is calculated.`;
@@ -499,9 +503,10 @@ async function describeStockSales(
     ? 'قائمة المخزون أو الفواتير ناقصة. لا يُعرض ترتيب.'
     : 'The current stock list or the sale list for this range is incomplete. No ranking is shown.';
   if (range.limited) return `${header}\n${blocked}`;
+  const perItem = mode === 'low' && request.stockBelow == null;
   const [page, counts, posted] = await Promise.all([
-    source.products(tenantId, mode, threshold),
-    source.stockCounts(tenantId, threshold),
+    source.products(tenantId, mode, threshold, perItem),
+    source.stockCounts(tenantId, threshold, perItem),
     source.saleLines(tenantId, range.from, range.to),
   ]);
   const expected = counts == null ? null : mode === 'low' ? counts.low : counts.out;
@@ -678,9 +683,10 @@ export async function loadReadSnapshot(session: ReadSession, request: ReadReques
       } else if (topic === 'lowStock' || topic === 'outOfStock') {
         const storeThreshold = topic === 'lowStock' ? await source.threshold(tenantId) : 0;
         const threshold = topic === 'lowStock' && request.stockBelow != null ? request.stockBelow : storeThreshold;
+        const perItem = topic === 'lowStock' && request.stockBelow == null;
         const [page, counts] = await Promise.all([
-          source.products(tenantId, topic === 'lowStock' ? 'low' : 'out', threshold),
-          source.stockCounts(tenantId, threshold),
+          source.products(tenantId, topic === 'lowStock' ? 'low' : 'out', threshold, perItem),
+          source.stockCounts(tenantId, threshold, perItem),
         ]);
         const total = counts == null ? null : topic === 'lowStock' ? counts.low : counts.out;
         const label = topic === 'lowStock'
@@ -689,8 +695,8 @@ export async function loadReadSnapshot(session: ReadSession, request: ReadReques
               ? `أقل من ${request.stockBelow + 1}: الكمية من 1 إلى ${threshold}. الكمية صفر ليست هنا. يُستخدم حد واحد لكل المنتجات، بلا حد خاص بكل منتج.`
               : `Below ${request.stockBelow + 1}: stock from 1 through ${threshold}. Quantity zero is not in this list. One threshold is used for every product. A product-specific minimum is not applied.`
             : lang === 'ar'
-              ? `مخزون منخفض: الكمية أكبر من صفر وحتى ${threshold}. هذا إعداد المتجر، أو الافتراضي 10 إذا لم يُحفظ إعداد. الكمية صفر ليست هنا. بلا حد خاص بكل منتج.`
-              : `Low stock: quantity above zero and at or below ${threshold}. This is the store setting, or the default 10 when that setting is not saved. Quantity zero is not in this list. A product-specific minimum is not applied.`
+              ? `مخزون منخفض: الكمية أكبر من صفر وحتى الحد الأدنى للمنتج، أو ${threshold} للمنتج بلا حد خاص (إعداد المتجر، أو الافتراضي 10 إذا لم يُحفظ إعداد). الكمية صفر ليست هنا.`
+              : `Low stock: quantity above zero and at or below the product's own minimum stock, or ${threshold} for a product without one (the store setting, or the default 10 when that setting is not saved). Quantity zero is not in this list.`
           : lang === 'ar'
             ? 'منتجات كميتها صفر. هذا المخزون الحالي، وليس الكمية المباعة.'
             : 'Products whose current stock is zero. This is on-hand stock, not quantity sold.';

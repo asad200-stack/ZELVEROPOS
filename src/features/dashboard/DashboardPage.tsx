@@ -1,15 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { where, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { Link } from 'react-router';
 import { Icon } from '@/components/ui/Icon';
 import { Alert, Badge, Card, PageHeader, StatCard } from '@/components/ui/Layout';
 import { Spinner } from '@/components/ui/Spinner';
 import { useSession, useTenant } from '@/contexts/session';
-import { emptyProductQuery } from '@/domain/catalogPlan';
 import { addDays, localDate } from '@/domain/dates';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
-import { pageCustomers, pageProducts } from '@/services/catalogQuery';
+import { countWhere, loadLowStock, pageCustomers } from '@/services/catalogQuery';
 import { useResource } from '@/stores/tenantStore';
 import { OnboardingCard } from '@/features/account/OnboardingCard';
 import { TrialReadOnlyBanner } from '@/features/account/TrialBanner';
@@ -122,25 +121,45 @@ function CashboxCard({ tenantId }: { tenantId: string }) {
 function StockCard({ tenantId }: { tenantId: string }) {
   const { t } = useI18n();
   const settings = useResource(tenantId, 'settings').data;
-  const spec = emptyProductQuery({ mode: 'low', lowStockAt: settings.lowStockThreshold });
-  const fetchPage = useCallback((cursor: QueryDocumentSnapshot | null) => pageProducts(tenantId, spec, cursor), [tenantId, spec]);
-  const page = usePagedQuery(`${tenantId}|dash-low|${settings.lowStockThreshold}`, fetchPage);
-  const low = page.items.slice(0, 8);
+  const threshold = settings.lowStockThreshold;
+  const stock = useAsyncData(`${tenantId}|dash-low|${threshold}`, async () => {
+    const [low, out] = await Promise.all([
+      loadLowStock(tenantId, threshold),
+      countWhere(tenantId, 'products', [where('status', '==', 'active'), where('stock', '==', 0)]),
+    ]);
+    return { low, out };
+  });
+  const lowItems = stock.data?.low.items ?? [];
+  const lowCount = stock.data ? (stock.data.low.complete ? String(lowItems.length) : `${lowItems.length}+`) : '…';
+  const shown = lowItems.slice(0, 8);
+  const out = stock.data?.out ?? 0;
   return (
-    <Card title={t('dashboard.lowStock', { count: page.hasMore ? `${low.length}+` : low.length })} actions={<Link to="/products">{t('common.viewAll')}</Link>}>
-      {page.loading ? (
+    <Card title={t('dashboard.lowStock', { count: lowCount })} actions={<Link to="/products">{t('common.viewAll')}</Link>}>
+      {stock.loading ? (
         <Spinner />
-      ) : low.length === 0 ? (
+      ) : stock.error ? (
+        <Alert tone="error" onRetry={stock.reload} retryLabel={t('common.retry')}>{t('error.loadFailed')}</Alert>
+      ) : shown.length === 0 && out === 0 ? (
         <p className="muted">{t('dashboard.stockOk')}</p>
       ) : (
-        <ul className="plain-list">
-          {low.map((p) => (
-            <li key={p.id} className="list-row">
-              <span>{p.name}</span>
-              <Badge tone={p.stock <= 0 ? 'danger' : 'warning'}>{p.stock}</Badge>
-            </li>
-          ))}
-        </ul>
+        <>
+          {shown.length > 0 && (
+            <ul className="plain-list">
+              {shown.map((p) => (
+                <li key={p.id} className="list-row">
+                  <span>{p.name}</span>
+                  <Badge tone="warning">{p.stock}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+          {out > 0 && (
+            <p className="list-row">
+              <span>{t('dashboard.outOfStock')}</span>
+              <Badge tone="danger">{out}</Badge>
+            </p>
+          )}
+        </>
       )}
       <Link to="/expiry" className="btn btn--ghost btn--sm">
         <Icon name="calendar" size={15} />

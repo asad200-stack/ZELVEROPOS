@@ -17,6 +17,23 @@ export function isLowStock(product: Pick<Product, 'stock' | 'minStock'>, storeDe
   return product.stock <= lowStockThreshold(product, storeDefault);
 }
 
+/**
+ * Upper stock bound for a Firestore range scan that must catch every low product: no product can
+ * be low above the larger of the store default and the largest per-product minimum.
+ */
+export function lowStockScanBound(storeDefault: number, largestMinStock: number | null): number {
+  return Math.max(0, storeDefault, largestMinStock ?? 0);
+}
+
+/** Low but not out: stock above zero and at or below the product's own threshold. */
+export function isLowNotOut(product: Pick<Product, 'stock' | 'minStock'>, storeDefault: number): boolean {
+  return product.stock > 0 && isLowStock(product, storeDefault);
+}
+
+export function perItemLowStock<T extends Pick<Product, 'stock' | 'minStock'>>(products: readonly T[], storeDefault: number): T[] {
+  return products.filter((p) => isLowNotOut(p, storeDefault));
+}
+
 export function stockValue(products: Pick<Product, 'stock' | 'costUsdCents'>[]): Cents {
   let total = 0;
   for (const p of products) if (p.stock > 0) total += p.stock * p.costUsdCents;

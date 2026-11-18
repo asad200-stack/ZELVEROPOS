@@ -14,7 +14,8 @@ import { useI18n } from '@/i18n/i18n';
 import { signOut } from '@/services/authService';
 import { OfflineStatus } from '@/features/offline/OfflineStatus';
 import { TrialChip } from '@/features/account/TrialBanner';
-import { UpdateCenter, useFeatureUpdates } from '@/features/features/UpdateCenter';
+import { UpdateCenter } from '@/features/features/UpdateCenter';
+import { useFeatureUpdates } from '@/features/features/useFeatureUpdates';
 import { PosCashboxChip } from '@/features/pos/PosCashboxChip';
 import { aiDockModeAfterPermissionChange, shouldShowAiEntry } from '@/features/ai/aiAccess';
 import { useAiServerAccess } from '@/features/ai/aiServerAccess';
@@ -81,6 +82,11 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
     (session.isInternalDemo || aiEntitlementActive);
   const aiServer = useAiServerAccess(session.user?.uid ?? null, aiCandidate, askAiAccess);
   const mayUseAi = aiCandidate && aiServer === 'allowed';
+  const [dockPermission, setDockPermission] = useState(mayUseAi);
+  if (dockPermission !== mayUseAi) {
+    setDockPermission(mayUseAi);
+    setAiDock((current) => aiDockModeAfterPermissionChange(mayUseAi, current));
+  }
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.sidebar, collapsed ? 'collapsed' : 'expanded');
@@ -88,10 +94,6 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
       /* private mode: the choice still applies until reload */
     }
   }, [collapsed]);
-
-  useEffect(() => {
-    setAiDock((current) => aiDockModeAfterPermissionChange(mayUseAi, current));
-  }, [mayUseAi]);
 
   const items = adminOnly || !session.tenantId
     ? []

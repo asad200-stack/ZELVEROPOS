@@ -11,30 +11,6 @@ import { useI18n } from '@/i18n/i18n';
 import { api, type CustomerFeatureUpdate } from '@/services/functionsClient';
 import { formatMoney } from '@/utils/format';
 
-export function useFeatureUpdates(reloadToken = 0): CustomerFeatureUpdate[] {
-  const session = useSession();
-  const [updates, setUpdates] = useState<CustomerFeatureUpdate[]>([]);
-  useEffect(() => {
-    if (!session.tenantId || session.isInternalDemo || session.status !== 'ready') {
-      setUpdates([]);
-      return;
-    }
-    let live = true;
-    void api
-      .listMyFeatureUpdates({})
-      .then((result) => {
-        if (live) setUpdates(result.updates);
-      })
-      .catch(() => {
-        if (live) setUpdates([]);
-      });
-    return () => {
-      live = false;
-    };
-  }, [session.tenantId, session.isInternalDemo, session.status, reloadToken]);
-  return updates;
-}
-
 const RELOAD_HOLD_KEY = 'zelvero.featureReloadHold';
 
 interface ReloadHold {

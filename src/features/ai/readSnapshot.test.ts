@@ -78,9 +78,9 @@ function source(overrides: Partial<AiReadSource> = {}): { seen: string[]; api: A
       return { items: [{ name: 'Ali', debtUsdCents: 500 }], hasMore: false };
     },
     ...overrides,
-    async stockCounts(tenantId, threshold) {
-      seen.push(`counts:${tenantId}:${threshold}`);
-      return overrides.stockCounts ? overrides.stockCounts(tenantId, threshold) : null;
+    async stockCounts(tenantId, threshold, perItem) {
+      seen.push(`counts:${tenantId}:${threshold}:${perItem ? 'perItem' : 'flat'}`);
+      return overrides.stockCounts ? overrides.stockCounts(tenantId, threshold, perItem) : null;
     },
     async findStock(tenantId, name) {
       seen.push(`find:${tenantId}:${name}`);
@@ -691,7 +691,7 @@ describe('verified product rankings', () => {
     const snapshot = await loadReadSnapshot(owner, both!, mixed, now);
     expect(snapshot.text).toContain('Demo phone: 2');
     expect(snapshot.text).toContain('«USB cable»: 3 net units');
-    expect(calls).toEqual(['lines:demoStore:2026-10-26:2026-10-26', 'threshold:demoStore', 'products:demoStore', 'counts:demoStore:10']);
+    expect(calls).toEqual(['lines:demoStore:2026-10-26:2026-10-26', 'threshold:demoStore', 'products:demoStore', 'counts:demoStore:10:perItem']);
   });
 
   it('does not list every product when the completed scan is too long, and a failed read invents nothing', async () => {
@@ -797,15 +797,18 @@ describe('inventory questions', () => {
     expect(snapshot.text).toContain('store setting');
     expect(snapshot.text).toContain('not quantity sold');
     expect(snapshot.text).toContain('The names shown are the whole result');
-    expect(seen.filter((call) => call.startsWith('counts:'))).toEqual(['counts:demoStore:10', 'counts:demoStore:0']);
+    expect(seen.filter((call) => call.startsWith('counts:'))).toEqual(['counts:demoStore:10:perItem', 'counts:demoStore:0:flat']);
+    expect(snapshot.text).toContain("product's own minimum stock");
 
     const below = classifyRead('products below 5', 'en', now);
     expect(below?.stockBelow).toBe(4);
     expect(below?.topics).toEqual(['lowStock']);
-    const custom = await loadReadSnapshot(owner, below!, source({
+    const belowSource = source({
       stockCounts: async () => ({ low: 1, out: 0 }),
       products: async () => ({ items: [{ name: 'Last charger', stock: 1 }], hasMore: false }),
-    }).api, now);
+    });
+    const custom = await loadReadSnapshot(owner, below!, belowSource.api, now);
+    expect(belowSource.seen.filter((call) => call.startsWith('counts:'))).toEqual(['counts:demoStore:4:flat']);
     expect(custom.text).toContain('Below 5');
     expect(custom.text).toContain('1 through 4');
     expect(custom.text).not.toContain('store setting');

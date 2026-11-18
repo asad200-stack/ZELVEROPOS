@@ -18,7 +18,7 @@
     "storage": 9199,
     "ui": 4000,
     "hub": 4400,
-    "pubsub": 8085
+    "pubsub": 8086
   },
   "blockedCloudProjectIds": ["zelvoropos", "zelvoropos-stage"]
 }
