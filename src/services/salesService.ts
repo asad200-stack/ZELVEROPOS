@@ -1,3 +1,4 @@
+import { isAdminPreviewBuild } from '@/domain/adminPreview';
 import {
   documentId,
   getDoc,
@@ -40,6 +41,23 @@ export type CheckoutResult =
  * with the SAME saleId — nothing is written to Firestore — and synced later through this function.
  * Business failures (stock, price, permission, subscription…) are thrown, never queued.
  */
+/** Server instances go idle after a few minutes; one ping per window is enough to keep the next sale fast. */
+const WARM_WINDOW_MS = 4 * 60_000;
+let lastWarmAt = 0;
+
+/**
+ * Fire-and-forget wake-up of the checkout function, called while the cashier is still building the
+ * cart. Free (one tiny invocation), never blocks the POS, and never affects a sale if it fails.
+ */
+export function warmCheckout(now: number = Date.now()): void {
+  if (!isOnline() || isAdminPreviewBuild(import.meta.env)) return;
+  if (now - lastWarmAt < WARM_WINDOW_MS) return;
+  lastWarmAt = now;
+  void posApi.warmCheckout({ warmup: true }).catch(() => {
+    lastWarmAt = 0; // try again next time
+  });
+}
+
 export async function checkout(req: CheckoutRequest, ctx: CheckoutContext): Promise<CheckoutResult> {
   const payload = buildCheckoutCall(req);
   const queue = async (cause: 'offline' | 'network'): Promise<CheckoutResult> => ({

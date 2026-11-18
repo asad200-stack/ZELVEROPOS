@@ -1,6 +1,7 @@
 import {
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -17,7 +18,7 @@ import { emailKey, nameNormalized, phoneKey } from '@/domain/searchKey';
 import { findByNormalizedName } from './catalogQuery';
 import { PAGE_SIZE } from '@/constants/app';
 import type { Customer, CustomerLedgerEntry } from '@/types/models';
-import { paths, toLedgerEntry, type Actor } from './db';
+import { paths, toCustomer, toLedgerEntry, type Actor } from './db';
 import { newClientOperationId, retryOnTransport } from './clientOperation';
 import { AppError } from './errors';
 import { posApi } from './functionsClient';
@@ -32,14 +33,37 @@ export interface CustomerInput {
   creditLimitUsdCents: number;
 }
 
-export async function assertUniqueCustomer(tenantId: string, input: CustomerInput, selfId?: string): Promise<void> {
+export interface CustomerDuplicate {
+  id: string;
+  name: string;
+  /** Which stored value matched: the normalized name or the normalized phone. */
+  match: 'name' | 'phone';
+}
+
+/**
+ * Finds an existing customer with the same normalized name or phone. Never merges anything:
+ * callers decide whether to refuse, or to offer the existing customer instead.
+ */
+export async function findCustomerDuplicate(tenantId: string, input: Pick<CustomerInput, 'name' | 'phone'>, selfId?: string): Promise<CustomerDuplicate | null> {
   const byName = await findByNormalizedName(tenantId, 'customers', input.name);
-  if (byName && byName.id !== selfId) throw new AppError('error.customerExists', { name: byName.name });
+  if (byName && byName.id !== selfId) return { id: byName.id, name: byName.name, match: 'name' };
   const phone = phoneKey(input.phone);
-  if (!phone) return;
+  if (!phone) return null;
   const snap = await getDocs(query(paths.col(tenantId, 'customers'), where('phoneKey', '==', phone), limit(1)));
   const hit = snap.docs[0];
-  if (hit && hit.id !== selfId) throw new AppError('error.customerExists', { name: String(hit.data().name ?? '') });
+  if (hit && hit.id !== selfId) return { id: hit.id, name: String(hit.data().name ?? ''), match: 'phone' };
+  return null;
+}
+
+export async function assertUniqueCustomer(tenantId: string, input: CustomerInput, selfId?: string): Promise<void> {
+  const duplicate = await findCustomerDuplicate(tenantId, input, selfId);
+  if (duplicate) throw new AppError('error.customerExists', { name: duplicate.name });
+}
+
+/** One customer by id (tenant-scoped path, same read rules as the customer list). */
+export async function getCustomer(tenantId: string, id: string): Promise<Customer | null> {
+  const snap = await getDoc(paths.doc(tenantId, 'customers', id));
+  return snap.exists() ? toCustomer(snap.id, snap.data()) : null;
 }
 
 const fields = (input: CustomerInput) => ({

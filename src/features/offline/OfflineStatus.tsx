@@ -50,13 +50,8 @@ export function OfflineStatus({ tenantId, uid, isOwner }: { tenantId: string; ui
       </button>,
     );
   }
-  if (summary.actionRequired === 0 && summary.pending === 0 && queue.operations.length > 0) {
-    chips.push(
-      <button key="list" type="button" className="topbar__chip" onClick={() => setOpen(true)} title={t('offline.header.hint')} aria-label={t('offline.panel.title')}>
-        <Icon name="history" size={14} />
-      </button>,
-    );
-  }
+  // Nothing waiting and nothing to fix: no chip. Sales queued offline sync on their own when the
+  // connection returns, and the pending / action chips above appear only while there is work.
 
   return (
     <>

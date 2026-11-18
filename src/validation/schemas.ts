@@ -139,6 +139,9 @@ export const customerSchema = z.object({
   openingDebt: usdField(false),
 });
 
+/** POS quick add: only name (required), phone and address. Same field rules as the full form. */
+export const quickCustomerSchema = customerSchema.pick({ name: true, phone: true, address: true });
+
 export const supplierSchema = z.object({
   name: required(100),
   contactPerson: optional(100),

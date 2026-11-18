@@ -88,6 +88,9 @@ const checkoutSchema = z.object({
  */
 export const posCheckout = onCall(async (request) => {
   const auth = caller(request);
+  // Warm-up ping from the POS while the cashier is still scanning: wakes this instance so the real
+  // Complete sale does not pay the cold-start delay. Signed-in callers only; reads and writes nothing.
+  if ((request.data as { warmup?: unknown } | null)?.warmup === true) return { warm: true };
   const input = parse(checkoutSchema, request.data);
   const atMs = operationTime(input.clientCreatedAtMs);
   const t = posWriteTenant(request);

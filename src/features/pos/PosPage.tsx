@@ -17,15 +17,19 @@ import { useCashbox, useCategories, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { takeReopenRequest, useOfflineQueue } from '@/offline/queue';
 import { getCustomer, getProductsByIds } from '@/services/catalogQuery';
-import { checkout, type CheckoutResult } from '@/services/salesService';
+import { checkout, warmCheckout, type CheckoutResult } from '@/services/salesService';
 import type { Currency, Customer, PriceTier, Product } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { CartPanel } from './CartPanel';
 import { CheckoutPrintMenu } from './CheckoutPrintMenu';
 import { FitAmount } from './FitAmount';
 import { CustomerSelect } from './CustomerSelect';
+import { QuickAddCustomerModal } from './QuickAddCustomerModal';
 import { PaymentPanel, type PaymentDraft } from './PaymentPanel';
 import { ProductPicker } from './ProductPicker';
+import { InvoiceAddBar } from './InvoiceAddBar';
+import { InvoiceTable } from './InvoiceTable';
+import { readPosLayout, roomInStock, writePosLayout, type PosLayout } from './invoiceLayout';
 import { registerPosCartHost, unregisterPosCartHost } from '@/features/ai/actions/cartBridge';
 import { MAX_CARTS, usePosCarts } from './usePosCarts';
 
@@ -62,6 +66,8 @@ export default function PosPage() {
   const pos = usePosCarts(tenantId, actor.uid, settings.defaultCurrency);
   const [knownProducts, setKnownProducts] = useState<Map<string, Product>>(() => new Map());
   const [knownCustomer, setKnownCustomer] = useState<Customer | null>(null);
+  /** Open quick-add dialog, with the text typed in the customer search. */
+  const [quickCustomer, setQuickCustomer] = useState<{ seed: string } | null>(null);
   const { cart, update } = pos;
   const cartRef = useRef(cart);
   cartRef.current = cart;
@@ -169,26 +175,41 @@ export default function PosPage() {
     [customer, totals.productsUsdCents, creditPaidUsd, creditPaidLbp, rate, cart.debtLineUsdCents],
   );
 
-  const pick = useCallback(
-    (product: Product) => {
+  /**
+   * The one way products enter a cart, shared by both layouts (tile tap, invoice search, scanner).
+   * Never puts more in the cart than is in stock: the server rejects an oversold checkout anyway,
+   * this stops it at the counter.
+   */
+  const addProduct = useCallback(
+    (product: Product, qty = 1) => {
       setKnownProducts((known) => mergeKnown(known, [product]));
       if (product.imeiTracking) {
         setImeiProduct(product);
         return;
       }
-      // Tapping a product again must not put more in the cart than is in stock
-      // (the server rejects an oversold checkout anyway; this stops it at the counter).
       const inCart = cartRef.current.lines
         .filter((l) => l.productId === product.id && !l.imei)
         .reduce((sum, l) => sum + l.quantity, 0);
-      if (inCart >= Math.max(0, product.stock)) {
+      const room = roomInStock(product.stock, inCart);
+      if (room <= 0) {
         notify('warning', `${product.name}: ${t('pos.overStock', { stock: Math.max(0, product.stock) })}`);
         return;
       }
-      update((c) => addProductToCart(c, product));
+      const count = Math.min(Math.max(1, Math.floor(qty)), room);
+      if (count < qty) notify('warning', `${product.name}: ${t('pos.overStock', { stock: Math.max(0, product.stock) })}`);
+      update((c) => addProductToCart(c, product, count));
     },
     [update, notify, t],
   );
+  const pick = useCallback((product: Product) => addProduct(product, 1), [addProduct]);
+
+  /** Classic grid or invoice table. Remembered per user; both read and write the same cart. */
+  const [layout, setLayoutState] = useState<PosLayout>(() => readPosLayout(actor.uid));
+  const setLayout = (next: PosLayout) => {
+    setLayoutState(next);
+    writePosLayout(actor.uid, next);
+    requestAnimationFrame(() => searchRef.current?.focus());
+  };
 
   const setCustomer = (next: Customer | null) => {
     setKnownCustomer(next);
@@ -342,6 +363,12 @@ export default function PosPage() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Wake the checkout server while the cashier is still adding items, so Complete sale is quick.
+  const hasLines = cart.lines.length > 0;
+  useEffect(() => {
+    if (hasLines && online) warmCheckout();
+  }, [hasLines, online, checkoutOpen]);
+
   const workInProgress = busy || pos.carts.some((c) => cartCanCheckout(c) || c.lines.length > 0);
   useEffect(() => {
     setWorkInProgress('pos', workInProgress);
@@ -349,10 +376,40 @@ export default function PosPage() {
   }, [workInProgress]);
 
   return (
-    <div className={`pos pos--${mobileTab}${checkoutOpen ? ' pos--pay' : ''}`}>
+    <div className={`pos pos--layout-${layout} pos--${mobileTab}${checkoutOpen ? ' pos--pay' : ''}`}>
+      <div className="pos__modebar">
+        <div className="segmented pos__mode" role="radiogroup" aria-label={t('pos.layout.label')}>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={layout === 'classic'}
+            className={layout === 'classic' ? 'segmented__item segmented__item--active' : 'segmented__item'}
+            onClick={() => setLayout('classic')}
+            title={t('pos.layout.classicHint')}
+          >
+            <Icon name="grid" size={14} />
+            <span>{t('pos.layout.classic')}</span>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={layout === 'invoice'}
+            className={layout === 'invoice' ? 'segmented__item segmented__item--active' : 'segmented__item'}
+            onClick={() => setLayout('invoice')}
+            title={t('pos.layout.invoiceHint')}
+          >
+            <Icon name="table" size={14} />
+            <span>{t('pos.layout.invoice')}</span>
+          </button>
+        </div>
+        <span className="pos__shortcuts" aria-hidden="true">
+          <kbd>F2</kbd> {t('pos.layout.keySearch')} <kbd>F9</kbd> {t('pos.checkout')}
+        </span>
+      </div>
+
       <div className="pos__tabs-mobile segmented">
         <button type="button" className={mobileTab === 'products' ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => { setMobileTab('products'); setCheckoutOpen(false); }}>
-          {t('nav.products')}
+          {layout === 'invoice' ? t('pos.layout.invoice') : t('nav.products')}
         </button>
         <button type="button" className={mobileTab === 'cart' && !checkoutOpen ? 'segmented__item segmented__item--active' : 'segmented__item'} onClick={() => { setMobileTab('cart'); setCheckoutOpen(false); }}>
           {t('pos.cart')} ({totals.itemCount})
@@ -363,16 +420,33 @@ export default function PosPage() {
       </div>
 
       <section className="pos__products">
-        <ProductPicker
-          tenantId={tenantId}
-          categories={categories}
-          tier={cart.tier}
-          rate={rate}
-          lowStockThreshold={settings.lowStockThreshold}
-          searchRef={searchRef}
-          onPick={pick}
-          catalogRevision={catalogRevision}
-        />
+        {layout === 'classic' ? (
+          <ProductPicker
+            tenantId={tenantId}
+            categories={categories}
+            tier={cart.tier}
+            rate={rate}
+            lowStockThreshold={settings.lowStockThreshold}
+            searchRef={searchRef}
+            onPick={pick}
+            catalogRevision={catalogRevision}
+          />
+        ) : (
+          // Invoice layout: the scan box and the invoice lines take the product grid's place.
+          <div className="inv-pane">
+            <InvoiceAddBar tenantId={tenantId} tier={cart.tier} rate={rate} searchRef={searchRef} onAdd={addProduct} />
+            <InvoiceTable
+              totals={totals}
+              products={productMap}
+              canEditPrice={can('canEditPrice')}
+              customerName={customer?.name}
+              onChange={update}
+              onRemovePrevious={() => toggleDebtLine(null)}
+              onFocusSearch={() => searchRef.current?.focus()}
+              uid={actor.uid}
+            />
+          </div>
+        )}
       </section>
 
       <section className="pos__cart">
@@ -497,8 +571,9 @@ export default function PosPage() {
                 update((c) => ({ ...c, currency }));
               }}
               options={[
-                { value: 'USD', label: 'USD $' },
-                { value: 'LBP', label: lang === 'ar' ? 'ليرة ل.ل' : 'LBP' },
+                // Symbol first so it stays visible even in the narrow cart column.
+                { value: 'USD', label: '$ USD' },
+                { value: 'LBP', label: lang === 'ar' ? 'ل.ل ليرة' : 'LBP' },
               ]}
             />
             <div className="field cart-options__pay">
@@ -529,6 +604,7 @@ export default function PosPage() {
             tenantId={tenantId}
             selected={customer}
             onSelect={setCustomer}
+            onAddNew={can('canViewCustomers') ? (seed) => setQuickCustomer({ seed }) : undefined}
             hint={creditRequiresCustomer(draft.kind, cart.customerId) ? t('pos.selectCustomer') : undefined}
             actions={
               customer && customer.debtUsdCents > 0 ? (
@@ -560,15 +636,23 @@ export default function PosPage() {
         </div>
 
         <div className="pos__lines">
-          <CartPanel
-            cart={cart}
-            totals={totals}
-            products={productMap}
-            canEditPrice={can('canEditPrice')}
-            customerName={customer?.name}
-            onChange={update}
-            onRemovePrevious={() => toggleDebtLine(null)}
-          />
+          {layout === 'invoice' ? (
+            // The lines live in the invoice on the left; here only a short summary.
+            <div className="inv-summary">
+              <span className="inv-summary__count">{totals.lines.length}</span>
+              <span>{t('pos.invoice.lines', { count: totals.lines.length, units: totals.itemCount })}</span>
+            </div>
+          ) : (
+            <CartPanel
+              cart={cart}
+              totals={totals}
+              products={productMap}
+              canEditPrice={can('canEditPrice')}
+              customerName={customer?.name}
+              onChange={update}
+              onRemovePrevious={() => toggleDebtLine(null)}
+            />
+          )}
         </div>
 
         {!online && <Alert tone="warning">{t('offline.posBanner')}</Alert>}
@@ -642,7 +726,9 @@ export default function PosPage() {
               busy={busy}
               disabled={!hasItems || creditRequiresCustomer(draft.kind, cart.customerId)}
               onComplete={() => void complete()}
-              canDiscount={can('canEditPrice')}
+              // Invoice layout: discounts are entered per line in the table, so checkout shows no
+              // discount tools (an existing checkout discount can still be seen and removed).
+              canDiscount={can('canEditPrice') && layout === 'classic'}
               onRoundDown={() => {
                 if (draft.kind !== 'cash' || cash.error !== 'underpaid') return;
                 // cash.remainingUsdCents is the whole shortfall already expressed in USD cents;
@@ -657,6 +743,18 @@ export default function PosPage() {
         </div>
       )}
 
+      {quickCustomer && (
+        <QuickAddCustomerModal
+          seed={quickCustomer.seed}
+          onClose={() => setQuickCustomer(null)}
+          onSelected={(created) => {
+            // Same path as picking from the search list: only the customer changes; the cart lines,
+            // prices, currency, discount and payment method (cash/credit) stay as they were.
+            setCustomer(created);
+            setQuickCustomer(null);
+          }}
+        />
+      )}
       {imeiProduct && (
         <ImeiPicker
           product={imeiProduct}

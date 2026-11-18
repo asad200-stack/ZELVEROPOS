@@ -13,7 +13,7 @@ import { applyUpdate } from './serviceWorker';
  * Release-managed update banner only (required or admin-published optional updates).
  * The generic, auto-detected "a new build is on the server" toast was removed: it fired on
  * every hosting deploy regardless of whether the change mattered to this store, which was
- * noisy. Carts and the offline queue stay on this origin; this never reloads on its own.
+ * noisy. Carts and the offline queue stay on this origin. Never reloads on its own.
  */
 export function UpdateNotice() {
   const { t } = useI18n();

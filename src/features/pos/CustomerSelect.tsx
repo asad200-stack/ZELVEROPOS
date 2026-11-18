@@ -14,10 +14,12 @@ interface Props {
   onSelect: (customer: Customer | null) => void;
   actions?: ReactNode;
   hint?: string;
+  /** Opens the quick-add dialog with whatever was typed. Omitted when the user may not add customers. */
+  onAddNew?: (seed: string) => void;
 }
 
 /** Compact cart-header picker: search + Walk-in + optional debt actions on one row. */
-export function CustomerSelect({ tenantId, selected, onSelect, actions, hint }: Props) {
+export function CustomerSelect({ tenantId, selected, onSelect, actions, hint, onAddNew }: Props) {
   const { t } = useI18n();
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -82,6 +84,7 @@ export function CustomerSelect({ tenantId, selected, onSelect, actions, hint }: 
   };
 
   return (
+    <>
     <div className="cart-customer-row" ref={rootRef}>
       <label className="field cart-customer-row__search">
         <span className={hint ? 'field__label field__label--warn' : 'field__label'}>{hint || t('pos.customer')}</span>
@@ -148,6 +151,24 @@ export function CustomerSelect({ tenantId, selected, onSelect, actions, hint }: 
                 </Button>
               </li>
             )}
+            {onAddNew && (
+              <li className="cart-customer-results__add">
+                <button
+                  type="button"
+                  className="cart-customer-add"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    const seed = search;
+                    setSearch('');
+                    setOpen(false);
+                    onAddNew(seed);
+                  }}
+                >
+                  <Icon name="plus" size={16} />
+                  <span>{search.trim() ? t('pos.quickCustomer.addNamed', { name: search.trim() }) : t('pos.quickCustomer.add')}</span>
+                </button>
+              </li>
+            )}
           </ul>
         )}
       </label>
@@ -156,5 +177,12 @@ export function CustomerSelect({ tenantId, selected, onSelect, actions, hint }: 
       </Button>
       {actions}
     </div>
+    {onAddNew && hint && !selected && !open && (
+      <button type="button" className="cart-customer-add cart-customer-add--below" onClick={() => onAddNew(search)}>
+        <Icon name="plus" size={16} />
+        <span>{t('pos.quickCustomer.add')}</span>
+      </button>
+    )}
+    </>
   );
 }

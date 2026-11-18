@@ -147,6 +147,8 @@ export interface ImportRowCall {
 /** Money and stock operations: executed and validated server-side (functions/src/pos). */
 export const posApi = {
   checkout: posOperation<CheckoutCall, CheckoutResponse>('posCheckout'),
+  /** Wakes the checkout function before Complete sale (no data read or written). Not used by preview builds. */
+  warmCheckout: callable<{ warmup: true }, { warm: boolean }>('posCheckout'),
   processReturn: posOperation<
     { clientOperationId: string; saleId: string; lines: { index: number; quantity: number }[]; reason: string },
     { saleReturn: Record<string, unknown> & { id: string }; duplicate: boolean }
