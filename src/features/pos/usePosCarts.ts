@@ -17,6 +17,8 @@ function newCart(tenantId: string, currency: Currency, id: string): Cart {
     customerId: null,
     lines: [],
     debtLineUsdCents: null,
+    checkoutDiscountUsdCents: 0,
+    checkoutDiscountKind: null,
     saleId: paths.newId(tenantId, 'sales'),
     draft: emptyCartDraft(),
   });

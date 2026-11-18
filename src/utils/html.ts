@@ -21,7 +21,11 @@ export function printHtml(html: string): Promise<boolean> {
   return new Promise((resolve) => {
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    // iOS Safari has a long-standing bug: a zero-size or visibility:hidden iframe is not
+    // recognized as printable content, so win.print() silently prints the top-level app page
+    // instead of the receipt. Giving the iframe real pixel dimensions and moving it off-screen
+    // (instead of collapsing it) keeps it eligible for its own scoped print job on iOS and Android.
+    iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:800px;height:600px;border:0;';
     document.body.appendChild(iframe);
     const docu = iframe.contentDocument;
     const win = iframe.contentWindow;

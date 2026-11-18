@@ -44,7 +44,8 @@ export interface AiReadSource {
   debts(tenantId: string): Promise<{ items: { name: string; debtUsdCents: number }[]; hasMore: boolean }>;
   saleLines(tenantId: string, from: string, to: string): Promise<{ sales: RankSale[]; complete: boolean }>;
   /** True when any product stores an unknown cost. Absent in tests that do not cover this check. */
-  unknownProductCost?(tenantId: string): Promise<boolean>;
+  /** Scoped to products sold within [from, to] — not the whole catalog. */
+  unknownProductCost?(tenantId: string, from: string, to: string): Promise<boolean>;
 }
 
 export interface ReadSnapshot {
@@ -304,6 +305,7 @@ function profitOnlyText(days: DailyStats[], request: ReadRequest, session: ReadS
     revenueUsdCents: revenue,
     costUsdCents: cost,
     discountUsdCents: 0,
+    checkoutDiscountUsdCents: 0,
     cashSalesUsdCents: 0,
     creditSalesUsdCents: 0,
     debtCollectedUsdCents: 0,
@@ -385,6 +387,7 @@ function salesText(days: DailyStats[], request: ReadRequest, session: ReadSessio
       revenueUsdCents: revenue,
       costUsdCents: cost,
       discountUsdCents: 0,
+      checkoutDiscountUsdCents: 0,
       cashSalesUsdCents: 0,
       creditSalesUsdCents: 0,
       debtCollectedUsdCents: 0,
@@ -589,7 +592,7 @@ export async function loadReadSnapshot(session: ReadSession, request: ReadReques
   let unknownCost = false;
   if (request.includeProfit && source.unknownProductCost) {
     try {
-      unknownCost = await source.unknownProductCost(tenantId);
+      unknownCost = await source.unknownProductCost(tenantId, request.range.from, request.range.to);
     } catch {
       unknownCost = true;
     }

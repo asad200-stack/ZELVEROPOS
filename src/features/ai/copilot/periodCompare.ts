@@ -157,7 +157,7 @@ export async function comparePeriods(session: ReadSession, spec: CompareSpec, so
   const to = spec.previous.to > spec.current.to ? spec.previous.to : spec.current.to;
   const [days, unknownCost] = await Promise.all([
     source.dailyStats(session.tenantId, from, to),
-    source.unknownProductCost ? source.unknownProductCost(session.tenantId) : Promise.resolve(false),
+    source.unknownProductCost ? source.unknownProductCost(session.tenantId, from, to) : Promise.resolve(false),
   ]);
   const cur = totalsOf(days, spec.current, unknownCost);
   const prev = totalsOf(days, spec.previous, unknownCost);

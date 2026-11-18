@@ -76,6 +76,15 @@ export function buildSaleReceipt(sale: Sale, ctx: ReceiptContext): string {
   if (sale.discountUsdCents > 0) lines.push(row(t('pos.discount'), formatUsd(sale.discountUsdCents)));
   const grand = `<tr class="grand"><td>${e(t('pos.totalSale'))}</td><td class="num">${money(sale.totalUsdCents, sale.totalLbp)}</td></tr>`;
   if (lbp) lines.push(row(t('receipt.equivalent'), formatUsd(sale.totalUsdCents)));
+  if (sale.checkoutDiscountUsdCents > 0) {
+    lines.push(
+      row(
+        t(sale.checkoutDiscountKind === 'roundDown' ? 'pos.checkoutDiscountRoundDown' : 'pos.checkoutDiscount'),
+        `−${money(sale.checkoutDiscountUsdCents, sale.checkoutDiscountLbp)}`,
+      ),
+    );
+    lines.push(row(t('pos.amountToCollect'), money(sale.payableUsdCents, sale.payableLbp)));
+  }
   if (p.settledPreviousUsdCents > 0) lines.push(row(t('receipt.previousDebtPaid'), formatUsd(p.settledPreviousUsdCents)));
   const collectedUsd =
     p.receivedUsdCents +

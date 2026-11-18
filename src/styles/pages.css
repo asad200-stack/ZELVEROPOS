@@ -1489,6 +1489,196 @@
   font-weight: 600;
 }
 
+/* The one eye-catching element: the amount the cashier actually needs to collect. */
+.payment__total-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--c-primary), var(--c-primary-hover));
+  color: #fff;
+}
+
+.payment__total-card .payment__kicker {
+  color: rgb(255 255 255 / 0.78);
+}
+
+.payment__total-card .payment__total-line {
+  color: #fff;
+}
+
+.payment__discount-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--c-primary-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.payment__discount-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--c-success);
+  font-weight: 700;
+  direction: ltr;
+}
+
+.payment__discount-percent {
+  color: var(--c-primary);
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.payment__discount-remove {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text-muted);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* A single status + action row replaces the old separate "remaining due" block
+   and "apply discount" box: one glance, one button, for the common case. */
+.payment__status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+}
+
+.payment__status-row--due {
+  background: var(--c-warning-soft);
+}
+
+.payment__status-row--due .payment__kicker,
+.payment__status-row--change .payment__kicker {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.payment__status-row--due .payment__status-amt {
+  color: var(--c-warning);
+}
+
+.payment__status-row--change {
+  background: var(--c-primary-soft);
+}
+
+.payment__status-row--change .payment__status-amt {
+  color: var(--c-primary);
+}
+
+.payment__status-amt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  direction: ltr;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.payment__apply-btn {
+  flex: none;
+  white-space: nowrap;
+  box-shadow: 0 6px 14px rgb(79 70 229 / 0.3);
+}
+
+.payment__custom-link {
+  align-self: center;
+  margin: 2px 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.72rem;
+  color: var(--c-text-muted);
+  text-decoration: underline;
+}
+
+.payment__custom-link:hover {
+  color: var(--c-primary);
+}
+
+/* Large, unmissable callout for real change owed back to the customer — this is money
+   leaving the drawer, so it must never be confused with the quieter status rows above. */
+.payment__change-callout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--c-warning-soft);
+  border: 2px solid var(--c-warning);
+  text-align: center;
+}
+
+.payment__change-callout .payment__kicker {
+  color: var(--c-warning);
+  font-size: 0.78rem;
+}
+
+.payment__change-callout-amt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  direction: ltr;
+  color: var(--c-warning);
+  font-weight: 800;
+  font-size: 1.6rem;
+  line-height: 1.15;
+}
+
+.payment__change-callout-amt {
+  align-items: center;
+  text-align: center;
+}
+
+.payment__status-amt {
+  display: flex;
+  flex-direction: column;
+  direction: ltr;
+  text-align: start;
+}
+
+.payment__status-main {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.payment__status-sub {
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.payment__change-callout-main {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.payment__change-callout-sub {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
 .print-menu {
   position: fixed;
   inset: 0;

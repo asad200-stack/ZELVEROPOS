@@ -48,10 +48,10 @@ export function FeatureCenterPanel() {
   const selected = features.find((feature) => feature.id === selectedId) ?? features[0] ?? null;
   const delivery = catalog.data?.delivery.find((row) => row.featureId === selected?.id);
 
+  const now = Date.now();
   const eligible = useMemo(() => {
-    const now = Date.now();
     return (accounts.data ?? []).map(asCustomer).filter((account) => isEligibleCustomer(account, now));
-  }, [accounts.data]);
+  }, [accounts.data, now]);
 
   const say = (key: string) => (isTranslationKey(key) ? t(key) : key);
   const reload = () => setToken((value) => value + 1);

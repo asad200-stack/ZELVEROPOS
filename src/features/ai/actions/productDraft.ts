@@ -76,7 +76,7 @@ export function isProductFieldOnlyReply(text: string): boolean {
   if (/^(?:min(?:imum)?\s*stock|حد\s*أدنى)\s*(?:is|=|:)?\s*\d/i.test(q)) return true;
   if (/^(?:barcode|باركود)\s*(?:is|=|:)\s*\S+/i.test(q)) return true;
   // barcode CODE only when the code contains a digit or hyphen (not "Barcode Scanner").
-  if (/^(?:barcode|باركود)\s+[A-Za-z0-9]*[\d\-][A-Za-z0-9\-]*\s*$/i.test(q)) return true;
+  if (/^(?:barcode|باركود)\s+[A-Za-z0-9]*[\d-][A-Za-z0-9-]*\s*$/i.test(q)) return true;
   if (/^(?:category|فئة|صنف)\s*(?:is|=|:)\s*\S+/i.test(q)) return true;
   return false;
 }
@@ -92,7 +92,7 @@ function stripTrailingFieldAssignments(name: string): string {
     /\s+(?:three\s+prices|the\s+prices|prices?\s+three|البرايس(?:ز|ات)?\s*الثري|الثري\s*برايس(?:ز|ات)?)\s+\d.*$/iu,
     /\s+(?:retail|wholesale|vip|selling(?:\s+price)?|qty|quantity|stock|min(?:imum)?\s*stock|(?:ال)?(?:كيونتيتي|كونتيتي|كوانتيتي))\s+(?:equals?\s+)?\d.*$/iu,
     /\s+(?:barcode)\s*(?:is|=|:)\s*\S+$/iu,
-    /\s+(?:barcode)\s+[A-Za-z0-9]*[\d\-][A-Za-z0-9\-]*\s*$/iu,
+    /\s+(?:barcode)\s+[A-Za-z0-9]*[\d-][A-Za-z0-9-]*\s*$/iu,
     /\s+(?:category)\s*(?:is|=|:)\s*.+$/iu,
     /\s+(?:(?:ال)?سعر(?:\s*البيع)?|(?:ال)?سعر\s*التجزئة|كلفة)\s+\d.*$/iu,
     /\s+(?:سعر|كلفة)\s*(?:is|=|:)\s*\$?\d.*$/iu,
@@ -229,7 +229,7 @@ export function parseProductDraft(text: string, prior: ProductDraftFields = {}):
     q.match(/(?:cost|كلفة|التكلفة|كلفته)\s+(\d+(?:\.\d{1,2})?)\s*\$/i);
   if (cost?.[1]) next.costUsdCents = money(cost[1]);
 
-  const barcode = q.match(/(?:barcode|بار(?:كود)?|باركود)\s*(?:is|=|:)?\s*([A-Za-z0-9\-]+)/i);
+  const barcode = q.match(/(?:barcode|بار(?:كود)?|باركود)\s*(?:is|=|:)?\s*([A-Za-z0-9-]+)/i);
   if (barcode?.[1]) next.barcode = barcode[1];
 
   const qty = q.match(/(?:qty|quantity|stock|كمية|مخزون|(?:ال)?(?:كيونتيتي|كونتيتي|كوانتيتي))\s*(?:is|equals?|=|:)?\s*(\d+)/i);

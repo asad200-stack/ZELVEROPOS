@@ -59,7 +59,8 @@ function refuseText(reason: 'scope' | 'injection', lang: AiLang): string {
 /* ------------------------------------------------------------------ cue words (routing text) */
 
 const COMPARE = /\bcompare\b|\bcomparison\b|\bvs\.?\b|\bversus\b|against last|قارن|مقارنة|مقابل|بالمقارنة/i;
-const WHY = /\bwhy\b|how come|what happened|reason|ليش|ليه|لماذا|لشو|شو السبب|السبب/i;
+// Arabic cue words must stand alone: "ليه" is also the tail of "عليه" ("who owes").
+const WHY = /\bwhy\b|how come|what happened|reason|(?<![\u0600-\u06FF])(?:ليش|ليه|لماذا|لشو)(?![\u0600-\u06FF])|شو السبب|السبب/i;
 const CHANGE_WORD = /drop|dropp|fell|fall|down|decreas|lower|less|declin|rose|rise|up\b|increas|higher|grew|more|نزل|نزلت|قلّ|قلّت|قلت|خف|خفّت|تراجع|انخفض|طلع|طلعت|زاد|زادت|ارتفع|تحسن/i;
 const DETAILS = /^(?:(?:and |ok |okay |so |و|طيب |طب |يلا )?(?:show|give|tell)?\s*(?:me\s+)?(?:the\s+)?(?:details?|more|breakdown|break it down|full list|all of them|the rest|everything)\b|^(?:طيب |طب |و)?(?:فرجيني|وريني|اعطيني|عطيني|بدي)?\s*(?:التفاصيل|تفاصيل|تفصيل|الكل|كلهن|كلن|الباقي|أكتر|اكتر)\s*[؟?.!]*$)/i;
 const PRODUCT_REF =
@@ -241,6 +242,7 @@ function metricFor(routing: string, memory: CopilotMemory): CompareMetric | null
 /* ------------------------------------------------------------------ main */
 
 export function planTurn(input: PlanInput): TurnPlan {
+  // eslint-disable-next-line no-control-regex -- deliberate: strips control characters from raw user input before any processing.
   const raw = input.text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, MAX_QUESTION_CHARS);
   const language: LanguageRead = readLanguage(raw, input.uiLang);
   const lang = language.reply;

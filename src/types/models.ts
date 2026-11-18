@@ -211,6 +211,17 @@ export interface Sale {
   totalUsdCents: number;
   totalLbp: number;
   discountUsdCents: number;
+  /**
+   * Explicit checkout-level discount the cashier applied at checkout (fixed amount or
+   * round-down), cash sales only. Distinct from `discountUsdCents` above (sum of per-line
+   * price overrides). `payableUsdCents`/`payableLbp` is what the customer actually had to pay:
+   * (totalUsdCents + any previous-balance line) minus this discount.
+   */
+  checkoutDiscountUsdCents: number;
+  checkoutDiscountLbp: number;
+  checkoutDiscountKind: 'fixed' | 'roundDown' | null;
+  payableUsdCents: number;
+  payableLbp: number;
   costUsdCents: number;
   customerId: string | null;
   customerName: string;

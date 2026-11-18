@@ -46,6 +46,8 @@ export function buildCheckoutCall(req: CheckoutRequest): CheckoutCall {
     note: cart.note.trim() || undefined,
     cash: req.kind === 'cash' ? req.cash : undefined,
     credit: req.kind === 'credit' ? req.credit : undefined,
+    checkoutDiscountUsdCents: req.kind === 'cash' ? totals.checkoutDiscountUsdCents : 0,
+    checkoutDiscountKind: req.kind === 'cash' && totals.checkoutDiscountUsdCents > 0 ? cart.checkoutDiscountKind : null,
   };
 }
 
@@ -72,6 +74,8 @@ export function buildSaleSnapshot(req: CheckoutRequest, ctx: CheckoutContext): S
     })),
     totalUsdCents: totals.productsUsdCents,
     totalLbp: totals.productsLbp,
+    checkoutDiscountUsdCents: req.kind === 'cash' ? totals.checkoutDiscountUsdCents : 0,
+    checkoutDiscountLbp: req.kind === 'cash' ? totals.checkoutDiscountLbp : 0,
     debtLineUsdCents: cart.customerId ? cart.debtLineUsdCents : null,
     customerId: cart.customerId,
     customerName: ctx.customerName,

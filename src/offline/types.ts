@@ -61,6 +61,9 @@ export interface SaleSnapshot {
   }[];
   totalUsdCents: number;
   totalLbp: number;
+  /** Explicit checkout-level discount (cash only); 0 when none was applied. */
+  checkoutDiscountUsdCents: number;
+  checkoutDiscountLbp: number;
   debtLineUsdCents: number | null;
   customerId: string | null;
   customerName: string;

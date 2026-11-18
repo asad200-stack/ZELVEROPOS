@@ -9,6 +9,8 @@ export interface DailyStats {
   revenueUsdCents: number;
   costUsdCents: number;
   discountUsdCents: number;
+  /** Explicit checkout-level discounts (round-down / fixed amount), cash sales only. Distinct from discountUsdCents (line price overrides). */
+  checkoutDiscountUsdCents: number;
   cashSalesUsdCents: number;
   creditSalesUsdCents: number;
   debtCollectedUsdCents: number;
@@ -26,6 +28,7 @@ const FIELDS = [
   'revenueUsdCents',
   'costUsdCents',
   'discountUsdCents',
+  'checkoutDiscountUsdCents',
   'cashSalesUsdCents',
   'creditSalesUsdCents',
   'debtCollectedUsdCents',
@@ -69,9 +72,13 @@ export function sumStats(days: DailyStats[]): DailyStats {
   return total;
 }
 
-/** Net revenue/profit after returns. */
+/**
+ * Net revenue/profit after checkout discounts and returns.
+ * `revenueUsdCents` is gross product revenue (already net of per-line price overrides);
+ * `checkoutDiscountUsdCents` is the separate, explicit checkout-level discount.
+ */
 export function netFigures(s: DailyStats) {
-  const netRevenue = s.revenueUsdCents - s.returnsUsdCents;
+  const netRevenue = s.revenueUsdCents - s.checkoutDiscountUsdCents - s.returnsUsdCents;
   const netCost = s.costUsdCents - s.returnsCostUsdCents;
   const grossProfit = netRevenue - netCost;
   return { netRevenue, netCost, grossProfit, netProfit: grossProfit - s.expensesUsdCents };

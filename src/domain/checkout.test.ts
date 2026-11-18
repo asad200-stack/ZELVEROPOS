@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { autoFillCashTender, computeCashPayment, computeCredit, debtLineSettlement, formatDocNumber, offlineDocNumber, planCashTender, type ChangeManual } from './checkout';
+import { autoFillCashTender, cashNetCoversDue, computeCashPayment, computeCredit, debtLineSettlement, formatDocNumber, offlineDocNumber, planCashTender, type ChangeManual } from './checkout';
+import { usdCentsToLbp } from './money';
 
 const RATE = 89_500;
 
@@ -429,6 +430,47 @@ describe('credit sale does not auto-cover remaining cash', () => {
       previousUsdCents: 0,
     });
     expect(r).toMatchObject({ ok: true, remainingCurrentUsdCents: 20_000, newTotalDebtUsdCents: 20_000, paidTotalUsdCents: 240_000 });
+  });
+});
+
+
+describe('cashNetCoversDue against the payable (post-discount) total, not the original total', () => {
+  // $232.29 original total, matching the spec's awkward-total scenario.
+  const dueUsdCents = 23_229;
+  const dueLbp = 23_229 * 89_500 / 100;
+
+  it('underpaying the original total by $0.29 is refused when no discount covers the gap', () => {
+    expect(cashNetCoversDue('USD', 89_500, dueUsdCents, dueLbp, 23_200, 0)).toBe(false);
+  });
+
+  it('paying exactly the original total always matches, discount or not', () => {
+    expect(cashNetCoversDue('USD', 89_500, dueUsdCents, dueLbp, 23_229, 0)).toBe(true);
+  });
+
+  it('once the payable total is discounted down to what was received, it matches', () => {
+    const payableUsdCents = 23_200; // after a $0.29 fixed/round-down discount
+    expect(cashNetCoversDue('USD', 89_500, payableUsdCents, usdCentsToLbp(payableUsdCents, 89_500), 23_200, 0)).toBe(true);
+  });
+
+  it('paying $230.00 against a payable total discounted to exactly $230.00 matches', () => {
+    const payableUsdCents = 23_000; // after a $2.29 discount
+    expect(cashNetCoversDue('USD', 89_500, payableUsdCents, usdCentsToLbp(payableUsdCents, 89_500), 23_000, 0)).toBe(true);
+    // but $230.00 against the undiscounted total still does not
+    expect(cashNetCoversDue('USD', 89_500, dueUsdCents, dueLbp, 23_000, 0)).toBe(false);
+  });
+
+  it('mixed USD + LBP payment covers the discounted payable total', () => {
+    const payableUsdCents = 23_000;
+    const payableLbp = usdCentsToLbp(payableUsdCents, 89_500);
+    // $200.00 cash + the LBP equivalent of the remaining $30.00
+    expect(cashNetCoversDue('USD', 89_500, payableUsdCents, payableLbp, 20_000, usdCentsToLbp(3_000, 89_500))).toBe(true);
+  });
+
+  it('overpayment is not a match by itself; change must bring the net back down to the payable amount', () => {
+    // paid $240.00 against a $232.00 payable total (after a $0.29 discount) with no change recorded net-overpays
+    expect(cashNetCoversDue('USD', 89_500, 23_200, usdCentsToLbp(23_200, 89_500), 24_000, 0)).toBe(false);
+    // once $8.00 change is handed back, the net matches
+    expect(cashNetCoversDue('USD', 89_500, 23_200, usdCentsToLbp(23_200, 89_500), 24_000 - 800, 0)).toBe(true);
   });
 });
 

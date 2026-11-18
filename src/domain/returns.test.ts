@@ -15,6 +15,39 @@ describe('returns', () => {
     expect(returnStatusAfter(sale(), plan.quantities)).toBe('partial');
   });
 
+  it('a full return on a discounted sale refunds only what was actually paid, not the pre-discount total', () => {
+    // $10.00 line total, $1.00 checkout discount, so $9.00 was actually paid and received.
+    const discounted = sale({
+      totalUsdCents: 1_000,
+      checkoutDiscountUsdCents: 100,
+      checkoutDiscountLbp: 100_000,
+      checkoutDiscountKind: 'fixed',
+      payableUsdCents: 900,
+      payableLbp: 900_000,
+      payment: { ...sale().payment, receivedUsdCents: 900 },
+    });
+    const plan = planReturn(discounted, [{ index: 0, quantity: 2 }], 0);
+    expect(plan).toMatchObject({ ok: true, amountUsdCents: 1_000, checkoutDiscountReversedUsdCents: 100, refundUsdCents: 900 });
+  });
+
+  it('a partial return reverses only its proportional share of the checkout discount', () => {
+    const discounted = sale({
+      totalUsdCents: 1_000,
+      checkoutDiscountUsdCents: 100,
+      checkoutDiscountKind: 'fixed',
+      payableUsdCents: 900,
+      payment: { ...sale().payment, receivedUsdCents: 900 },
+    });
+    // returning 1 of the 2 units: half the line value, half the discount share
+    const plan = planReturn(discounted, [{ index: 0, quantity: 1 }], 0);
+    expect(plan).toMatchObject({ ok: true, amountUsdCents: 500, checkoutDiscountReversedUsdCents: 50, refundUsdCents: 450 });
+  });
+
+  it('no checkout discount means no reversal, same as before this feature existed', () => {
+    const plan = planReturn(sale(), [{ index: 0, quantity: 1 }], 0);
+    expect(plan.checkoutDiscountReversedUsdCents).toBe(0);
+  });
+
   it('reduces debt first on credit sales (no double refund)', () => {
     const credit = sale({
       kind: 'credit',

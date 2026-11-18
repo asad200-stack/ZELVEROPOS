@@ -99,6 +99,7 @@ describe.skipIf(!live)('local Qwen completion against the store note', () => {
       revenueUsdCents: 10_000,
       costUsdCents: 4_000,
       discountUsdCents: 0,
+      checkoutDiscountUsdCents: 0,
       cashSalesUsdCents: 0,
       creditSalesUsdCents: 0,
       debtCollectedUsdCents: 0,

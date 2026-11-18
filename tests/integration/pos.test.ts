@@ -1,5 +1,5 @@
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, query, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   asAdmin,
@@ -254,6 +254,203 @@ describe('posCheckout', () => {
     expect(error).toBeUndefined();
     expect(await stock(T)).toBe(10);
     expect(await stock(OTHER)).toBe(8);
+  });
+});
+
+describe('posCheckout — Smart Checkout Discounts', () => {
+  // $232.29: the awkward total from the spec. A dedicated product avoids needing a
+  // canEditPrice line-price override just to reach a non-round total.
+  async function seedAwkwardProduct() {
+    await asAdmin(env, (fs) =>
+      setDoc(doc(fs, tp(T, 'products', 'awk')), {
+        name: 'Awkward item',
+        nameNormalized: 'awkward item',
+        status: 'active',
+        category: 'Misc',
+        barcode: '',
+        prices: { retail: { usdCents: 23_229, lbp: null }, wholesale: { usdCents: 0, lbp: null }, vip: { usdCents: 0, lbp: null } },
+        costUsdCents: 10_000,
+        stock: 100,
+        minStock: null,
+        supplierId: null,
+        supplierName: '',
+        expiryDate: null,
+        imeiTracking: false,
+        imeis: [],
+        imageUrl: null,
+        imagePath: null,
+        lastMovementId: null,
+        createdAt: Timestamp.now(),
+        createdAtMs: Date.now(),
+        createdBy: T,
+      }),
+    );
+  }
+
+  function awkwardSale(overrides: Record<string, unknown> = {}) {
+    saleSeq += 1;
+    return {
+      saleId: `awk${Date.now()}${saleSeq}`,
+      kind: 'cash',
+      currency: 'USD',
+      rate: RATE,
+      customerId: null,
+      debtLineUsdCents: null,
+      lines: [{ productId: 'awk', tier: 'retail', quantity: 1, customUsdCents: null, imei: null }],
+      expectedTotalUsdCents: 23_229,
+      cash: { receivedUsdCents: 23_229, receivedLbp: 0 },
+      checkoutDiscountUsdCents: 0,
+      checkoutDiscountKind: null,
+      ...overrides,
+    };
+  }
+
+  beforeEach(seedAwkwardProduct);
+
+  it('never applies a discount automatically: paying $232.00 against the undiscounted $232.29 total is refused', async () => {
+    const { error } = await call(tokens.cashier!, 'posCheckout', awkwardSale({ cash: { receivedUsdCents: 23_200, receivedLbp: 0 } }));
+    expect(error?.key).toBe('error.paymentMismatch');
+    expect(await stock(T, 'awk')).toBe(100);
+  });
+
+  it('paying $230.00 against the undiscounted total is refused the same way', async () => {
+    const { error } = await call(tokens.cashier!, 'posCheckout', awkwardSale({ cash: { receivedUsdCents: 23_000, receivedLbp: 0 } }));
+    expect(error?.key).toBe('error.paymentMismatch');
+  });
+
+  it('paying exactly $232.29 needs no discount and completes normally', async () => {
+    const res = await callOk<{ sale: Record<string, unknown> }>(tokens.cashier!, 'posCheckout', awkwardSale());
+    expect(res.sale).toMatchObject({ totalUsdCents: 23_229, checkoutDiscountUsdCents: 0, checkoutDiscountKind: null, payableUsdCents: 23_229 });
+    expect((await drawer()).usdCents).toBe(10_000 + 23_229);
+  });
+
+  it('a cashier without canEditPrice cannot apply a checkout discount at all, even to cover a short payment', async () => {
+    const { error } = await call(
+      tokens.cashier!,
+      'posCheckout',
+      awkwardSale({ checkoutDiscountUsdCents: 29, checkoutDiscountKind: 'fixed', cash: { receivedUsdCents: 23_200, receivedLbp: 0 } }),
+    );
+    expect(error?.status).toBe('PERMISSION_DENIED');
+    expect(await stock(T, 'awk')).toBe(100);
+    expect((await drawer()).usdCents).toBe(10_000);
+  });
+
+  it('a crafted over-limit discount is rejected server-side even from an authorized role, once it exceeds the total', async () => {
+    const { error } = await call(
+      tokens.pricer!,
+      'posCheckout',
+      awkwardSale({ checkoutDiscountUsdCents: 50_000, checkoutDiscountKind: 'fixed', cash: { receivedUsdCents: 0, receivedLbp: 0 } }),
+    );
+    expect(error?.key).toBe('error.discountExceedsTotal');
+    expect(await stock(T, 'awk')).toBe(100);
+  });
+
+  it('an authorized fixed discount of $0.29 lets a $232.00 payment complete the sale, recorded on the sale and cashbox', async () => {
+    const sale = awkwardSale({
+      checkoutDiscountUsdCents: 29,
+      checkoutDiscountKind: 'fixed',
+      cash: { receivedUsdCents: 23_200, receivedLbp: 0 },
+    });
+    const res = await callOk<{ sale: Record<string, unknown> }>(tokens.pricer!, 'posCheckout', sale);
+    expect(res.sale).toMatchObject({
+      totalUsdCents: 23_229,
+      checkoutDiscountUsdCents: 29,
+      checkoutDiscountKind: 'fixed',
+      payableUsdCents: 23_200,
+    });
+    // the cashbox records only the actual $232.00 received, never the pre-discount $232.29
+    expect((await drawer()).usdCents).toBe(10_000 + 23_200);
+    const stats = await readDoc(env, tp(T, 'dailyStats', String(res.sale.localDate)));
+    expect(stats).toMatchObject({ revenueUsdCents: 23_229, checkoutDiscountUsdCents: 29 });
+  });
+
+  it('round-down to $230.00 received is recorded with kind roundDown and the matching payable total', async () => {
+    const sale = awkwardSale({
+      checkoutDiscountUsdCents: 229,
+      checkoutDiscountKind: 'roundDown',
+      cash: { receivedUsdCents: 23_000, receivedLbp: 0 },
+    });
+    const res = await callOk<{ sale: Record<string, unknown> }>(tokens.pricer!, 'posCheckout', sale);
+    expect(res.sale).toMatchObject({ checkoutDiscountUsdCents: 229, checkoutDiscountKind: 'roundDown', payableUsdCents: 23_000 });
+    expect((await drawer()).usdCents).toBe(10_000 + 23_000);
+  });
+
+  it('overpayment against a discounted total returns correct change, net of the discount', async () => {
+    // $2.29 discount -> $230.00 payable; customer hands over $240.00, expects $10.00 change
+    const sale = awkwardSale({
+      checkoutDiscountUsdCents: 229,
+      checkoutDiscountKind: 'fixed',
+      cash: { receivedUsdCents: 24_000, receivedLbp: 0, changeUsdCents: 1_000, changeLbp: 0 },
+    });
+    const res = await callOk<{ sale: { payment: Record<string, number> } }>(tokens.pricer!, 'posCheckout', sale);
+    expect(res.sale.payment).toMatchObject({ receivedUsdCents: 24_000, changeUsdCents: 1_000 });
+    expect((await drawer()).usdCents).toBe(10_000 + 23_000);
+  });
+
+  it('a mixed USD+LBP payment can cover a discounted payable total using the frozen rate', async () => {
+    // $2.29 discount -> $230.00 payable; $200.00 cash + the LBP equivalent of $30.00 at RATE
+    const lbpForThirty = Math.round((3_000 * RATE) / 100);
+    const sale = awkwardSale({
+      checkoutDiscountUsdCents: 229,
+      checkoutDiscountKind: 'fixed',
+      currency: 'USD',
+      cash: { receivedUsdCents: 20_000, receivedLbp: lbpForThirty },
+    });
+    const res = await callOk<{ sale: Record<string, unknown> }>(tokens.pricer!, 'posCheckout', sale);
+    expect(res.sale).toMatchObject({ checkoutDiscountUsdCents: 229, payableUsdCents: 23_000 });
+    expect((await drawer()).lbp).toBe(lbpForThirty);
+    expect((await drawer()).usdCents).toBe(10_000 + 20_000);
+  });
+
+  it('a checkout discount on a credit sale is refused: the discount is cash-checkout only', async () => {
+    const { error } = await call(
+      tokens.pricer!,
+      'posCheckout',
+      awkwardSale({
+        kind: 'credit',
+        customerId: 'c1',
+        cash: undefined,
+        credit: { paidUsdCents: 0, paidLbp: 0 },
+        checkoutDiscountUsdCents: 29,
+        checkoutDiscountKind: 'fixed',
+      }),
+    );
+    expect(error?.key).toBe('error.checkoutDiscountCreditOnly');
+  });
+
+  it('a return on a discounted sale refunds only the cash actually collected, never the pre-discount amount', async () => {
+    const sale = awkwardSale({
+      checkoutDiscountUsdCents: 29,
+      checkoutDiscountKind: 'fixed',
+      cash: { receivedUsdCents: 23_200, receivedLbp: 0 },
+    });
+    const checkout = await callOk<{ sale: { localDate: string } }>(tokens.pricer!, 'posCheckout', sale);
+    expect((await drawer()).usdCents).toBe(10_000 + 23_200);
+    const refund = await callOk<{ saleReturn: { refundUsdCents: number; amountUsdCents: number } }>(tokens.returner!, 'posReturn', {
+      saleId: sale.saleId,
+      lines: [{ index: 0, quantity: 1 }],
+    });
+    // the line was sold for $232.29, but only $232.00 was ever collected after the discount
+    expect(refund.saleReturn).toMatchObject({ amountUsdCents: 23_229, refundUsdCents: 23_200 });
+    expect((await drawer()).usdCents).toBe(10_000);
+    // net figures (revenue - checkoutDiscount - returns) settle back to zero now that everything was returned
+    const stats = await readDoc(env, tp(T, 'dailyStats', checkout.sale.localDate));
+    expect(stats).toMatchObject({ revenueUsdCents: 23_229, checkoutDiscountUsdCents: 0, returnsUsdCents: 23_229 });
+  });
+
+  it('is idempotent on saleId with a checkout discount in the payload: a retry never re-applies the discount or re-sells', async () => {
+    const sale = awkwardSale({
+      checkoutDiscountUsdCents: 29,
+      checkoutDiscountKind: 'fixed',
+      cash: { receivedUsdCents: 23_200, receivedLbp: 0 },
+    });
+    const first = await callOk<{ duplicate: boolean }>(tokens.pricer!, 'posCheckout', sale);
+    expect(first.duplicate).toBe(false);
+    const retry = await callOk<{ duplicate: boolean; sale: Record<string, unknown> }>(tokens.pricer!, 'posCheckout', sale);
+    expect(retry.duplicate).toBe(true);
+    expect(retry.sale).toMatchObject({ checkoutDiscountUsdCents: 29, payableUsdCents: 23_200 });
+    expect(await stock(T, 'awk')).toBe(99);
+    expect((await drawer()).usdCents).toBe(10_000 + 23_200);
   });
 });
 

@@ -41,7 +41,7 @@ await cc(P + '/assets/index-CwyI6jxY.js', 'public, max-age=31536000, immutable')
 await cc(P + '/open.html', 'no-cache');
 { const r = await get(P + '/assets/does-not-exist-123.js'); check('missing preview asset -> 404 (not HTML)', r.s === 404, `status=${r.s}`); }
 { const r = await get(P + '/pos'); for (const k of ['content-security-policy', 'x-frame-options', 'strict-transport-security', 'x-content-type-options']) hcheck(`preview security header ${k}`, !!r.h.get(k)); }
-{ const r = await get(P + '/index.html'); const html = readFileSync(`hosting-deliverable${P}/index.html`, 'utf8'); check('preview index loads only versioned assets', !/(src|href)="\/(assets|boot\.js)/.test(html) && html.includes(P + '/boot.js')); }
+{ await get(P + '/index.html'); const html = readFileSync(`hosting-deliverable${P}/index.html`, 'utf8'); check('preview index loads only versioned assets', !/(src|href)="\/(assets|boot\.js)/.test(html) && html.includes(P + '/boot.js')); }
 out.push(`RESULT ${fail === 0 ? 'ALL PASS' : fail + ' FAILED'}`);
 writeFileSync('tmp/deploy/hosting-verify.txt', out.join('\n') + '\n');
 console.log(out.join('\n'));

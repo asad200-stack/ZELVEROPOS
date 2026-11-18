@@ -9,7 +9,6 @@ import { nameNormalized } from '@/domain/searchKey';
 import { countWhere, getProductsByIds, pageCustomers, pageProducts } from '@/services/catalogQuery';
 import { paths, toCashbox, toSettings } from '@/services/db';
 import { loadDailyStats } from '@/services/reportService';
-import { catalogHasUnknownCost } from '@/services/productService';
 import { listSales, type SalesCursor } from '@/services/salesService';
 import type { RankSale } from './productRank';
 import { AI_LIST_CAP, EXPIRY_SOON_DAYS, type AiReadSource } from './readSnapshot';
@@ -84,13 +83,32 @@ export function firestoreAiReadSource(): AiReadSource {
       };
     },
     saleLines: (tenantId, from, to) => loadRankSales(tenantId, from, to),
-    unknownProductCost: (tenantId) => catalogHasUnknownCost(tenantId),
+    unknownProductCost: (tenantId, from, to) => rangeHasUnknownCost(tenantId, from, to),
     async productsByIds(tenantId, ids) {
       const unique = [...new Set(ids.filter(Boolean))].slice(0, 40);
       const found = await getProductsByIds(tenantId, unique);
       return found.map((item) => ({ id: item.id, status: item.status }));
     },
   };
+}
+
+/**
+ * Whether any product actually sold in [from, to] has an unknown cost right now. Scoped to the
+ * sale range, not the whole catalog — an unrelated product the owner hasn't priced yet should not
+ * block a profit answer about a different period.
+ */
+async function rangeHasUnknownCost(tenantId: string, from: string, to: string): Promise<boolean> {
+  const { sales, complete } = await loadRankSales(tenantId, from, to);
+  if (!complete) return true;
+  const ids = new Set<string>();
+  for (const sale of sales) {
+    for (const line of sale.lines) {
+      if (line.productId) ids.add(line.productId);
+    }
+  }
+  if (ids.size === 0) return false;
+  const products = await getProductsByIds(tenantId, [...ids]);
+  return products.some((p) => p.costKnown === false);
 }
 
 async function loadRankSales(tenantId: string, from: string, to: string): Promise<{ sales: RankSale[]; complete: boolean }> {

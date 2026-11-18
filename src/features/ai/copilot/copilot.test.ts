@@ -293,6 +293,7 @@ function day(date: string, patch: Partial<DailyStats> = {}): DailyStats {
     revenueUsdCents: 0,
     costUsdCents: 0,
     discountUsdCents: 0,
+    checkoutDiscountUsdCents: 0,
     cashSalesUsdCents: 0,
     creditSalesUsdCents: 0,
     debtCollectedUsdCents: 0,

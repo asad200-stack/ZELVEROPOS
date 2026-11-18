@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { cartCanCheckout, creditRequiresCustomer, emptyCartDraft, type Cart } from './cart';
 import { addProductToCart, findStockShortages, findUnavailableImeis, priceCart } from './cart';
+import { usdCentsToLbp } from './money';
 import { product } from './fixtures.test-utils';
 
 const RATE = 100_000;
 
 function emptyCart(over: Partial<Cart> = {}): Cart {
-  return { id: 'c', label: '', note: '', tier: 'retail', currency: 'USD', customerId: null, lines: [], debtLineUsdCents: null, saleId: 'sale-1', draft: emptyCartDraft(), ...over };
+  return { id: 'c', label: '', note: '', tier: 'retail', currency: 'USD', customerId: null, lines: [], debtLineUsdCents: null, checkoutDiscountUsdCents: 0, checkoutDiscountKind: null, saleId: 'sale-1', draft: emptyCartDraft(), ...over };
 }
 
 describe('cart', () => {
@@ -96,5 +97,67 @@ describe('cart', () => {
     expect(totals.dueUsdCents).toBe(10_000);
     expect(cartCanCheckout({ lines: [], customerId: 'cust', debtLineUsdCents: 10_000 })).toBe(true);
     expect(cartCanCheckout({ lines: [], customerId: 'cust', debtLineUsdCents: null })).toBe(false);
+  });
+});
+
+describe('checkout discount (Smart Checkout Discounts)', () => {
+  // A single $232.29 line, matching the awkward-total scenario from the spec. The line prices via
+  // customUsdCents, but priceCart still needs the product to exist in the map — an unmatched
+  // productId is priced as "missing" (0), regardless of customUsdCents.
+  const awkwardProducts = new Map([[product().id, product()]]);
+  function awkwardCart(over: Partial<Cart> = {}): Cart {
+    return emptyCart({
+      lines: [{ key: 'k', productId: 'p1', name: 'x', tier: 'retail', quantity: 1, customUsdCents: 23_229, imei: null }],
+      ...over,
+    });
+  }
+
+  it('is zero and null by default: no discount is ever applied just because this field exists', () => {
+    const p = product();
+    const totals = priceCart(emptyCart({ lines: [{ key: 'k', productId: p.id, name: p.name, tier: 'retail', quantity: 1, customUsdCents: null, imei: null }] }), new Map([[p.id, p]]), RATE);
+    expect(totals.checkoutDiscountUsdCents).toBe(0);
+    expect(totals.checkoutDiscountKind).toBeNull();
+    expect(totals.payableUsdCents).toBe(totals.dueUsdCents);
+    expect(totals.payableLbp).toBe(totals.dueLbp);
+  });
+
+  it('a fixed discount reduces the payable total but leaves the original total untouched', () => {
+    const totals = priceCart(awkwardCart({ checkoutDiscountUsdCents: 29, checkoutDiscountKind: 'fixed' }), awkwardProducts, RATE);
+    expect(totals.dueUsdCents).toBe(23_229);
+    expect(totals.checkoutDiscountUsdCents).toBe(29);
+    expect(totals.checkoutDiscountKind).toBe('fixed');
+    expect(totals.payableUsdCents).toBe(23_200);
+    expect(totals.payableLbp).toBe(usdCentsToLbp(23_200, RATE));
+  });
+
+  it('round down to a received amount is just a discount for the gap, same math', () => {
+    const totals = priceCart(awkwardCart({ checkoutDiscountUsdCents: 229, checkoutDiscountKind: 'roundDown' }), awkwardProducts, RATE);
+    expect(totals.payableUsdCents).toBe(23_000);
+    expect(totals.checkoutDiscountKind).toBe('roundDown');
+  });
+
+  it('exactly covering the original total needs no discount at all', () => {
+    const totals = priceCart(awkwardCart(), awkwardProducts, RATE);
+    expect(totals.checkoutDiscountUsdCents).toBe(0);
+    expect(totals.checkoutDiscountKind).toBeNull();
+    expect(totals.payableUsdCents).toBe(23_229);
+  });
+
+  it('clamps a discount larger than the total, and never goes negative', () => {
+    const totals = priceCart(awkwardCart({ checkoutDiscountUsdCents: 99_999, checkoutDiscountKind: 'fixed' }), awkwardProducts, RATE);
+    expect(totals.checkoutDiscountUsdCents).toBe(23_229);
+    expect(totals.payableUsdCents).toBe(0);
+  });
+
+  it('a zero discount amount is treated as no discount, regardless of kind', () => {
+    const totals = priceCart(awkwardCart({ checkoutDiscountUsdCents: 0, checkoutDiscountKind: 'roundDown' }), awkwardProducts, RATE);
+    expect(totals.checkoutDiscountKind).toBeNull();
+    expect(totals.payableUsdCents).toBe(totals.dueUsdCents);
+  });
+
+  it('a negative discount amount is clamped to zero (never a surcharge)', () => {
+    const totals = priceCart(awkwardCart({ checkoutDiscountUsdCents: -500, checkoutDiscountKind: 'fixed' }), awkwardProducts, RATE);
+    expect(totals.checkoutDiscountUsdCents).toBe(0);
+    expect(totals.payableUsdCents).toBe(totals.dueUsdCents);
   });
 });

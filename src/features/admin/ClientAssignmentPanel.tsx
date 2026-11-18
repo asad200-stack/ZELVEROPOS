@@ -276,14 +276,37 @@ function GrantPartnerModal({ onClose, onChanged }: { onClose: () => void; onChan
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [contactAuthorized, setContactAuthorized] = useState(false);
+  const [resetLink, setResetLink] = useState<string | null>(null);
   const { busy, run } = useAsyncAction('partner-grant');
 
   const valid = email.trim().includes('@') && name.trim().length > 0;
 
+  const copyResetLink = async () => {
+    if (!resetLink) return;
+    try {
+      await navigator.clipboard.writeText(resetLink);
+      notify('success', t('admin.partners.linkCopied'));
+    } catch {
+      /* clipboard unavailable — the link is still shown as text */
+    }
+  };
+
+  if (resetLink) {
+    return (
+      <Modal open title={t('admin.partners.grantTitle')} onClose={() => { onChanged(); onClose(); }} busy={false}>
+        <div className="stack">
+          <p>{t('admin.partners.accountCreated')}</p>
+          <TextInput label={t('admin.partners.resetLinkLabel')} dir="ltr" value={resetLink} readOnly />
+          <Button onClick={() => void copyResetLink()}>{t('admin.partners.copyLink')}</Button>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal open title={t('admin.partners.grantTitle')} onClose={onClose} busy={busy}>
       <div className="stack">
-        <TextInput label={t('admin.partners.email')} hint={t('admin.partners.emailHint')} type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <TextInput label={t('admin.partners.email')} hint={t('admin.partners.emailHintCreate')} type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} />
         <TextInput label={t('admin.partners.name')} value={name} onChange={(e) => setName(e.target.value)} />
         <Checkbox label={t('admin.partners.contactAuthorized')} checked={contactAuthorized} onChange={(e) => setContactAuthorized(e.target.checked)} />
         <Button
@@ -291,7 +314,11 @@ function GrantPartnerModal({ onClose, onChanged }: { onClose: () => void; onChan
           loading={busy}
           onClick={() =>
             void run(async () => {
-              await api.grantMarketingPartner({ email: email.trim(), name: name.trim(), contactAuthorized });
+              const result = await api.grantMarketingPartner({ email: email.trim(), name: name.trim(), contactAuthorized });
+              if (result.created && result.resetLink) {
+                setResetLink(result.resetLink);
+                return;
+              }
               notify('success', t('common.saved'));
               onChanged();
             })

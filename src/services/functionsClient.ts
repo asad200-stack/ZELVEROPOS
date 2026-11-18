@@ -105,6 +105,9 @@ export interface CheckoutCall {
   note?: string;
   cash?: { receivedUsdCents: number; receivedLbp: number; changeUsdCents?: number; changeLbp?: number };
   credit?: { paidUsdCents: number; paidLbp: number };
+  /** Explicit checkout-level discount (cash only). Omitted/0 = no discount. */
+  checkoutDiscountUsdCents?: number;
+  checkoutDiscountKind?: 'fixed' | 'roundDown' | null;
   clientCreatedAtMs?: number;
   offlineRef?: string | null;
 }
@@ -368,9 +371,10 @@ export const api = {
     'activateMyFeature',
   ),
   /* ---------------------------------------------------- Marketing Partner & Client Assignment */
-  grantMarketingPartner: callable<{ email: string; name: string; contactAuthorized: boolean }, { ok: true; partnerId: string; referralCode: string }>(
-    'grantMarketingPartner',
-  ),
+  grantMarketingPartner: callable<
+    { email: string; name: string; contactAuthorized: boolean },
+    { ok: true; partnerId: string; referralCode: string; created: boolean; resetLink: string | null }
+  >('grantMarketingPartner'),
   revokeMarketingPartner: callable<{ partnerId: string }, { ok: true }>('revokeMarketingPartner'),
   adminListPartners: callable<Record<string, never>, { partners: MarketingPartnerRow[] }>('adminListPartners'),
   adminListClientAssignments: callable<

@@ -303,7 +303,8 @@ export function stockLookupOf(text: string): { name: string | null; qty: number 
     ?? text.match(/شو مخزون\s+(.+)$/)
     ?? text.match(/(?:قديش|كم)\s+في\s+(?:عنا\s+|عندنا\s+|فيه\s+)?(?:من\s+)?(.+)$/)
     // Name-first phrasing: "<product name> stock / quantity / available / left" (no leading keyword).
-    ?? (GENERAL_STOCK_QUESTION.test(text) || STARTS_WITH_DEMONSTRATIVE.test(text.trim())
+    // A sentence opening with a question word ("What reports are available?") names no product.
+    ?? (GENERAL_STOCK_QUESTION.test(text) || STARTS_WITH_DEMONSTRATIVE.test(text.trim()) || /^(?:what|which|how|who|where|when|why|are|is|do|does|can)\b/i.test(text.trim())
         ? null
         : text.match(/^(.{2,80}?)\s+(?:in\s+stock|stock|quantity|qty|available|left)\s*[؟?]?$/i))
     ?? (GENERAL_STOCK_QUESTION.test(text) || STARTS_WITH_DEMONSTRATIVE.test(text.trim())

@@ -9,7 +9,7 @@ import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
 import { addProductToCart, cartCanCheckout, creditRequiresCustomer, newLineKey, priceCart } from '@/domain/cart';
 import { computeCredit, planCashTender, type CashTenderPlan } from '@/domain/checkout';
-import { parseLbpInput, parseUsdInput, usdCentsToLbp } from '@/domain/money';
+import { formatUsdCentsInput, parseLbpInput, parseUsdInput, usdCentsToLbp } from '@/domain/money';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { mergeKnown } from '@/domain/catalogSession';
@@ -109,6 +109,13 @@ export default function PosPage() {
     };
   }, [cart.customerId, tenantId, knownCustomer?.id]);
   const setDraft = (patch: Partial<PaymentDraft>) => update((c) => ({ ...c, draft: { ...c.draft, ...patch } }));
+  /**
+   * Applies an EXPLICIT checkout-level discount the cashier chose (fixed amount or round-down).
+   * Never called automatically just because cash is short — only from a cashier button click.
+   */
+  const setCheckoutDiscount = (usdCents: number, kind: 'fixed' | 'roundDown') =>
+    update((c) => ({ ...c, checkoutDiscountUsdCents: Math.max(0, Math.round(usdCents)), checkoutDiscountKind: kind }));
+  const clearCheckoutDiscount = () => update((c) => ({ ...c, checkoutDiscountUsdCents: 0, checkoutDiscountKind: null }));
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const skipRenameSave = useRef(false);
@@ -131,8 +138,8 @@ export default function PosPage() {
     if (receivedUsdCents === null || receivedLbp === null || manualUsdCents === null || manualLbp === null) return INVALID_TENDER;
     const drawerKnown = cashbox.status === 'ready';
     return planCashTender({
-      dueUsdCents: totals.dueUsdCents,
-      dueLbp: totals.dueLbp,
+      dueUsdCents: totals.payableUsdCents,
+      dueLbp: totals.payableLbp,
       rate,
       receivedUsdCents,
       receivedLbp,
@@ -142,7 +149,7 @@ export default function PosPage() {
       drawerUsdCents: drawerKnown ? cashbox.data.usdCents : Number.MAX_SAFE_INTEGER,
       drawerLbp: drawerKnown ? cashbox.data.lbp : Number.MAX_SAFE_INTEGER,
     });
-  }, [draft, totals.dueUsdCents, totals.dueLbp, rate, cashbox.status, cashbox.data.usdCents, cashbox.data.lbp]);
+  }, [draft, totals.payableUsdCents, totals.payableLbp, rate, cashbox.status, cashbox.data.usdCents, cashbox.data.lbp]);
 
   const creditPaidUsd = parseUsdInput(draft.creditUsd || '0');
   const creditPaidLbp = parseLbpInput(draft.creditLbp || '0');
@@ -169,9 +176,18 @@ export default function PosPage() {
         setImeiProduct(product);
         return;
       }
+      // Tapping a product again must not put more in the cart than is in stock
+      // (the server rejects an oversold checkout anyway; this stops it at the counter).
+      const inCart = cartRef.current.lines
+        .filter((l) => l.productId === product.id && !l.imei)
+        .reduce((sum, l) => sum + l.quantity, 0);
+      if (inCart >= Math.max(0, product.stock)) {
+        notify('warning', `${product.name}: ${t('pos.overStock', { stock: Math.max(0, product.stock) })}`);
+        return;
+      }
       update((c) => addProductToCart(c, product));
     },
-    [update],
+    [update, notify, t],
   );
 
   const setCustomer = (next: Customer | null) => {
@@ -286,6 +302,19 @@ export default function PosPage() {
     if (creditRequiresCustomer(draft.kind, cart.customerId)) {
       notify('warning', t('pos.creditNeedsCustomer'));
       return;
+    }
+    // Cash Received must never show a leftover amount from an earlier attempt on this cart —
+    // every time Checkout opens, it starts prefilled to the exact amount due in USD.
+    if (draft.kind === 'cash') {
+      setDraft({
+        receivedUsd: totals.payableUsdCents > 0 ? formatUsdCentsInput(totals.payableUsdCents) : '',
+        receivedLbp: '',
+        changeUsd: '',
+        changeLbp: '',
+        changeManual: null,
+        tenderUsdManual: false,
+        tenderLbpManual: false,
+      });
     }
     setCheckoutOpen(true);
     requestAnimationFrame(() => document.getElementById(draft.kind === 'cash' ? 'received-usd' : 'complete-sale')?.focus());
@@ -436,7 +465,7 @@ export default function PosPage() {
             className="cart-tabs__clear"
             disabled={!hasItems}
             onClick={async () => {
-              if (await confirm({ title: t('pos.clearCart'), danger: true })) {
+              if (await confirm({ title: t('pos.clearCart'), message: t('pos.clearCartConfirm'), danger: true })) {
                 update((c) => ({ ...c, lines: [], debtLineUsdCents: null, draft: { ...c.draft, receivedUsd: '', receivedLbp: '', changeUsd: '', changeLbp: '', changeManual: null, tenderUsdManual: false, tenderLbpManual: false } }));
               }
             }}
@@ -613,6 +642,16 @@ export default function PosPage() {
               busy={busy}
               disabled={!hasItems || creditRequiresCustomer(draft.kind, cart.customerId)}
               onComplete={() => void complete()}
+              canDiscount={can('canEditPrice')}
+              onRoundDown={() => {
+                if (draft.kind !== 'cash' || cash.error !== 'underpaid') return;
+                // cash.remainingUsdCents is the whole shortfall already expressed in USD cents;
+                // cash.remainingLbp is the SAME shortfall shown in LBP for display, not a second
+                // amount to add — summing both here used to double-count the shortfall.
+                setCheckoutDiscount(totals.checkoutDiscountUsdCents + cash.remainingUsdCents, 'roundDown');
+              }}
+              onApplyFixedDiscount={(usdCents) => setCheckoutDiscount(usdCents, 'fixed')}
+              onClearDiscount={clearCheckoutDiscount}
             />
           </aside>
         </div>

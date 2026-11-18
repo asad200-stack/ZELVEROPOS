@@ -60,27 +60,31 @@ function readyFeature(overrides: Partial<FeatureDefinition> = {}): FeatureDefini
 }
 
 describe('feature release engine', () => {
-  it('keeps Zelvero AI in internal testing and refuses customer publication', () => {
+  // Zelvero AI was marked customer-ready on purpose (commit 87ea669) so the Feature Center can
+  // mark it ready and publish it. It still starts in internal testing and needs explicit confirmation.
+  it('starts Zelvero AI in internal testing, allows mark-ready, and never publishes without confirmation', () => {
     const ai = featureById('zelvero_ai');
-    expect(ai?.customerExecution).toBe('unavailable');
+    expect(ai?.customerExecution).toBe('ready');
     expect(ai?.navPath).toBeNull();
     const record = emptyFeatureRecord(ai!);
     expect(record.publication).toBe('internal_testing');
-    expect(planMarkReady(ai!, record, false, 'admin', NOW).ok).toBe(false);
+    const ready = planMarkReady(ai!, record, false, 'admin', NOW);
+    expect(ready.ok).toBe(true);
+    if (!ready.ok) return;
     const published = planPublish({
       definition: ai!,
-      record,
+      record: ready.record,
       killed: false,
-      confirmPublication: true,
-      confirmAllEligible: true,
-      allEligible: true,
+      confirmPublication: false,
+      confirmAllEligible: false,
+      allEligible: false,
       tenantIds: [],
       accounts: [customer()],
       now: NOW,
       actorUid: 'admin',
     });
     expect(published.ok).toBe(false);
-    if (!published.ok) expect(published.reason).toBe('feature.blocked.customerPath');
+    if (!published.ok) expect(published.reason).toBe('feature.blocked.confirm');
     expect(FEATURE_REGISTRY.filter((feature) => feature.id === 'zelvero_ai')).toHaveLength(1);
   });
 

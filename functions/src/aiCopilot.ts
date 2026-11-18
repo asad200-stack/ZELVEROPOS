@@ -38,6 +38,7 @@ const DAILY_FIELDS = [
   'revenueUsdCents',
   'costUsdCents',
   'discountUsdCents',
+  'checkoutDiscountUsdCents',
   'cashSalesUsdCents',
   'creditSalesUsdCents',
   'debtCollectedUsdCents',
@@ -161,7 +162,10 @@ async function readDailyStats(t: string, from: string, to: string) {
     const data = d.data();
     const row: Record<string, number | string | boolean> = { date: String(data.date ?? d.id) };
     for (const f of DAILY_FIELDS) row[f] = typeof data[f] === 'number' ? data[f] : 0;
-    row.costsComplete = typeof data.costUsdCents === 'number' && typeof data.returnsCostUsdCents === 'number';
+    // returnsCostUsdCents is only written when a return happens, so a day with no returns has no
+    // such field: that is a known zero, not a missing cost.
+    const noReturns = !(typeof data.returnsCount === 'number' && data.returnsCount > 0);
+    row.costsComplete = typeof data.costUsdCents === 'number' && (typeof data.returnsCostUsdCents === 'number' || noReturns);
     return row;
   });
 }

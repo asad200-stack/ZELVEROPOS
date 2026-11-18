@@ -30,6 +30,8 @@ export interface CartDraft {
   tenderLbpManual: boolean;
 }
 
+export type CheckoutDiscountKind = 'fixed' | 'roundDown';
+
 export interface Cart {
   id: string;
   /** Order label such as "Johnny" or "Table 4". Independent of the customer. */
@@ -42,6 +44,15 @@ export interface Cart {
   lines: CartLine[];
   /** "Previous balance" line amount (settles customer debt); null when not added. */
   debtLineUsdCents: number | null;
+  /**
+   * Explicit, cashier-entered checkout-level discount (cash sales only) — e.g. rounding $232.29
+   * down to $232.00. NEVER set automatically just because tendered cash is short; only an
+   * explicit cashier action (fixed amount or "round down") writes this. Null/0 = no discount.
+   * Requires `canEditPrice`, enforced server-side in `posCheckout`, same permission that already
+   * gates manual line price overrides.
+   */
+  checkoutDiscountUsdCents: number;
+  checkoutDiscountKind: CheckoutDiscountKind | null;
   /** Idempotency key: the Firestore id the sale will get. Regenerated after a successful sale. */
   saleId: string;
   /** Payment entry for this cart only. Switching carts must not copy it. */
@@ -80,6 +91,8 @@ export function normalizeCart(cart: Cart): Cart {
     ...cart,
     label: typeof cart.label === 'string' ? cart.label.trim().slice(0, 40) : '',
     note: typeof cart.note === 'string' ? cart.note.trim().slice(0, 200) : '',
+    checkoutDiscountUsdCents: typeof cart.checkoutDiscountUsdCents === 'number' && cart.checkoutDiscountUsdCents > 0 ? Math.round(cart.checkoutDiscountUsdCents) : 0,
+    checkoutDiscountKind: cart.checkoutDiscountKind === 'fixed' || cart.checkoutDiscountKind === 'roundDown' ? cart.checkoutDiscountKind : null,
     draft: {
       kind: d?.kind === 'credit' ? 'credit' : 'cash',
       receivedUsd: typeof d?.receivedUsd === 'string' ? d.receivedUsd : '',
@@ -111,13 +124,21 @@ export interface CartTotals {
   itemCount: number;
   productsUsdCents: Cents;
   productsLbp: number;
+  /** Sum of per-line price-override discounts (`canEditPrice`). Distinct from `checkoutDiscountUsdCents`. */
   discountUsdCents: Cents;
   costUsdCents: Cents;
   debtLineUsdCents: Cents;
   debtLineLbp: number;
-  /** What the customer must pay for a cash sale (products + previous-balance line). */
+  /** What the customer must pay for a cash sale (products + previous-balance line), BEFORE any checkout discount. */
   dueUsdCents: Cents;
   dueLbp: number;
+  /** Explicit checkout-level discount (cash sales only); see `Cart.checkoutDiscountUsdCents`. */
+  checkoutDiscountUsdCents: Cents;
+  checkoutDiscountLbp: number;
+  checkoutDiscountKind: CheckoutDiscountKind | null;
+  /** Final amount the customer must actually pay: `due` minus the checkout discount, floored at 0. */
+  payableUsdCents: Cents;
+  payableLbp: number;
 }
 
 export function priceCart(cart: Cart, products: Map<string, Product>, rate: number): CartTotals {
@@ -169,6 +190,14 @@ export function priceCart(cart: Cart, products: Map<string, Product>, rate: numb
 
   const debtLineUsdCents = cart.customerId && cart.debtLineUsdCents ? Math.max(0, cart.debtLineUsdCents) : 0;
   const debtLineLbp = usdCentsToLbp(debtLineUsdCents, rate);
+  const dueUsdCents = productsUsdCents + debtLineUsdCents;
+  const dueLbp = productsLbp + debtLineLbp;
+  // Clamped to what is actually due. The "cash sales only" rule is NOT enforced here (this is a
+  // pure pricer): the POS UI only ever sets this for a cash draft, and `posCheckout` independently
+  // rejects a nonzero discount on a credit sale server-side.
+  const checkoutDiscountUsdCents = Math.max(0, Math.min(cart.checkoutDiscountUsdCents || 0, dueUsdCents));
+  const checkoutDiscountLbp = usdCentsToLbp(checkoutDiscountUsdCents, rate);
+  const checkoutDiscountKind = checkoutDiscountUsdCents > 0 ? cart.checkoutDiscountKind : null;
 
   return {
     lines,
@@ -179,8 +208,13 @@ export function priceCart(cart: Cart, products: Map<string, Product>, rate: numb
     costUsdCents,
     debtLineUsdCents,
     debtLineLbp,
-    dueUsdCents: productsUsdCents + debtLineUsdCents,
-    dueLbp: productsLbp + debtLineLbp,
+    dueUsdCents,
+    dueLbp,
+    checkoutDiscountUsdCents,
+    checkoutDiscountLbp,
+    checkoutDiscountKind,
+    payableUsdCents: Math.max(0, dueUsdCents - checkoutDiscountUsdCents),
+    payableLbp: Math.max(0, dueLbp - checkoutDiscountLbp),
   };
 }
 

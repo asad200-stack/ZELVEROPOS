@@ -69,6 +69,13 @@ const checkoutSchema = z.object({
     })
     .optional(),
   credit: z.object({ paidUsdCents: cents, paidLbp: lbpField }).optional(),
+  /**
+   * Explicit checkout-level discount (cash sales only) — never inferred from a short payment.
+   * Requires `canEditPrice`, same as a manual line price override. Rejected if it exceeds what
+   * is actually due, or if the sale is a credit sale (credit has its own partial-payment model).
+   */
+  checkoutDiscountUsdCents: cents.default(0),
+  checkoutDiscountKind: z.enum(['fixed', 'roundDown']).nullable().default(null),
   clientCreatedAtMs: clientTimeField,
   /** Temporary reference printed on an offline receipt; set only by the offline sync queue. */
   offlineRef: z.string().regex(/^OFF-[A-Z0-9]{6}$/).nullable().optional(),
@@ -151,6 +158,8 @@ export const posCheckout = onCall(async (request) => {
       currency: input.currency,
       customerId: customer?.id ?? null,
       debtLineUsdCents: input.debtLineUsdCents,
+      checkoutDiscountUsdCents: input.checkoutDiscountUsdCents,
+      checkoutDiscountKind: input.checkoutDiscountKind,
       saleId: input.saleId,
       lines: input.lines.map((l, i) => ({ ...l, key: String(i), name: products.get(l.productId)?.name ?? '' })),
       draft: emptyCartDraft(),
@@ -166,6 +175,12 @@ export const posCheckout = onCall(async (request) => {
     if (shortage) fail('failed-precondition', 'error.insufficientStock', { name: shortage.name, available: shortage.available });
     const badImei = findUnavailableImeis(cart.lines, products)[0];
     if (badImei) fail('failed-precondition', 'error.imeiUnavailable', { imei: badImei });
+
+    if (input.checkoutDiscountUsdCents > 0) {
+      if (input.kind !== 'cash') fail('invalid-argument', 'error.checkoutDiscountCreditOnly');
+      requirePerm(actor, 'canEditPrice');
+      if (input.checkoutDiscountUsdCents > totals.dueUsdCents) fail('invalid-argument', 'error.discountExceedsTotal');
+    }
 
     const debtBefore = customer?.debtUsdCents ?? 0;
     if (input.debtLineUsdCents !== null) {
@@ -192,8 +207,8 @@ export const posCheckout = onCall(async (request) => {
       const matches = cashNetCoversDue(
         input.currency,
         rate,
-        totals.dueUsdCents,
-        totals.dueLbp,
+        totals.payableUsdCents,
+        totals.payableLbp,
         receivedUsdCents - changeUsdCents,
         receivedLbp - changeLbp,
       );
@@ -249,6 +264,11 @@ export const posCheckout = onCall(async (request) => {
       totalUsdCents: totals.productsUsdCents,
       totalLbp: totals.productsLbp,
       discountUsdCents: totals.discountUsdCents,
+      checkoutDiscountUsdCents: totals.checkoutDiscountUsdCents,
+      checkoutDiscountLbp: totals.checkoutDiscountLbp,
+      checkoutDiscountKind: totals.checkoutDiscountUsdCents > 0 ? input.checkoutDiscountKind : null,
+      payableUsdCents: totals.payableUsdCents,
+      payableLbp: totals.payableLbp,
       costUsdCents: totals.costUsdCents,
       customerId: customer?.id ?? null,
       customerName: customer?.name ?? '',
@@ -360,6 +380,7 @@ export const posCheckout = onCall(async (request) => {
       revenueUsdCents: totals.productsUsdCents,
       costUsdCents: totals.costUsdCents,
       discountUsdCents: totals.discountUsdCents,
+      checkoutDiscountUsdCents: totals.checkoutDiscountUsdCents,
       [input.kind === 'cash' ? 'cashSalesUsdCents' : 'creditSalesUsdCents']: totals.productsUsdCents,
       debtCollectedUsdCents: settledPrevious,
       creditIssuedUsdCents: unpaid,
@@ -540,6 +561,9 @@ export const posReturn = onCall(async (request) => {
       returnsCount: 1,
       returnsUsdCents: plan.amountUsdCents,
       returnsCostUsdCents: plan.costUsdCents,
+      // Reverse this return's share of the original checkout discount so net figures
+      // (revenue - checkoutDiscount - returns) balance back to zero on a full return.
+      ...(plan.checkoutDiscountReversedUsdCents > 0 ? { checkoutDiscountUsdCents: -plan.checkoutDiscountReversedUsdCents } : {}),
     });
 
     return { saleReturn: { id: returnRef.id, ...plain(returnDoc, atMs) } };

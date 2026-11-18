@@ -116,13 +116,26 @@ const grantPartnerSchema = z.object({
   contactAuthorized: z.boolean().default(false),
 });
 
-/** Creates (or re-activates) a marketing partner from an existing verified Auth account, by e-mail. */
+/**
+ * Creates (or re-activates) a marketing partner by e-mail. If no Auth account exists yet for
+ * that e-mail, one is created here (pre-verified, no password set) purely so the Super Admin
+ * doesn't have to walk a real person through store signup just to grant them a platform role —
+ * the response carries a one-time password-reset link the admin hands the partner so THEY set
+ * their own password; this function never chooses or sees a password itself.
+ */
 export const grantMarketingPartner = onCall({ region: REGION }, async (request) => {
   const c = caller(request);
   requireSuperAdmin(c);
   const input = parse(grantPartnerSchema, request.data);
-  const record = await auth.getUserByEmail(input.email).catch(() => null);
-  if (!record) fail('not-found', 'error.fn.userNotFound');
+  let record = await auth.getUserByEmail(input.email).catch(() => null);
+  let created = false;
+  if (!record) {
+    record = await auth.createUser({ email: input.email, emailVerified: true }).catch((e) => {
+      fail('internal', 'error.fn.createAccountFailed');
+      throw e; // unreachable; fail() always throws
+    });
+    created = true;
+  }
   if (record!.customClaims?.superAdmin === true) fail('failed-precondition', 'error.partner.alreadySuperAdmin');
   if (record!.customClaims?.tenantId) fail('failed-precondition', 'error.partner.hasTenant');
   const uid = record!.uid;
@@ -150,8 +163,18 @@ export const grantMarketingPartner = onCall({ region: REGION }, async (request) 
   await batch.commit();
 
   await auth.setCustomUserClaims(uid, { ...(record!.customClaims ?? {}), marketingPartner: true });
-  await audit({ actorUid: c.uid, action: existing.exists ? 'partner-reactivated' : 'partner-granted', partnerId: uid, meta: { email: input.email } });
-  return { ok: true as const, partnerId: uid, referralCode };
+  await audit({
+    actorUid: c.uid,
+    action: created ? 'partner-account-created' : existing.exists ? 'partner-reactivated' : 'partner-granted',
+    partnerId: uid,
+    meta: { email: input.email },
+  });
+
+  let resetLink: string | null = null;
+  if (created) {
+    resetLink = await auth.generatePasswordResetLink(input.email).catch(() => null);
+  }
+  return { ok: true as const, partnerId: uid, referralCode, created, resetLink };
 });
 
 interface PartnerRow {

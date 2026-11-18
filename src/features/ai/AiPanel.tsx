@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Button } from '@/components/ui/Button';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { useSession } from '@/contexts/session';
 import type { PermissionKey } from '@/constants/permissions';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
@@ -9,8 +9,22 @@ import { aiAccessDeniedText, assertCanAccessZelveroAi, canAccessZelveroAi } from
 import { aiLayerClassNames } from './aiDock';
 import { publishedKnowledge } from './catalog';
 import { scrollTopForLatest, shouldFollowLatest, shouldStickToBottom } from './chatScroll';
-import { answerQuestion, conversationStorageKey, shouldConsultModel, type Answer } from './engine';
-import { greetingReply, isGenericUnsupportedAnswer, replyLanguage } from './fallbackAnswer';
+import { answerQuestion, conversationStorageKey, shouldConsultModel, type AiLang, type Answer } from './engine';
+import { isGenericUnsupportedAnswer } from './fallbackAnswer';
+import { AiMessageText } from './AiMessageText';
+import {
+  answerBrainIntent,
+  compareAnswer,
+  detectBrainIntent,
+  looksInternal,
+  missReply,
+  presentAnswer,
+  renderRead,
+  replyLang,
+  smallTalkReply,
+  suggestionsFor,
+  type BrainAnswer,
+} from './brain/brain';
 import { localModelUrl, phraseWithLocalModel, probeLocalModel } from './localModel';
 import { emptyMemory, rememberClarify, rememberCompare, rememberInsight, rememberOther, rememberRead, rememberTurn, type CopilotMemory } from './copilot/memory';
 import { planTurn } from './copilot/orchestrator';
@@ -39,7 +53,16 @@ interface ChatMessage {
   mode?: 'verified' | 'model';
   basis?: 'knowledge' | 'live';
   tone?: 'error';
+  /** Tappable follow-up questions shown under the latest answer. */
+  suggestions?: string[];
 }
+
+const STARTERS: Array<{ icon: IconName; key: 'business' | 'reorder' | 'grow' | 'debts' }> = [
+  { icon: 'chart', key: 'business' },
+  { icon: 'package', key: 'reorder' },
+  { icon: 'arrowUp', key: 'grow' },
+  { icon: 'users', key: 'debts' },
+];
 
 function readHistory(key: string): ChatMessage[] {
   try {
@@ -90,7 +113,10 @@ export function AiPanel({
   // Server-enforced data path: the server picks the store (own internal demo) and refuses others.
   const readSource = useRef(serverAiReadSource(copilotRead));
   const storageKey = session.user ? conversationStorageKey(session.tenantId, session.user.uid) : null;
-  const origin = localModelUrl(import.meta.env.VITE_ZELVERO_AI_URL);
+  // The optional llama.cpp helper only exists on a developer machine. On the live site the
+  // probe is blocked by the content security policy and only fills the console with errors.
+  const onDevMachine = typeof window !== 'undefined' && /^(?:localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+  const origin = onDevMachine ? localModelUrl(import.meta.env.VITE_ZELVERO_AI_URL) : null;
   const [historyKey, setHistoryKey] = useState(storageKey);
   const [messages, setMessages] = useState<ChatMessage[]>(() => (storageKey ? readHistory(storageKey) : []));
   const [probeOrigin, setProbeOrigin] = useState(origin);
@@ -195,8 +221,8 @@ export function AiPanel({
     stickRef.current = shouldStickToBottom(el);
   }
 
-  function pushLive(snapshot: ReadSnapshot, wording?: string) {
-    const composed = composeLiveAnswer(snapshot.text, wording ?? null);
+  function pushLive(snapshot: ReadSnapshot, wording?: string, suggestions?: string[]) {
+    const composed = composeLiveAnswer(presentAnswer(snapshot.text), wording ?? null);
     setMessages((current) => [
       ...current,
       {
@@ -205,12 +231,22 @@ export function AiPanel({
         aside: composed.wording ?? undefined,
         mode: composed.wording ? 'model' : 'verified',
         basis: 'live',
+        suggestions,
       },
     ]);
   }
 
-  async function submit() {
-    const question = draft.trim();
+  function pushBrain(answer: BrainAnswer, basis: 'knowledge' | 'live') {
+    setMessages((current) => [...current, { role: 'assistant', text: answer.text, mode: 'verified', basis, suggestions: answer.suggestions }]);
+  }
+
+  function readSessionNow(tenantId: string): ReadSession {
+    // The store is always the signed-in session's tenant. Nothing in the question can change it.
+    return { tenantId, route, isOwner: session.isOwner, can: (permission) => session.can(permission) };
+  }
+
+  async function submit(override?: string) {
+    const question = (override ?? draft).trim();
     if (!question || sendingRef.current || loading || !session.user) return;
     sendingRef.current = true;
     let failed = false;
@@ -235,31 +271,61 @@ export function AiPanel({
     stickRef.current = true;
     setSpeechMessageKey(null);
     setSpeechHint(null);
+    setDraft('');
+    draftBaseRef.current = '';
     setMessages((current) => [...current, { role: 'user', text: question }]);
-    const reply = replyLanguage(question, lang);
-    const hello = greetingReply(question, reply);
-    if (hello) {
-      setMessages((current) => [...current, { role: 'assistant', text: hello, mode: 'verified', basis: 'knowledge' }]);
+    const reply: AiLang = replyLang(question, lang);
+    const now = new Date();
+
+    // 1. Everyday conversation (greetings, thanks, "what can you do", time…). No store read.
+    const talk = smallTalkReply(question, reply, now);
+    if (talk) {
+      memoryRef.current = rememberTurn(rememberTurn(memoryRef.current, 'user', question), 'assistant', talk);
+      setMessages((current) => [...current, { role: 'assistant', text: talk, mode: 'verified', basis: 'knowledge' }]);
       return;
     }
 
+    // 2. Zelvero AI's own understanding: store briefing, advice, one figure, one product's stock.
+    const tenantId = session.tenantId;
+    const intent = tenantId ? detectBrainIntent(question, lang, now) : null;
+    if (tenantId && intent && (intent.kind === 'briefing' || intent.kind === 'advice' || intent.kind === 'metric' || intent.kind === 'stock')) {
+      setLoading(true);
+      setReading(true);
+      try {
+        const answer = await answerBrainIntent(intent, readSessionNow(tenantId), readSource.current, reply, now);
+        memoryRef.current = rememberOther(rememberTurn(memoryRef.current, 'user', question), 'knowledge');
+        memoryRef.current = rememberTurn(memoryRef.current, 'assistant', answer.text);
+        pushBrain(answer, 'live');
+      } catch {
+        failed = true;
+        const missed = reply === 'ar' ? 'ما قدرت اقرا المحل هلّق. جرّب كمان شوي.' : "I couldn't read the store just now. Please try again in a moment.";
+        setMessages((current) => [...current, { role: 'assistant', text: missed, mode: 'verified', basis: 'live', tone: 'error' }]);
+      } finally {
+        setLoading(false);
+        setReading(false);
+      }
+      return;
+    }
+
+    // 3. The operator: navigation, how-to guides, cart and product drafts, pending confirmations.
     setLoading(true);
     try {
-      const operated = await handleOperatorTurn(
-        question,
-        {
-          lang: reply,
-          tenantId: session.tenantId,
-          route,
-          isOwner: session.isOwner,
-          can: (permission) => session.can(permission),
-          navigate: (path) => {
-            navigate(path);
-          },
-          label: (key) => t(key as TranslationKey),
+      const operatorContext = {
+        lang: reply,
+        tenantId: session.tenantId,
+        route,
+        isOwner: session.isOwner,
+        can: (permission: PermissionKey) => session.can(permission),
+        navigate: (path: string) => {
+          navigate(path);
         },
-        pendingRef.current,
-      );
+        label: (key: string) => t(key as TranslationKey),
+      };
+      let operated = await handleOperatorTurn(question, operatorContext, pendingRef.current);
+      if (!operated.handled && intent?.kind === 'operator') {
+        // Arabizi how-to ("kif ba3mel return"): same guides, read from the Arabic routing text.
+        operated = await handleOperatorTurn(intent.text, { ...operatorContext, lang: 'ar' }, pendingRef.current);
+      }
       pendingRef.current = operated.pending;
       if (operated.handled) {
         setMessages((current) => [...current, { role: 'assistant', text: operated.text, mode: 'verified', basis: 'knowledge' }]);
@@ -274,12 +340,14 @@ export function AiPanel({
       setLoading(false);
     }
 
-    let turn = planTurn({ text: question, uiLang: lang, memory: memoryRef.current, now: new Date(), hasTenant: Boolean(session.tenantId) });
+    // 4. The tested rule planner, on the person's words or on the brain's plain rewrite of them.
+    const planText = intent?.kind === 'rewrite' ? intent.text : question;
+    let turn = planTurn({ text: planText, uiLang: lang, memory: memoryRef.current, now, hasTenant: Boolean(session.tenantId) });
     if (turn.kind === 'pass' && session.tenantId && modelState === 'ready' && origin) {
       // Rules found no data read: the local model may pick ONE schema-checked, read-only tool.
       setLoading(true);
       try {
-        turn = (await planWithLocalModel(origin, turn.routingText, memoryRef.current, turn.lang, new Date())) ?? turn;
+        turn = (await planWithLocalModel(origin, turn.routingText, memoryRef.current, turn.lang, now)) ?? turn;
       } finally {
         setLoading(false);
       }
@@ -291,44 +359,57 @@ export function AiPanel({
       setMessages((current) => [...current, { role: 'assistant', text: turn.text, mode: 'verified', basis: 'knowledge' }]);
       return;
     }
-    if ((turn.kind === 'read' || turn.kind === 'compare' || turn.kind === 'insight') && session.tenantId) {
+    if ((turn.kind === 'read' || turn.kind === 'compare' || turn.kind === 'insight') && tenantId) {
       setLoading(true);
       setReading(true);
       try {
-        // The store is always the signed-in session's tenant. Nothing in the question can change it.
-        const readSession: ReadSession = { tenantId: session.tenantId, route, isOwner: session.isOwner, can: (permission) => session.can(permission) };
-        const snapshot: ReadSnapshot =
-          turn.kind === 'read'
-            ? await loadReadSnapshot(readSession, turn.request, readSource.current)
-            : turn.kind === 'compare'
-              ? await comparePeriods(readSession, turn.spec, readSource.current, turn.lang)
-              : await runInsight(readSession, turn.spec, readSource.current, turn.lang);
-        memoryRef.current =
-          turn.kind === 'read'
-            ? rememberRead(memoryRef.current, turn.request, snapshot.text)
-            : turn.kind === 'compare'
-              ? rememberCompare(memoryRef.current, turn.spec, turn.lang, snapshot.text)
-              : rememberInsight(memoryRef.current, turn.spec, turn.lang, snapshot.text);
-        memoryRef.current = rememberTurn(memoryRef.current, 'assistant', snapshot.text);
-        setReading(false);
-        if (snapshot.consultModel && modelState === 'ready' && origin) {
-          setPhrasing(true);
-          try {
-            const wording = await phraseWithLocalModel(origin, question, snapshot.text, snapshot.lang, undefined, 'live');
-            pushLive(snapshot, wording);
-          } catch {
-            pushLive(snapshot);
-          } finally {
-            setPhrasing(false);
+        const readSession = readSessionNow(tenantId);
+        // Answer in the language the person wrote in, even when the planner read a rewrite.
+        if (turn.kind === 'read') {
+          const request = { ...turn.request, lang: reply };
+          const [snapshot, nice] = await Promise.all([
+            loadReadSnapshot(readSession, request, readSource.current),
+            renderRead(request, readSession, readSource.current, reply, now),
+          ]);
+          memoryRef.current = rememberRead(memoryRef.current, request, snapshot.text);
+          memoryRef.current = rememberTurn(memoryRef.current, 'assistant', snapshot.text);
+          setReading(false);
+          if (nice) {
+            pushBrain(nice, 'live');
+          } else if (snapshot.consultModel && modelState === 'ready' && origin) {
+            setPhrasing(true);
+            try {
+              const wording = await phraseWithLocalModel(origin, question, snapshot.text, snapshot.lang, undefined, 'live');
+              pushLive(snapshot, wording, suggestionsFor('read', reply));
+            } catch {
+              pushLive(snapshot, undefined, suggestionsFor('read', reply));
+            } finally {
+              setPhrasing(false);
+            }
+          } else {
+            pushLive(snapshot, undefined, suggestionsFor('read', reply));
           }
+        } else if (turn.kind === 'compare') {
+          const [snapshot, nice] = await Promise.all([
+            comparePeriods(readSession, turn.spec, readSource.current, reply),
+            compareAnswer(turn.spec, readSession, readSource.current, reply),
+          ]);
+          memoryRef.current = rememberCompare(memoryRef.current, turn.spec, reply, snapshot.text);
+          memoryRef.current = rememberTurn(memoryRef.current, 'assistant', snapshot.text);
+          setReading(false);
+          pushBrain(nice, 'live');
         } else {
-          pushLive(snapshot);
+          const snapshot = await runInsight(readSession, turn.spec, readSource.current, reply);
+          memoryRef.current = rememberInsight(memoryRef.current, turn.spec, reply, snapshot.text);
+          memoryRef.current = rememberTurn(memoryRef.current, 'assistant', snapshot.text);
+          setReading(false);
+          pushLive(snapshot, undefined, suggestionsFor('insight', reply));
         }
       } catch {
         failed = true;
         setReading(false);
         setPhrasing(false);
-        const missed = turn.lang === 'ar' ? 'تعذّرت قراءة المتجر. لا يوجد رقم يمكن عرضه.' : 'The store could not be read. No figure is available.';
+        const missed = reply === 'ar' ? 'ما قدرت اقرا المحل هلّق. ما في رقم فيني اعرضه.' : "I couldn't read the store just now. No figure is available.";
         setMessages((current) => [...current, { role: 'assistant', text: missed, mode: 'verified', basis: 'live', tone: 'error' }]);
       } finally {
         setLoading(false);
@@ -337,13 +418,6 @@ export function AiPanel({
       return;
     }
     memoryRef.current = rememberOther(memoryRef.current, 'knowledge');
-    if (/high\s+stock|low\s+sales|overstock|reorder|which products|hasn'?t sold|losing popularity|days of (?:stock|cover)|gross profit/i.test(question)) {
-      const unmet = reply === 'ar'
-        ? 'هالسؤال بده مقارنة مخزون بمبيعات كل منتج. ما بفتح صفحة المنتجات، وما في رقم تغطية محسوب بهالجواب.'
-        : 'This asks for a product-by-product stock and sales comparison. Products is not opened, and days of cover are not calculated in this answer.';
-      setMessages((current) => [...current, { role: 'assistant', text: unmet, mode: 'verified', basis: 'knowledge' }]);
-      return;
-    }
     const asked = answerQuestion(publishedKnowledge, {
       question,
       lang: reply,
@@ -352,40 +426,48 @@ export function AiPanel({
       isSuperAdmin: session.isSuperAdmin,
       can: (permission) => session.can(permission as PermissionKey),
     });
-    const safeText = isGenericUnsupportedAnswer(asked.text)
-      ? reply === 'ar'
-        ? 'بساعد ضمن Zelvero POS: الشاشات، الصلاحيات، خطوات العمل، والتنقّل. شو بدك تعمل أو تعرف؟'
-        : 'I help with Zelvero POS screens, permissions, workflows, and navigation. What do you want to do or know?'
-      : asked.text;
+    if (isGenericUnsupportedAnswer(asked.text) || looksInternal(asked.text)) {
+      pushBrain(missReply(reply), 'knowledge');
+      return;
+    }
     if (!shouldConsultModel(asked) || modelState !== 'ready' || !origin) {
       setMessages((current) => [
         ...current,
-        { role: 'assistant', text: safeText, sources: asked.sources, mode: 'verified', basis: 'knowledge' },
+        { role: 'assistant', text: asked.text, sources: asked.sources, mode: 'verified', basis: 'knowledge', suggestions: suggestionsFor('knowledge', reply) },
       ]);
       return;
     }
     setLoading(true);
     try {
-      const wording = await phraseWithLocalModel(origin, question, safeText, asked.lang);
+      const wording = await phraseWithLocalModel(origin, question, asked.text, asked.lang);
       setMessages((current) => [
         ...current,
-        { role: 'assistant', text: wording, verified: safeText, sources: asked.sources, mode: 'model', basis: 'knowledge' },
+        { role: 'assistant', text: wording, verified: asked.text, sources: asked.sources, mode: 'model', basis: 'knowledge' },
       ]);
     } catch {
       setMessages((current) => [
         ...current,
-        { role: 'assistant', text: safeText, sources: asked.sources, mode: 'verified', basis: 'knowledge' },
+        { role: 'assistant', text: asked.text, sources: asked.sources, mode: 'verified', basis: 'knowledge' },
       ]);
     } finally {
       setLoading(false);
     }
     } finally {
       sendingRef.current = false;
-      if (!failed) {
-        setDraft('');
-        draftBaseRef.current = '';
+      if (failed) {
+        // Keep what the person typed so they can try again.
+        setDraft(question);
+        draftBaseRef.current = question;
       }
     }
+  }
+
+  function newChat() {
+    setMessages([]);
+    setDraft('');
+    pendingRef.current = null;
+    memoryRef.current = emptyMemory();
+    inputRef.current?.focus();
   }
 
   async function toggleVoice() {
@@ -448,11 +530,14 @@ export function AiPanel({
   }
 
   const layerClass = aiLayerClassNames(minimized ? 'minimized' : 'open', lang === 'ar').join(' ');
+  const lastIndex = messages.length - 1;
+  const busyText = reading ? t('ai.reading') : phrasing ? t('ai.thinking') : t('ai.working');
 
   if (minimized) {
     return (
       <div className={layerClass}>
         <button type="button" className="ai-dock-chip" onClick={() => onRestore?.()}>
+          <span className="ai-avatar ai-avatar--sm" aria-hidden="true">Z</span>
           <span className="ai-dock-chip__title">{t('ai.title')}</span>
           <span className="ai-dock-chip__action">{t('ai.restore')}</span>
         </button>
@@ -470,49 +555,105 @@ export function AiPanel({
       />
       <section className="ai-panel ai-panel--docked" role="complementary" aria-labelledby={titleId}>
         <header className="ai-panel__head">
-          <div>
-            <h2 id={titleId}>{t('ai.title')}</h2>
+          <div className="ai-panel__brand">
+            <span className="ai-avatar" aria-hidden="true">Z</span>
+            <div>
+              <h2 id={titleId}>{t('ai.title')}</h2>
+              <p className="ai-panel__tagline">{t('ai.tagline')}</p>
+            </div>
           </div>
           <div className="ai-panel__head-actions">
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              {t('ai.close')}
-            </Button>
+            {messages.length > 0 && (
+              <button type="button" className="ai-icon-btn" onClick={newChat} aria-label={t('ai.newChat')} title={t('ai.newChat')}>
+                <Icon name="plus" size={18} />
+              </button>
+            )}
+            <button type="button" className="ai-icon-btn" onClick={onClose} aria-label={t('ai.close')} title={t('ai.close')}>
+              <Icon name="x" size={18} />
+            </button>
           </div>
         </header>
-        <div className="ai-panel__log" ref={logRef} onScroll={onLogScroll}>
-          {messages.length === 0 && <p className="ai-panel__empty">{t('ai.empty')}</p>}
-          {messages.map((message, index) => (
-            <article key={`${message.role}-${index}`} className={message.role === 'user' ? 'ai-msg ai-msg--user' : message.tone === 'error' ? 'ai-msg ai-msg--error' : 'ai-msg'}>
-              {message.basis === 'live' && message.mode === 'model' && <p className="ai-msg__tag">{t('ai.liveData')}</p>}
-              {message.basis === 'live' && message.mode !== 'model' && <p className="ai-msg__tag">{t('ai.liveVerified')}</p>}
-              {message.mode === 'model' && message.basis !== 'live' && <p className="ai-msg__tag">{t('ai.wording')}</p>}
-              <p className="ai-msg__text">{message.text}</p>
-              {message.aside && (
-                <>
-                  <p className="ai-msg__tag">{t('ai.wording')}</p>
-                  <p className="ai-msg__text">{message.aside}</p>
-                </>
-              )}
-              {message.verified && (
-                <>
-                  <p className="ai-msg__tag">{t('ai.verified')}</p>
-                  <p className="ai-msg__text">{message.verified}</p>
-                </>
-              )}
-              {message.sources && message.sources.length > 0 && (
-                <ul className="ai-sources">
-                  {message.sources.map((source) => (
-                    <li key={source.id}>
-                      {t('ai.sources')}: {source.path}:{source.startLine}-{source.endLine} ({source.symbol})
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </article>
-          ))}
-          {reading && <p className="ai-panel__status" role="status">{t('ai.reading')}</p>}
-          {phrasing && <p className="ai-panel__status" role="status">{t('ai.thinking')}</p>}
-          {loading && !reading && !phrasing && <p className="ai-panel__status" role="status">{t('ai.working')}</p>}
+        <div className="ai-panel__log" ref={logRef} onScroll={onLogScroll} aria-live="polite">
+          {messages.length === 0 && (
+            <div className="ai-welcome">
+              <span className="ai-avatar ai-avatar--lg" aria-hidden="true">Z</span>
+              <h3 className="ai-welcome__title">{t('ai.greeting')}</h3>
+              <p className="ai-welcome__sub">{t('ai.greetingSub')}</p>
+              <div className="ai-starters">
+                {STARTERS.map((starter) => (
+                  <button
+                    key={starter.key}
+                    type="button"
+                    className="ai-starter"
+                    disabled={loading}
+                    onClick={() => void submit(t(`ai.starter.${starter.key}` as TranslationKey))}
+                  >
+                    <span className="ai-starter__icon" aria-hidden="true">
+                      <Icon name={starter.icon} size={16} />
+                    </span>
+                    <span className="ai-starter__label">{t(`ai.starter.${starter.key}` as TranslationKey)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {messages.map((message, index) =>
+            message.role === 'user' ? (
+              <article key={`user-${index}`} className="ai-msg ai-msg--user">
+                <p className="ai-msg__text">{message.text}</p>
+              </article>
+            ) : (
+              <article key={`assistant-${index}`} className={message.tone === 'error' ? 'ai-msg ai-msg--bot ai-msg--error' : 'ai-msg ai-msg--bot'}>
+                <span className="ai-avatar ai-avatar--sm" aria-hidden="true">Z</span>
+                <div className="ai-msg__body">
+                  <AiMessageText text={message.text} />
+                  {message.aside && (
+                    <div className="ai-msg__aside">
+                      <p className="ai-msg__tag">{t('ai.wording')}</p>
+                      <AiMessageText text={message.aside} />
+                    </div>
+                  )}
+                  {message.verified && (
+                    <div className="ai-msg__aside">
+                      <p className="ai-msg__tag">{t('ai.verified')}</p>
+                      <AiMessageText text={message.verified} />
+                    </div>
+                  )}
+                  <div className="ai-msg__meta">
+                    {message.basis === 'live' && message.tone !== 'error' && (
+                      <span className="ai-msg__badge">
+                        <Icon name="shield" size={12} />
+                        {t('ai.fromStore')}
+                      </span>
+                    )}
+                    <CopyButton text={message.text} label={t('ai.copy')} done={t('ai.copied')} />
+                  </div>
+                  {index === lastIndex && !loading && message.suggestions && message.suggestions.length > 0 && (
+                    <div className="ai-chips">
+                      {message.suggestions.map((suggestion) => (
+                        <button key={suggestion} type="button" className="ai-chip" onClick={() => void submit(suggestion)}>
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </article>
+            ),
+          )}
+          {loading && (
+            <div className="ai-msg ai-msg--bot ai-msg--typing" role="status">
+              <span className="ai-avatar ai-avatar--sm" aria-hidden="true">Z</span>
+              <div className="ai-typing">
+                <span className="ai-typing__dots" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <span className="ai-typing__text">{busyText}</span>
+              </div>
+            </div>
+          )}
           <div className="ai-panel__bottom" aria-hidden="true" />
         </div>
         <form
@@ -543,15 +684,21 @@ export function AiPanel({
               {t(speechHint)}
             </p>
           )}
-          <div className="ai-panel__composer">
+          <div className={listening ? 'ai-composer ai-composer--listening' : 'ai-composer'}>
             <textarea
               ref={inputRef}
               name="zelvero-ai-question"
               value={draft}
-              rows={2}
+              rows={1}
               placeholder={t('ai.placeholder')}
               autoComplete="off"
-              onChange={(event) => setDraft(event.target.value)}
+              dir="auto"
+              onChange={(event) => {
+                setDraft(event.target.value);
+                const el = event.target;
+                el.style.height = 'auto';
+                el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
@@ -559,25 +706,49 @@ export function AiPanel({
                 }
               }}
             />
-            <Button
-              type="button"
-              variant={listening ? 'primary' : 'secondary'}
-              size="sm"
-              icon="mic"
-              aria-pressed={listening}
-              disabled={!speechSupported}
-              aria-label={speechSupported ? (listening ? t('ai.stopListening') : t('ai.pushToTalk')) : voiceChannelOff ? t('ai.voiceDisabled') : t('ai.speechUnsupported')}
-              title={speechSupported ? undefined : voiceChannelOff ? t('ai.voiceDisabled') : t('ai.speechUnsupported')}
-              onClick={() => void toggleVoice()}
-            >
-              {speechSupported ? (listening ? t('ai.stopListening') : t('ai.pushToTalk')) : t('ai.voiceOff')}
-            </Button>
-            <Button type="submit" icon="send" disabled={loading || draft.trim() === ''}>
-              {t('ai.send')}
-            </Button>
+            <div className="ai-composer__actions">
+              <button
+                type="button"
+                className={listening ? 'ai-icon-btn ai-icon-btn--active' : 'ai-icon-btn'}
+                aria-pressed={listening}
+                disabled={!speechSupported}
+                aria-label={speechSupported ? (listening ? t('ai.stopListening') : t('ai.pushToTalk')) : voiceChannelOff ? t('ai.voiceDisabled') : t('ai.speechUnsupported')}
+                title={speechSupported ? (listening ? t('ai.stopListening') : t('ai.pushToTalk')) : voiceChannelOff ? t('ai.voiceDisabled') : t('ai.speechUnsupported')}
+                onClick={() => void toggleVoice()}
+              >
+                <Icon name="mic" size={18} />
+              </button>
+              <button type="submit" className="ai-send" disabled={loading || draft.trim() === ''} aria-label={t('ai.send')} title={t('ai.send')}>
+                <Icon name="arrowUp" size={18} />
+              </button>
+            </div>
           </div>
+          <p className="ai-panel__foot">{t('ai.footnote')}</p>
         </form>
       </section>
     </div>
+  );
+}
+
+function CopyButton({ text, label, done }: { text: string; label: string; done: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="ai-msg__copy"
+      onClick={() => {
+        const plain = text.replace(/\*\*/g, '').replace(/^_(.+)_$/gm, '$1').replace(/[\u2066-\u2069]/g, '');
+        void navigator.clipboard?.writeText(plain).then(
+          () => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+          },
+          () => undefined,
+        );
+      }}
+    >
+      <Icon name={copied ? 'check' : 'clipboard'} size={12} />
+      {copied ? done : label}
+    </button>
   );
 }

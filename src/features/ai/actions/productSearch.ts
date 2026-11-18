@@ -10,7 +10,7 @@ export async function searchProductsByName(tenantId: string, raw: string, limit 
   const scored = page.items
     .map((product) => {
       const name = product.name.toLowerCase();
-      let score = 0;
+      let score: number;
       if (name === needle) score = 100;
       else if (name.startsWith(needle)) score = 80;
       else if (name.includes(needle)) score = 50;

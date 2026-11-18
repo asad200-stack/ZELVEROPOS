@@ -84,6 +84,40 @@ beforeEach(async () => {
 });
 
 describe('Marketing Partner & Client Assignment', () => {
+  it('granting a partner by an e-mail with no existing account creates one (verified, no store) and returns a usable password-reset link', async () => {
+    const email = 'ca-new-partner@test.local';
+    const adminToken = await signIn(`${SUPER_ADMIN.toLowerCase()}@test.local`, 'integration-pass-1');
+
+    const res = await callOk<{ ok: true; partnerId: string; referralCode: string; created: boolean; resetLink: string | null }>(adminToken, 'grantMarketingPartner', {
+      email,
+      name: 'Brand New Partner',
+      contactAuthorized: false,
+    });
+    expect(res.created).toBe(true);
+    expect(res.resetLink).toBeTruthy();
+
+    // The returned link is a real, usable reset link, not a placeholder: exchange its oobCode for
+    // a password, then sign in with it — proving a Super Admin can hand this to a real person.
+    const oobCode = new URL(res.resetLink!).searchParams.get('oobCode');
+    expect(oobCode).toBeTruthy();
+    await authPost('accounts:resetPassword', { oobCode, newPassword: 'fresh-partner-pass-1' });
+    const token = await signIn(email, 'fresh-partner-pass-1');
+    expect(token).toBeTruthy();
+
+    const doc = await readDoc(env, `marketingPartners/${res.partnerId}`);
+    expect(doc?.email).toBe(email);
+    expect(doc?.active).toBe(true);
+
+    // Re-granting the same e-mail must NOT create a second account or reset the referral code.
+    const again = await callOk<{ created: boolean; referralCode: string }>(adminToken, 'grantMarketingPartner', {
+      email,
+      name: 'Brand New Partner',
+      contactAuthorized: false,
+    });
+    expect(again.created).toBe(false);
+    expect(again.referralCode).toBe(res.referralCode);
+  });
+
   it('normal signup (no referral code) lands Unassigned, with an immutable direct acquisition record', async () => {
     const { idToken, uid } = await signUpFresh('ca-normal@test.local');
     const { tenantId } = await completeSignup(idToken, 'Normal Store', freshSubdomain());

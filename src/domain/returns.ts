@@ -19,6 +19,12 @@ export interface ReturnPlan {
   debtReducedUsdCents: Cents;
   refundUsdCents: Cents;
   refundLbp: number;
+  /**
+   * This return's proportional share of the sale's checkout-level discount (round-down /
+   * fixed), reversed so a full return of a discounted sale never refunds more cash than was
+   * actually collected, and so daily-stats net figures balance back to zero.
+   */
+  checkoutDiscountReversedUsdCents: Cents;
 }
 
 /**
@@ -84,7 +90,12 @@ export function planReturn(sale: Sale, request: ReturnRequestLine[], customerDeb
     const unpaidLeft = Math.max(0, (sale.payment.unpaidUsdCents || 0) - (sale.returnedDebtUsdCents || 0));
     debtReduced = Math.max(0, Math.min(amount, unpaidLeft, customerDebtUsdCents));
   }
-  const cashPart = amount - debtReduced;
+  // This return's share of the sale's checkout-level discount, so refunding never exceeds the
+  // cash actually collected (the discount reduced what the customer paid for these same lines).
+  const checkoutDiscount = sale.checkoutDiscountUsdCents || 0;
+  const checkoutDiscountShare =
+    checkoutDiscount > 0 && sale.totalUsdCents > 0 ? Math.min(checkoutDiscount, Math.round((amount * checkoutDiscount) / sale.totalUsdCents)) : 0;
+  const cashPart = amount - debtReduced - checkoutDiscountShare;
   const { refundUsdCents, refundLbp } = splitRefund(
     cashPart,
     sale.payment.receivedUsdCents,
@@ -102,6 +113,7 @@ export function planReturn(sale: Sale, request: ReturnRequestLine[], customerDeb
     debtReducedUsdCents: debtReduced,
     refundUsdCents,
     refundLbp,
+    checkoutDiscountReversedUsdCents: checkoutDiscountShare,
   };
 }
 

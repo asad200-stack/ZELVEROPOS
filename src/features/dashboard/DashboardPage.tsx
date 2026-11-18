@@ -41,7 +41,8 @@ export default function DashboardPage() {
   }, [stats.data, from]);
   const todayStats = week[6];
   const todayNet = netFigures(todayStats);
-  const maxRevenue = Math.max(1, ...week.map((d) => d.revenueUsdCents - d.returnsUsdCents));
+  // Same net figure as the "Today's net sales" card: checkout discounts and returns are subtracted.
+  const maxRevenue = Math.max(1, ...week.map((d) => netFigures(d).netRevenue));
 
   return (
     <div className="page">
@@ -82,7 +83,7 @@ export default function DashboardPage() {
               <Card title={t('dashboard.last7Days')}>
                 <div className="bars" role="img" aria-label={t('dashboard.last7Days')}>
                   {week.map((d) => {
-                    const net = d.revenueUsdCents - d.returnsUsdCents;
+                    const net = netFigures(d).netRevenue;
                     return (
                       <div key={d.date} className="bars__col" title={`${formatDate(d.date, lang)}: ${formatUsd(net)}`}>
                         <div className="bars__value">{net > 0 ? formatUsd(net).replace(/\.\d\d$/, '') : ''}</div>

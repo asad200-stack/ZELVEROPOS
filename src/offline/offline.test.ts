@@ -58,6 +58,8 @@ function cartOf(saleId: string, lines: Partial<Cart['lines'][number]>[] = [{}]):
     currency: 'USD',
     customerId: null,
     debtLineUsdCents: null,
+    checkoutDiscountUsdCents: 0,
+    checkoutDiscountKind: null,
     saleId,
     draft: emptyCartDraft(),
     lines: lines.map((l, i) => ({ key: String(i), productId: 'p1', name: 'Phone case', tier: 'retail', quantity: 1, customUsdCents: null, imei: null, ...l })),

@@ -1,10 +1,10 @@
-import { useRef, type CSSProperties, type KeyboardEvent } from 'react';
+import { useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { MoneyInput } from '@/components/ui/Form';
 import { Alert } from '@/components/ui/Layout';
 import type { CartTotals } from '@/domain/cart';
 import { autoFillCashTender, type CashTenderPlan, type ChangeManual, type CreditResult } from '@/domain/checkout';
-import { applyTypedMoney, completeMoneyInput, formatLbpAmountInput, formatUsdCentsInput } from '@/domain/money';
+import { applyTypedMoney, completeMoneyInput, parseUsdInput } from '@/domain/money';
 import { useI18n, type TranslationKey } from '@/i18n/i18n';
 import type { Customer, SaleKind } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
@@ -38,6 +38,13 @@ interface Props {
   busy: boolean;
   disabled: boolean;
   onComplete: () => void;
+  /** Whether this cashier may apply a checkout discount (reuses canEditPrice, same as line price overrides). */
+  canDiscount: boolean;
+  /** One-click: discount exactly the current shortfall so the cash already entered covers the sale. */
+  onRoundDown: () => void;
+  /** Cashier typed a specific discount amount (USD cents) and confirmed it. */
+  onApplyFixedDiscount: (usdCents: number) => void;
+  onClearDiscount: () => void;
 }
 
 const CREDIT_ERRORS: Record<string, TranslationKey> = {
@@ -47,12 +54,12 @@ const CREDIT_ERRORS: Record<string, TranslationKey> = {
   invalidAmount: 'error.credit.invalidAmount',
 };
 
-export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, cash, credit, previousUsdCents, rate, busy, disabled, onComplete }: Props) {
+export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, cash, credit, previousUsdCents, rate, busy, disabled, onComplete, canDiscount, onRoundDown, onApplyFixedDiscount, onClearDiscount }: Props) {
   const { t, lang } = useI18n();
   const receivedUsdRef = useRef<HTMLInputElement>(null);
   const receivedLbpRef = useRef<HTMLInputElement>(null);
-  const changeUsdRef = useRef<HTMLInputElement>(null);
-  const changeLbpRef = useRef<HTMLInputElement>(null);
+  const [discountInput, setDiscountInput] = useState('');
+  const [customDiscountOpen, setCustomDiscountOpen] = useState(false);
 
   const creditError = !customer
     ? 'error.creditNeedsCustomer'
@@ -91,8 +98,6 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
             ? { tone: 'warn' as const, text: t('pos.changeDrawer') }
             : null;
 
-  const changeUsdShown = draft.changeManual === 'usd' ? draft.changeUsd : cash.changeUsdCents ? formatUsdCentsInput(cash.changeUsdCents) : '0.00';
-  const changeLbpShown = draft.changeManual === 'lbp' ? draft.changeLbp : cash.changeLbp ? formatLbpAmountInput(cash.changeLbp) : '0';
   const fieldSize = (value: string, fallback: string): CSSProperties => ({ '--chars': Math.max((value || fallback).length, 4) }) as CSSProperties;
 
   const onReceived = (kind: 'usd' | 'lbp', raw: string, caret: number, input: HTMLInputElement) => {
@@ -150,6 +155,21 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
     });
   };
 
+  // An empty/zero amount means "whatever is still owed" — same one-click result as Round Down,
+  // so the cashier never has to compute or type the shortfall by hand.
+  const applyFixedDiscount = () => {
+    const trimmed = discountInput.trim();
+    if (!trimmed) {
+      if (phase === 'due') onRoundDown();
+      return;
+    }
+    const cents = parseUsdInput(discountInput);
+    if (cents === null || cents <= 0) return;
+    onApplyFixedDiscount(cents);
+    setDiscountInput('');
+    setCustomDiscountOpen(false);
+  };
+
   return (
     <div className="payment" data-payment-panel>
       <p className="payment__mode">
@@ -172,10 +192,29 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
             <FitAmount value={formatUsd(previousUsdCents)} />
           </div>
         )}
+      </div>
+      {totals.checkoutDiscountUsdCents > 0 && (
+        <div className="payment__discount-chip">
+          <span>{t(totals.checkoutDiscountKind === 'roundDown' ? 'pos.checkoutDiscountRoundDown' : 'pos.checkoutDiscount')}</span>
+          <span className="payment__discount-value">
+            −{formatUsd(totals.checkoutDiscountUsdCents)}
+            {totals.dueUsdCents > 0 && (
+              <span className="payment__discount-percent">
+                {' '}
+                (−{Math.round((totals.checkoutDiscountUsdCents / totals.dueUsdCents) * 100)}%)
+              </span>
+            )}
+            <button type="button" className="payment__discount-remove" aria-label={t('pos.removeDiscount')} title={t('pos.removeDiscount')} onClick={onClearDiscount}>
+              ×
+            </button>
+          </span>
+        </div>
+      )}
+      <div className="payment__total-card">
         <div className="payment__kicker">{t('pos.amountToCollect')}</div>
         <div className="payment__total-line">
-          <FitAmount value={formatUsd(totals.dueUsdCents)} />
-          <FitAmount value={formatLbp(totals.dueLbp, lang)} className="fit-amount--sub" />
+          <FitAmount value={formatUsd(totals.payableUsdCents)} />
+          <FitAmount value={formatLbp(totals.payableLbp, lang)} className="fit-amount--sub" />
         </div>
       </div>
 
@@ -219,13 +258,28 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
                   onFocus={(e) => e.currentTarget.select()}
                   onChange={(e) => onReceived('lbp', e.target.value, e.target.selectionStart ?? e.target.value.length, e.currentTarget)}
                   onBlur={(e) => onReceivedBlur('lbp', e.target.value)}
-                  onKeyDown={(e) => focusNext(e, phase === 'change' ? 'change-usd' : 'sale-note')}
+                  onKeyDown={(e) => focusNext(e, 'sale-note')}
                 />
               </label>
             </div>
           </div>
 
-          {phase === 'due' && (
+          {phase === 'due' && canDiscount && (
+            <div className="payment__block payment__status-row payment__status-row--due">
+              <div>
+                <div className="payment__kicker">{t('pos.remainingDue')}</div>
+                {/* Plain text: an auto-fit slot inside this shrink-to-fit row collapses to a tiny size. */}
+                <div className="payment__status-amt">
+                  <span className="payment__status-main">{formatUsd(cash.remainingUsdCents)}</span>
+                  <span className="payment__status-sub">{formatLbp(cash.remainingLbp, lang)}</span>
+                </div>
+              </div>
+              <Button type="button" className="payment__apply-btn" onClick={onRoundDown}>
+                {t('pos.applyDiscountAction')}
+              </Button>
+            </div>
+          )}
+          {phase === 'due' && !canDiscount && (
             <div className="payment__block payment__block--due">
               <div className="payment__kicker">{t('pos.remainingDue')}</div>
               <div className="payment__total-line">
@@ -234,89 +288,70 @@ export function PaymentPanel({ draft, onDraft, note, onNote, totals, customer, c
               </div>
             </div>
           )}
+          {canDiscount && draft.kind === 'cash' && !customDiscountOpen && (
+            <button type="button" className="payment__custom-link" onClick={() => setCustomDiscountOpen(true)}>
+              {t('pos.enterCustomDiscount')}
+            </button>
+          )}
+          {canDiscount && draft.kind === 'cash' && customDiscountOpen && (
+            <div className="payment__block payment__block--discount">
+              <div className="payment__change-head">
+                <div className="payment__kicker">{t('pos.applyDiscount')}</div>
+                <button
+                  type="button"
+                  className="payment__discount-remove"
+                  aria-label={t('common.cancel')}
+                  title={t('common.cancel')}
+                  onClick={() => {
+                    setCustomDiscountOpen(false);
+                    setDiscountInput('');
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="payment__pair">
+                <label className="payment__money">
+                  <span>{t('pos.discountAmountUsd')}</span>
+                  <input
+                    className="input"
+                    inputMode="decimal"
+                    dir="ltr"
+                    autoComplete="off"
+                    placeholder="0.00"
+                    aria-label={t('pos.discountAmountUsd')}
+                    value={discountInput}
+                    onChange={(e) => setDiscountInput(e.target.value)}
+                    onBlur={(e) => setDiscountInput(completeMoneyInput('usd', e.target.value))}
+                  />
+                </label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={discountInput.trim() ? parseUsdInput(discountInput) === null : phase !== 'due'}
+                  onClick={applyFixedDiscount}
+                >
+                  {t('pos.applyDiscountAction')}
+                </Button>
+              </div>
+            </div>
+          )}
           {phase === 'exact' && (
             <p className="payment__status payment__status--ok" role="status">
               {t('pos.paidExactly')} · {t('pos.noChange')}
             </p>
           )}
-          {phase === 'change' && (
-          <div className="payment__block payment__block--change">
-            <div className="payment__change-head">
-              <div className="payment__kicker">{t('pos.change')}</div>
-              <div className="payment__quick">
-                <button
-                  type="button"
-                  disabled={!cash.allUsdOk}
-                  aria-label={t('pos.allUsdHint')}
-                  title={cash.allUsdOk ? t('pos.allUsdHint') : t('pos.changeDrawer')}
-                  onClick={() => onDraft({ changeManual: 'usd', changeUsd: formatUsdCentsInput(cash.allUsdCents) })}
-                >
-                  {t('pos.allUsd')}
-                </button>
-                <button
-                  type="button"
-                  disabled={!cash.allLbpOk}
-                  aria-label={t('pos.allLbpHint')}
-                  title={cash.allLbpOk ? t('pos.allLbpHint') : t('pos.changeDrawer')}
-                  onClick={() => onDraft({ changeManual: 'lbp', changeLbp: formatLbpAmountInput(cash.allLbp) })}
-                >
-                  {t('pos.allLbp')}
-                </button>
+          {phase === 'change' && totals.checkoutDiscountUsdCents === 0 && (
+            <div className="payment__change-callout">
+              <div className="payment__kicker">{t('pos.changeToReturn')}</div>
+              <div className="payment__change-callout-amt">
+                {/* Plain text, not FitAmount: the auto-fit slot shrinks to nothing in this centred box. */}
+                {(cash.changeUsdCents > 0 || cash.changeLbp <= 0) && <span className="payment__change-callout-main">{formatUsd(cash.changeUsdCents)}</span>}
+                {cash.changeLbp > 0 && (
+                  <span className={cash.changeUsdCents > 0 ? 'payment__change-callout-sub' : 'payment__change-callout-main'}>{formatLbp(cash.changeLbp, lang)}</span>
+                )}
               </div>
             </div>
-            <div className="payment__change-eq">
-              <FitAmount value={formatUsd(cash.allUsdCents)} className="fit-amount--good" />
-              <FitAmount value={formatLbp(cash.allLbp, lang)} className="fit-amount--sub" />
-            </div>
-            <div className="payment__pair">
-              <label className="payment__money">
-                <span>USD</span>
-                <input
-                  ref={changeUsdRef}
-                  id="change-usd"
-                  className="input"
-                  inputMode="decimal"
-                  dir="ltr"
-                  autoComplete="off"
-                  placeholder="0.00"
-                  aria-label={t('pos.returnUsd')}
-                  style={fieldSize(changeUsdShown, '0.00')}
-                  value={changeUsdShown}
-                  onFocus={(e) => e.currentTarget.select()}
-                  onChange={(e) => {
-                    const next = applyTypedMoney('usd', e.target.value, e.target.selectionStart ?? e.target.value.length);
-                    onDraft({ changeManual: 'usd', changeUsd: next.value });
-                    requestAnimationFrame(() => e.currentTarget.setSelectionRange(next.caret, next.caret));
-                  }}
-                  onBlur={() => onDraft({ changeUsd: completeMoneyInput('usd', changeUsdShown) })}
-                  onKeyDown={(e) => focusNext(e, 'change-lbp')}
-                />
-              </label>
-              <label className="payment__money">
-                <span>LBP</span>
-                <input
-                  ref={changeLbpRef}
-                  id="change-lbp"
-                  className="input"
-                  inputMode="numeric"
-                  dir="ltr"
-                  autoComplete="off"
-                  placeholder="0"
-                  aria-label={t('pos.returnLbp')}
-                  style={fieldSize(changeLbpShown, '0')}
-                  value={changeLbpShown}
-                  onFocus={(e) => e.currentTarget.select()}
-                  onChange={(e) => {
-                    const next = applyTypedMoney('lbp', e.target.value, e.target.selectionStart ?? e.target.value.length);
-                    onDraft({ changeManual: 'lbp', changeLbp: next.value });
-                    requestAnimationFrame(() => e.currentTarget.setSelectionRange(next.caret, next.caret));
-                  }}
-                  onBlur={() => onDraft({ changeLbp: completeMoneyInput('lbp', changeLbpShown) })}
-                  onKeyDown={(e) => focusNext(e, 'sale-note')}
-                />
-              </label>
-            </div>
-          </div>
           )}
 
           {status && (

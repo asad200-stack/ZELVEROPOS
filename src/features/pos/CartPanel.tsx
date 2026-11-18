@@ -25,10 +25,10 @@ export function CartPanel({ totals, products, canEditPrice, customerName, onChan
   const { t, lang } = useI18n();
   const [editing, setEditing] = useState<PricedLine | null>(null);
 
-  const setQty = (key: string, qty: number) =>
+  const setQty = (key: string, qty: number, max = 99_999) =>
     onChange((c) => ({
       ...c,
-      lines: c.lines.map((l) => (l.key === key ? { ...l, quantity: Math.max(1, Math.min(99_999, Math.floor(qty) || 1)) } : l)),
+      lines: c.lines.map((l) => (l.key === key ? { ...l, quantity: Math.max(1, Math.min(max, Math.floor(qty) || 1)) } : l)),
     }));
   const remove = (key: string) => onChange((c) => ({ ...c, lines: c.lines.filter((l) => l.key !== key) }));
 
@@ -42,6 +42,7 @@ export function CartPanel({ totals, products, canEditPrice, customerName, onChan
       {totals.lines.map((line) => {
         const product = products.get(line.productId);
         const overStock = !line.imei && product && line.quantity > product.stock;
+        const maxQty = !line.imei && product ? Math.max(1, product.stock) : 99_999;
         return (
           <div key={line.key} className={line.missing ? 'cart-line cart-line--error' : 'cart-line'}>
             <div className="cart-line__identity">
@@ -70,7 +71,7 @@ export function CartPanel({ totals, products, canEditPrice, customerName, onChan
             <div className="cart-line__controls">
               <div className="cart-line__qty">
                 <div className="qty">
-                  <button type="button" onClick={() => setQty(line.key, line.quantity - 1)} disabled={!!line.imei || line.quantity <= 1} aria-label="-">
+                  <button type="button" onClick={() => setQty(line.key, line.quantity - 1, maxQty)} disabled={!!line.imei || line.quantity <= 1} aria-label="-">
                     <Icon name="minus" size={14} />
                   </button>
                   <input
@@ -79,10 +80,15 @@ export function CartPanel({ totals, products, canEditPrice, customerName, onChan
                     inputMode="numeric"
                     value={line.quantity}
                     disabled={!!line.imei}
-                    onChange={(e) => setQty(line.key, Number(e.target.value))}
+                    onChange={(e) => setQty(line.key, Number(e.target.value), maxQty)}
                     aria-label={t('pos.qty')}
                   />
-                  <button type="button" onClick={() => setQty(line.key, line.quantity + 1)} disabled={!!line.imei} aria-label="+">
+                  <button
+                    type="button"
+                    onClick={() => setQty(line.key, line.quantity + 1, maxQty)}
+                    disabled={!!line.imei || line.quantity >= maxQty}
+                    aria-label="+"
+                  >
                     <Icon name="plus" size={14} />
                   </button>
                 </div>

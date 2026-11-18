@@ -94,6 +94,7 @@ function SalesReport({ range }: { range: DateRange }) {
         <StatCard icon="users" tone="info" label={t('reports.creditSales')} value={formatUsd(total.creditSalesUsdCents)} />
         <StatCard icon="undo" tone="warning" label={t('reports.returns')} value={formatUsd(total.returnsUsdCents)} sub={t('dashboard.count', { count: total.returnsCount })} />
         <StatCard icon="tag" label={t('pos.discount')} value={formatUsd(total.discountUsdCents)} />
+        <StatCard icon="tag" label={t('reports.checkoutDiscount')} value={formatUsd(total.checkoutDiscountUsdCents)} />
       </div>
       <Card
         title={t('reports.daily')}

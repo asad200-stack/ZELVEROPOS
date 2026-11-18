@@ -130,6 +130,15 @@ export function SaleDetailsModal({ sale, onClose, onUpdated }: Props) {
           <div className="summary-list">
             <Row label={t('pos.total')} value={sale.currency === 'LBP' ? formatLbp(sale.totalLbp, lang) : formatUsd(sale.totalUsdCents)} strong />
             {sale.discountUsdCents > 0 && <Row label={t('pos.discount')} value={formatUsd(sale.discountUsdCents)} />}
+            {sale.checkoutDiscountUsdCents > 0 && (
+              <Row
+                label={t(sale.checkoutDiscountKind === 'roundDown' ? 'pos.checkoutDiscountRoundDown' : 'pos.checkoutDiscount')}
+                value={sale.currency === 'LBP' ? formatLbp(sale.checkoutDiscountLbp, lang) : formatUsd(sale.checkoutDiscountUsdCents)}
+              />
+            )}
+            {sale.checkoutDiscountUsdCents > 0 && (
+              <Row label={t('pos.amountToCollect')} value={sale.currency === 'LBP' ? formatLbp(sale.payableLbp, lang) : formatUsd(sale.payableUsdCents)} strong />
+            )}
             {p.receivedUsdCents > 0 && <Row label={t('receipt.paidUsd')} value={formatUsd(p.receivedUsdCents)} />}
             {p.receivedLbp > 0 && <Row label={t('receipt.paidLbp')} value={formatLbp(p.receivedLbp, lang)} />}
             {(p.changeUsdCents ?? 0) > 0 && <Row label={t('receipt.changeUsd')} value={formatUsd(p.changeUsdCents ?? 0)} />}

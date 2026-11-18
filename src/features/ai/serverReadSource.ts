@@ -165,9 +165,12 @@ export function serverAiReadSource(read: AiReadCall, now: () => number = Date.no
       }));
       return { sales: plain, complete };
     },
-    async unknownProductCost() {
-      const { items, complete } = await catalog();
-      return !complete || items.some((p) => p.costUsdCents === null);
+    async unknownProductCost(_tenant, from, to) {
+      // Scoped to the lines actually sold in [from, to] (the sale-time cost snapshot), not the
+      // whole catalog — a product with no recorded cost that was not sold in this range should
+      // not block a profit answer for it.
+      const { sales, complete } = await costedSales(from, to);
+      return !complete || sales.some((s) => s.lines.some((l) => l.costUsdCents === null));
     },
     async productsByIds(_tenant, ids) {
       const { items } = await catalog();
