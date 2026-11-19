@@ -199,6 +199,8 @@ export default function PublicStorePage() {
     if (!overlay) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      // A nested layer (the try-on view) already handled it.
+      if (e.defaultPrevented) return;
       // Close the top-most layer first.
       if (quick !== null) setQuick(null);
       else setCartOpen(false);

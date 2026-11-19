@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode
 import type { PublicProduct } from '@/domain/onlineStore';
 import type { TranslationKey, TParams } from '@/i18n/i18n';
 import { APPAREL_SIZES, SHOE_SIZES, apparelSize, fitKind, shoeSize, type FitPref } from './sizeAdvisor';
+import StorefrontTryOn from './StorefrontTryOn';
 
 type T = (key: TranslationKey, params?: TParams) => string;
 
@@ -63,6 +64,7 @@ export default function StorefrontQuickView(props: Props) {
   const [advice, setAdvice] = useState<string | null>(null);
   const [bad, setBad] = useState(false);
   const [finder, setFinder] = useState(false);
+  const [tryOn, setTryOn] = useState(false);
 
   const sizes: readonly string[] = kind === 'shoes' ? SHOE_SIZES : APPAREL_SIZES;
   const needsSize = kind !== null;
@@ -145,6 +147,11 @@ export default function StorefrontQuickView(props: Props) {
             <button type="button" className="sf-link" onClick={() => setZoom((z) => !z)}>
               {zoom ? t('storefront.zoomOut') : t('storefront.zoomIn')}
             </button>
+            {kind !== null && p.imageUrl && (
+              <button type="button" className="sf-link sf-to-open" onClick={() => setTryOn(true)}>
+                {t('storefront.tryOn')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -269,6 +276,7 @@ export default function StorefrontQuickView(props: Props) {
           )}
         </div>
       </div>
+      {tryOn && kind && <StorefrontTryOn product={p} kind={kind} t={t} onSize={props.onSize} onClose={() => setTryOn(false)} />}
     </>
   );
 }
