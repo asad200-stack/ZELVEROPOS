@@ -145,12 +145,12 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
     <div className="page stack">
       <PageHeader title={t('onlineStore.title')} subtitle={t('onlineStore.subtitle')} actions={statusBadge} />
 
-      <Alert tone="info">{t('onlineStore.payments')} {t('onlineStore.ordersSoon')}</Alert>
+      <Alert tone="info">{t('onlineStore.payments')}</Alert>
 
       <Card title={t('onlineStore.branding')}>
         <div className="stack">
           <Checkbox label={t('onlineStore.enable')} checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-          <p className="muted">{t('onlineStore.enableHint')}</p>
+          {!enabled && <p className="muted">{t('onlineStore.enableHint')}</p>}
           <FormGrid cols={2}>
             <TextInput
               label={t('onlineStore.storeName')}
