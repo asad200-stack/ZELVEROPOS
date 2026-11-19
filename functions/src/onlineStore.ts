@@ -54,7 +54,7 @@ const PUBLIC_CATALOG_PER_HOUR = 300;
 
 /* ------------------------------------------------------------------ authorization */
 
-interface StorePrincipal {
+export interface StorePrincipal {
   uid: string;
   tenantId: string;
 }
@@ -86,7 +86,7 @@ async function internalDemoPrincipal(c: Caller): Promise<StorePrincipal | null> 
 }
 
 /** True while the tenant may run an online store: entitlement active, not killed, subscribed. */
-async function tenantEntitled(tenantId: string): Promise<boolean> {
+export async function tenantEntitled(tenantId: string): Promise<boolean> {
   const [subscription, control, entitlement] = await Promise.all([
     db.doc(`subscriptions/${tenantId}`).get(),
     db.doc('platformFeatureControl/global').get(),
@@ -123,7 +123,7 @@ export async function resolveStorePrincipal(c: Caller): Promise<StorePrincipal> 
 /* ------------------------------------------------------------------ input */
 
 /** The web client adds these to every call; they are not part of any store input. */
-function stripTransport(data: unknown): unknown {
+export function stripTransport(data: unknown): unknown {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
   const copy = { ...(data as Record<string, unknown>) };
   delete copy.clientApiVersion;
@@ -151,8 +151,8 @@ const visibilitySchema = z.strictObject({ productIds: z.array(idField).max(MAX_V
 
 /* ------------------------------------------------------------------ helpers */
 
-const storeRef = (tenantId: string): DocumentReference => db.doc(`onlineStores/${tenantId}`);
-const slugRef = (slug: string): DocumentReference => db.doc(`onlineStoreSlugs/${slug}`);
+export const storeRef = (tenantId: string): DocumentReference => db.doc(`onlineStores/${tenantId}`);
+export const slugRef = (slug: string): DocumentReference => db.doc(`onlineStoreSlugs/${slug}`);
 
 async function storeNameOf(tenantId: string): Promise<string> {
   const settings = await tenantPaths(tenantId).settings.get();
@@ -165,7 +165,7 @@ async function loadConfig(tenantId: string): Promise<OnlineStoreConfig> {
   return toStoreConfig(snap.data(), storeName);
 }
 
-async function ownerCall<T>(request: CallableRequest, run: (p: StorePrincipal, data: unknown) => Promise<T>): Promise<T> {
+export async function ownerCall<T>(request: CallableRequest, run: (p: StorePrincipal, data: unknown) => Promise<T>): Promise<T> {
   try {
     const principal = await resolveStorePrincipal(caller(request));
     return await run(principal, stripTransport(request.data));
@@ -175,7 +175,7 @@ async function ownerCall<T>(request: CallableRequest, run: (p: StorePrincipal, d
 }
 
 /** Reads products in batches of 100 (getAll limit-friendly), keeping only active ones. */
-async function activeProducts(tenantId: string, ids: readonly string[]): Promise<Map<string, DocumentData>> {
+export async function activeProducts(tenantId: string, ids: readonly string[]): Promise<Map<string, DocumentData>> {
   const out = new Map<string, DocumentData>();
   const paths = tenantPaths(tenantId);
   for (let i = 0; i < ids.length; i += 100) {
@@ -313,9 +313,9 @@ export const onlineStoreSetProductVisibility = onCall({ region: REGION }, (reque
 // App Check stays in monitoring mode platform-wide (see globalOptions.ts); enforcing it is a
 // production console change that needs explicit approval, so public reads rely on rate limits,
 // strict input, and published-only data for now.
-const publicFn = { region: REGION, enforceAppCheck: false as const, cors: true };
+export const publicFn = { region: REGION, enforceAppCheck: false as const, cors: true };
 
-function clientIp(request: CallableRequest): string {
+export function clientIp(request: CallableRequest): string {
   const raw = request.rawRequest;
   return platformClientIp({
     forwardedFor: raw?.headers?.['x-forwarded-for'],
@@ -323,7 +323,7 @@ function clientIp(request: CallableRequest): string {
   });
 }
 
-async function rateLimit(kind: string, ip: string, now: number, max: number): Promise<void> {
+export async function rateLimit(kind: string, ip: string, now: number, max: number): Promise<void> {
   const ref = db.doc(`platformRateLimits/${kind}_${ipSignal(ip)}_${Math.floor(now / 3_600_000)}`);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -338,33 +338,57 @@ export interface PublicCatalogResponse {
   products: PublicProduct[];
 }
 
+export interface PublishedStore {
+  tenantId: string;
+  config: OnlineStoreConfig;
+  published: NonNullable<OnlineStoreConfig['published']>;
+}
+
+/**
+ * Resolves a normalized slug to a live, entitled, published store, or fails with a uniform
+ * not-found (never reveals whether the slug exists, is unpublished, or lost its entitlement).
+ */
+export async function resolvePublishedStore(slug: string): Promise<PublishedStore> {
+  const tenantId = (await slugRef(slug).get()).get('tenantId');
+  if (typeof tenantId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(tenantId)) {
+    fail('not-found', 'error.onlineStore.notFound');
+  }
+  const [storeSnap, entitled] = await Promise.all([storeRef(tenantId).get(), tenantEntitled(tenantId)]);
+  const config = toStoreConfig(storeSnap.data());
+  if (
+    !entitled ||
+    !storeSnap.exists ||
+    !config.enabled ||
+    config.publication !== 'published' ||
+    !config.published ||
+    config.slug !== slug
+  ) {
+    fail('not-found', 'error.onlineStore.notFound');
+  }
+  return { tenantId, config, published: config.published };
+}
+
+/** Parses and normalizes a public slug; malformed slugs get the same not-found as unknown ones. */
+export function publicSlug(raw: string): string {
+  const slug = normalizeSlug(raw);
+  if (slugProblem(slug)) fail('not-found', 'error.onlineStore.notFound');
+  return slug;
+}
+
 export const publicStoreCatalog = onCall(publicFn, async (request): Promise<PublicCatalogResponse> => {
   try {
-    const slug = normalizeSlug(parse(slugSchema, stripTransport(request.data)).slug);
-    if (slugProblem(slug)) fail('not-found', 'error.onlineStore.notFound');
+    const slug = publicSlug(parse(slugSchema, stripTransport(request.data)).slug);
     await rateLimit('storeCatalog', clientIp(request), Date.now(), PUBLIC_CATALOG_PER_HOUR);
-
-    const tenantId = (await slugRef(slug).get()).get('tenantId');
-    if (typeof tenantId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(tenantId)) {
-      fail('not-found', 'error.onlineStore.notFound');
-    }
-    const [storeSnap, entitled] = await Promise.all([storeRef(tenantId).get(), tenantEntitled(tenantId)]);
-    const config = toStoreConfig(storeSnap.data());
-    if (
-      !entitled ||
-      !storeSnap.exists ||
-      !config.enabled ||
-      config.publication !== 'published' ||
-      !config.published ||
-      config.slug !== slug
-    ) {
-      fail('not-found', 'error.onlineStore.notFound');
-    }
+    const { tenantId, config, published } = await resolvePublishedStore(slug);
     const found = await activeProducts(tenantId, config.visibleProductIds);
     const products = config.visibleProductIds
       .filter((id) => found.has(id))
-      .map((id) => projectPublicProduct(toProduct(id, found.get(id) as DocumentData)));
-    return { store: projectPublicStore(slug, config.published), products };
+      .map((id) => toProduct(id, found.get(id) as DocumentData))
+      // Same rules as publicPlaceOrder: IMEI-tracked or unpriced items can't be ordered online.
+      .filter((p) => !p.imeiTracking)
+      .map(projectPublicProduct)
+      .filter((p) => p.priceUsdCents > 0 || (p.priceLbp ?? 0) > 0);
+    return { store: projectPublicStore(slug, published), products };
   } catch (err) {
     rethrowClientSafe(err);
   }

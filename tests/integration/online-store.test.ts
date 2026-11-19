@@ -1,5 +1,5 @@
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { Timestamp, doc, setDoc } from 'firebase/firestore';
+import { Timestamp, doc, getDoc, setDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { defaultBranding } from '@/domain/onlineStore';
 import { resolveAuthEmulatorHostPort } from './emulatorSafety';
@@ -242,5 +242,127 @@ describe('online store: internal demo tenant', () => {
     const res = await publicCatalog('zv-demo-shop');
     expect(res.result?.products.map((p) => p.id)).toEqual(['demo-tea']);
     expect(JSON.stringify(res.result)).not.toMatch(/Secret supplier|costUsdCents|"999"/);
+  });
+});
+
+/** Unauthenticated website checkout, exactly as a visitor's browser would send it. */
+async function publicOrder(data: Record<string, unknown>): Promise<{ result?: { ref: string; status: string; totalUsdCents: number; totalLbp: number }; status?: string; key?: string }> {
+  const res = await fetch(functionsCallableUrl('publicPlaceOrder'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data }),
+  });
+  const json = (await res.json()) as {
+    result?: { ref: string; status: string; totalUsdCents: number; totalLbp: number };
+    error?: { status: string; message: string; details?: { key?: string } };
+  };
+  if (json.error) return { status: json.error.status, key: json.error.details?.key ?? json.error.message };
+  return { result: json.result };
+}
+
+const order = (lines: Array<{ productId: string; qty: number }>, extra: Record<string, unknown> = {}) => ({
+  slug: 'phone-corner',
+  lines,
+  name: 'Test Buyer',
+  phone: '70 123 456',
+  address: 'Hamra, Beirut',
+  note: '',
+  fulfillment: 'delivery',
+  payment: 'cod',
+  ...extra,
+});
+
+async function stockOf(tenantId: string, productId: string): Promise<number> {
+  let stock = -1;
+  await asAdmin(env, async (fs) => {
+    stock = Number((await getDoc(doc(fs, tp(tenantId, 'products', productId)))).get('stock'));
+  });
+  return stock;
+}
+
+async function onlyOrderId(token: string): Promise<string> {
+  const list = await callOk<{ orders: Array<{ id: string }> }>(token, 'onlineOrdersList', {});
+  expect(list.orders).toHaveLength(1);
+  return list.orders[0].id;
+}
+
+describe('online store: website orders', () => {
+  it('prices on the server, reserves stock and returns a reference', async () => {
+    await entitle(CUSTOMER);
+    const token = await signIn(CUSTOMER);
+    await publishStore(token, 'phone-corner', ['p1']);
+    const res = await publicOrder(order([{ productId: 'p1', qty: 2 }]));
+    expect(res.status).toBeUndefined();
+    expect(res.result?.ref).toMatch(/^ZV-\d{6}$/);
+    expect(res.result?.status).toBe('pending');
+    expect(res.result?.totalUsdCents).toBe(1000);
+    expect(await stockOf(CUSTOMER, 'p1')).toBe(8);
+    const list = await callOk<{ orders: Array<{ ref: string; customerPhone: string; status: string }> }>(token, 'onlineOrdersList', {});
+    expect(list.orders).toMatchObject([{ ref: res.result?.ref, customerPhone: '70123456', status: 'pending' }]);
+  });
+
+  it('refuses hidden, IMEI-tracked and out-of-stock products, and client price fields', async () => {
+    await entitle(CUSTOMER);
+    const token = await signIn(CUSTOMER);
+    await publishStore(token, 'phone-corner', ['p1']);
+    expect((await publicOrder(order([{ productId: 'ph', qty: 1 }]))).key).toBe('error.onlineOrders.unavailable');
+    expect((await publicOrder(order([{ productId: 'p1', qty: 11 }]))).key).toBe('error.onlineOrders.outOfStock');
+    expect((await publicOrder(order([{ productId: 'p1', qty: 1 }], { totalUsdCents: 1 }))).status).toBe('INVALID_ARGUMENT');
+    expect((await publicOrder(order([{ productId: 'p1', qty: 1 }], { tenantId: OTHER_OWNER }))).status).toBe('INVALID_ARGUMENT');
+    expect((await publicOrder(order([{ productId: 'p1', qty: 1 }], { slug: 'no-such-store' }))).status).toBe('NOT_FOUND');
+    expect(await stockOf(CUSTOMER, 'p1')).toBe(10);
+  });
+
+  it('keeps IMEI-tracked products out of the public catalog', async () => {
+    await entitle(CUSTOMER);
+    const token = await signIn(CUSTOMER);
+    await publishStore(token, 'phone-corner', ['p1', 'ph']);
+    expect((await publicCatalog('phone-corner')).result?.products.map((p) => p.id)).toEqual(['p1']);
+  });
+
+  it('follows the status machine and rejects skipped steps', async () => {
+    await entitle(CUSTOMER);
+    const token = await signIn(CUSTOMER);
+    await publishStore(token, 'phone-corner', ['p1']);
+    await publicOrder(order([{ productId: 'p1', qty: 1 }]));
+    const orderId = await onlyOrderId(token);
+    const skip = await call(token, 'onlineOrdersSetStatus', { orderId, status: 'delivered' });
+    expect(skip.error).toMatchObject({ status: 'FAILED_PRECONDITION', key: 'error.onlineOrders.badTransition' });
+    for (const status of ['accepted', 'preparing', 'ready', 'delivered']) {
+      await callOk(token, 'onlineOrdersSetStatus', { orderId, status });
+    }
+    const after = await call(token, 'onlineOrdersSetStatus', { orderId, status: 'cancelled' });
+    expect(after.error?.status).toBe('FAILED_PRECONDITION');
+    expect(await stockOf(CUSTOMER, 'p1')).toBe(9);
+  });
+
+  it('gives stock back exactly once on cancel', async () => {
+    await entitle(CUSTOMER);
+    const token = await signIn(CUSTOMER);
+    await publishStore(token, 'phone-corner', ['p1']);
+    await publicOrder(order([{ productId: 'p1', qty: 3 }]));
+    expect(await stockOf(CUSTOMER, 'p1')).toBe(7);
+    const orderId = await onlyOrderId(token);
+    await callOk(token, 'onlineOrdersSetStatus', { orderId, status: 'cancelled' });
+    expect(await stockOf(CUSTOMER, 'p1')).toBe(10);
+    expect((await call(token, 'onlineOrdersSetStatus', { orderId, status: 'rejected' })).error?.status).toBe('FAILED_PRECONDITION');
+    expect((await call(token, 'onlineOrdersSetStatus', { orderId, status: 'cancelled' })).error?.status).toBe('FAILED_PRECONDITION');
+    expect(await stockOf(CUSTOMER, 'p1')).toBe(10);
+  });
+
+  it('keeps the inbox to the owning tenant owner', async () => {
+    await entitle(CUSTOMER);
+    await entitle(OTHER_OWNER);
+    const token = await signIn(CUSTOMER);
+    await publishStore(token, 'phone-corner', ['p1']);
+    await publicOrder(order([{ productId: 'p1', qty: 1 }]));
+    const orderId = await onlyOrderId(token);
+    const other = await signIn(OTHER_OWNER);
+    expect((await callOk<{ orders: unknown[] }>(other, 'onlineOrdersList', {})).orders).toHaveLength(0);
+    expect((await call(other, 'onlineOrdersSetStatus', { orderId, status: 'rejected' })).error?.status).toBe('NOT_FOUND');
+    const sub = await signIn(SUB);
+    expect((await call(sub, 'onlineOrdersList', {})).error?.status).toBe('PERMISSION_DENIED');
+    expect((await call(token, 'onlineOrdersList', { tenantId: OTHER_OWNER })).error?.status).toBe('INVALID_ARGUMENT');
+    expect(await stockOf(CUSTOMER, 'p1')).toBe(9);
   });
 });

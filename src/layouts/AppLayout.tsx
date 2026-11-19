@@ -101,7 +101,7 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
   );
   const items = adminOnly || !session.tenantId
     ? []
-    : NAV_ITEMS.filter((i) => (i.path === '/online-store' && !onlineStoreActive
+    : NAV_ITEMS.filter((i) => ((i.path === '/online-store' || i.path === '/online-orders') && !onlineStoreActive
       ? false
       : i.ownerOnly ? session.isOwner : i.permission ? session.can(i.permission) : true));
 

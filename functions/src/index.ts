@@ -15,6 +15,7 @@ export {
   onlineStoreSetProductVisibility,
   publicStoreCatalog,
 } from './onlineStore.js';
+export { publicPlaceOrder, onlineOrdersList, onlineOrdersSetStatus } from './onlineOrders.js';
 export {
   submitWebsiteLead,
   provisionWebsiteTrial,

@@ -5,6 +5,7 @@ import { customerReleaseCutoverAllowed } from '@/domain/previewAccess';
 import { firebase } from '@/firebase/app';
 import type { PermissionMap } from '@/constants/permissions';
 import type { OnlineStoreConfig, PublicProduct, PublicStore, StoreBranding } from '@/domain/onlineStore';
+import type { FulfillmentMethod, OnlineOrder, OrderStatus, PaymentMethod, PublicOrderReceipt } from '@/domain/onlineOrders';
 import { withoutUndefined } from './callableData';
 import { requirePreviewCredential } from './previewCredential';
 
@@ -260,6 +261,21 @@ export const api = {
   onlineStoreUnpublish: callable<Record<string, never>, { config: OnlineStoreConfig }>('onlineStoreUnpublish'),
   onlineStoreSetProductVisibility: callable<{ productIds: string[] }, { config: OnlineStoreConfig }>('onlineStoreSetProductVisibility'),
   publicStoreCatalog: callable<{ slug: string }, { store: PublicStore; products: PublicProduct[] }>('publicStoreCatalog'),
+  publicPlaceOrder: callable<
+    {
+      slug: string;
+      lines: { productId: string; qty: number }[];
+      name: string;
+      phone: string;
+      address: string;
+      note: string;
+      fulfillment: FulfillmentMethod;
+      payment: PaymentMethod;
+    },
+    PublicOrderReceipt
+  >('publicPlaceOrder'),
+  onlineOrdersList: callable<{ status?: OrderStatus; limit?: number }, { orders: OnlineOrder[] }>('onlineOrdersList'),
+  onlineOrdersSetStatus: callable<{ orderId: string; status: OrderStatus }, { order: OnlineOrder }>('onlineOrdersSetStatus'),
   issuePreviewCredential: callable<Record<string, never>, { credentialId: string; secret: string; tenantId: string; expiresAtMs: number }>('issuePreviewCredential'),
   adminListLeads: callable<
     Record<string, never>,

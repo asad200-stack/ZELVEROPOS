@@ -26,6 +26,7 @@ const SetupPage = page(() => import('@/features/auth/SetupPage'));
 const SuperAdminPage = page(() => import('@/features/admin/SuperAdminPage'));
 const PartnerDashboardPage = page(() => import('@/features/partners/PartnerDashboardPage'));
 const NotFoundPage = page(() => import('@/pages/NotFoundPage'));
+const PublicStorePage = page(() => import('@/features/onlineStore/PublicStorePage'));
 
 const SCREENS: Record<string, LazyExoticComponent<ComponentType>> = {
   '/dashboard': page(() => import('@/features/dashboard/DashboardPage')),
@@ -40,6 +41,7 @@ const SCREENS: Record<string, LazyExoticComponent<ComponentType>> = {
   '/reports': page(() => import('@/features/reports/ReportsPage')),
   '/users': page(() => import('@/features/users/UsersPage')),
   '/online-store': page(() => import('@/features/onlineStore/OnlineStoreSettingsPage')),
+  '/online-orders': page(() => import('@/features/onlineStore/OnlineOrdersPage')),
   '/settings': page(() => import('@/features/settings/SettingsPage')),
 };
 
@@ -127,6 +129,8 @@ export function AppRoutes() {
           </Route>
         </Route>
 
+        {/* Public storefront: guests, no sign-in. */}
+        <Route path="/s/:slug" element={<PublicStorePage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
