@@ -7,6 +7,15 @@ export { adminProvisionInternalDemo } from './internalDemo.js';
 export { issuePreviewCredential, previewPos } from './previewAccess.js';
 export { aiCopilotAccess, aiCopilotRead } from './aiCopilot.js';
 export {
+  onlineStoreGetConfig,
+  onlineStoreSaveDraft,
+  onlineStoreSetSlug,
+  onlineStorePublish,
+  onlineStoreUnpublish,
+  onlineStoreSetProductVisibility,
+  publicStoreCatalog,
+} from './onlineStore.js';
+export {
   submitWebsiteLead,
   provisionWebsiteTrial,
   adminRunTrialLifecycle,

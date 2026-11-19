@@ -21,6 +21,7 @@ const FILES = {
   'src/domain/release.ts': 'release.ts',
   'src/domain/featureRelease.ts': 'featureRelease.ts',
   'src/domain/trial.ts': 'trial.ts',
+  'src/domain/onlineStore.ts': 'onlineStore.ts',
   'src/types/models.ts': 'models.ts',
   'src/constants/permissions.ts': 'permissions.ts',
 };

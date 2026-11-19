@@ -619,3 +619,28 @@ describe('settings', () => {
     await assertSucceeds(setDoc(doc(owner(), tp(T, 'settings', 'main')), { exchangeRate: 90_000 }, { merge: true }));
   });
 });
+
+describe('online store (server-only, read through publicStoreCatalog only)', () => {
+  const PATHS = [`onlineStores/${T}`, 'onlineStoreSlugs/demo-shop'];
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fs = ctx.firestore() as unknown as Firestore;
+      await setDoc(doc(fs, `onlineStores/${T}`), { tenantId: T, enabled: true, slug: 'demo-shop', publication: 'published' });
+      await setDoc(doc(fs, 'onlineStoreSlugs/demo-shop'), { tenantId: T });
+    });
+  });
+
+  for (const path of PATHS) {
+    it(`owner, other tenant, and anonymous clients cannot read or write ${path.split('/')[0]}`, async () => {
+      const anon = env.unauthenticatedContext().firestore() as unknown as Firestore;
+      for (const fs of [owner(), db(env, OTHER), anon]) {
+        await assertFails(getDoc(doc(fs, path)));
+        await assertFails(setDoc(doc(fs, path), { tenantId: OTHER, enabled: true }));
+        await assertFails(updateDoc(doc(fs, path), { enabled: false }));
+        await assertFails(deleteDoc(doc(fs, path)));
+      }
+      await assertFails(setDoc(doc(owner(), 'onlineStoreSlugs/stolen-slug'), { tenantId: T }));
+    });
+  }
+});

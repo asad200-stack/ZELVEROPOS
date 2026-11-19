@@ -4,6 +4,7 @@ import { isAdminPreviewBuild } from '@/domain/adminPreview';
 import { customerReleaseCutoverAllowed } from '@/domain/previewAccess';
 import { firebase } from '@/firebase/app';
 import type { PermissionMap } from '@/constants/permissions';
+import type { OnlineStoreConfig, PublicProduct, PublicStore, StoreBranding } from '@/domain/onlineStore';
 import { withoutUndefined } from './callableData';
 import { requirePreviewCredential } from './previewCredential';
 
@@ -251,6 +252,14 @@ export const api = {
   /** Zelvero AI (internal demo only). Server resolves the store and refuses everyone else. */
   aiCopilotAccess: callable<Record<string, never>, { allowed: true; tenantId: string }>('aiCopilotAccess'),
   aiCopilotRead: callable<Record<string, unknown>, unknown>('aiCopilotRead'),
+  // Online Store (Milestone A). The server resolves the tenant; never send one.
+  onlineStoreGetConfig: callable<Record<string, never>, { config: OnlineStoreConfig; products: PublicProduct[]; productsTruncated: boolean }>('onlineStoreGetConfig'),
+  onlineStoreSaveDraft: callable<{ enabled: boolean; draft: StoreBranding }, { config: OnlineStoreConfig }>('onlineStoreSaveDraft'),
+  onlineStoreSetSlug: callable<{ slug: string }, { config: OnlineStoreConfig }>('onlineStoreSetSlug'),
+  onlineStorePublish: callable<Record<string, never>, { config: OnlineStoreConfig }>('onlineStorePublish'),
+  onlineStoreUnpublish: callable<Record<string, never>, { config: OnlineStoreConfig }>('onlineStoreUnpublish'),
+  onlineStoreSetProductVisibility: callable<{ productIds: string[] }, { config: OnlineStoreConfig }>('onlineStoreSetProductVisibility'),
+  publicStoreCatalog: callable<{ slug: string }, { store: PublicStore; products: PublicProduct[] }>('publicStoreCatalog'),
   issuePreviewCredential: callable<Record<string, never>, { credentialId: string; secret: string; tenantId: string; expiresAtMs: number }>('issuePreviewCredential'),
   adminListLeads: callable<
     Record<string, never>,

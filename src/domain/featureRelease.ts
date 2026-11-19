@@ -426,6 +426,29 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     activation: 'server',
     reloadRequired: false,
   },
+  {
+    // Online Store stays blocked from publishing until Milestones B-E (storefront, checkout,
+    // website orders) are built and tested. Only the internal demo tenant can use it today.
+    id: 'online_store',
+    title: 'Online Store',
+    description: 'Publish a simple website from your POS products and receive website orders.',
+    version: '0.1.0',
+    icon: 'box',
+    screenshots: [],
+    category: 'sales',
+    classification: 'new',
+    pricing: 'free',
+    priceUsdCents: null,
+    capabilities: ['Create your store website', 'Choose which products appear online', 'Publish or unpublish any time'],
+    requirements: ['Store owner'],
+    compatibility: 'Zelvero POS',
+    customerExecution: 'unavailable',
+    navPath: '/online-store',
+    navLabel: 'Online Store',
+    testingStatus: 'in_testing',
+    activation: 'server',
+    reloadRequired: false,
+  },
 ];
 
 export function featureById(id: string): FeatureDefinition | null {

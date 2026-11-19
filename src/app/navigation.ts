@@ -23,5 +23,6 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/purchases', label: 'nav.purchases', icon: 'clipboard', permission: 'canViewSuppliers' },
   { path: '/reports', label: 'nav.reports', icon: 'chart', permission: 'canViewReports' },
   { path: '/users', label: 'nav.users', icon: 'user', ownerOnly: true },
+  { path: '/online-store', label: 'nav.onlineStore', icon: 'globe', ownerOnly: true },
   { path: '/settings', label: 'nav.settings', icon: 'settings', permission: 'canViewSettings' },
 ];

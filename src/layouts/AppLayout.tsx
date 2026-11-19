@@ -95,9 +95,15 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
     }
   }, [collapsed]);
 
+  // Online store link: UX gate only. Every online-store callable re-checks the entitlement server-side.
+  const onlineStoreActive = session.isInternalDemo || featureUpdates.some(
+    (update) => update.featureId === 'online_store' && update.status === 'active',
+  );
   const items = adminOnly || !session.tenantId
     ? []
-    : NAV_ITEMS.filter((i) => (i.ownerOnly ? session.isOwner : i.permission ? session.can(i.permission) : true));
+    : NAV_ITEMS.filter((i) => (i.path === '/online-store' && !onlineStoreActive
+      ? false
+      : i.ownerOnly ? session.isOwner : i.permission ? session.can(i.permission) : true));
 
   const onlinePreview = isSuperAdminPreviewChannel(import.meta.env.VITE_APP_CHANNEL);
   const previewChannel = import.meta.env.VITE_APP_CHANNEL === 'preview' || onlinePreview;
@@ -142,7 +148,7 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
             </NavLink>
           ))}
           {featureUpdates
-            .filter((update) => update.status === 'active' && update.navPath)
+            .filter((update) => update.status === 'active' && update.navPath && !NAV_ITEMS.some((item) => item.path === update.navPath))
             .map((update) => (
               <NavLink
                 key={update.featureId}

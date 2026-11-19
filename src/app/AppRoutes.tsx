@@ -39,6 +39,7 @@ const SCREENS: Record<string, LazyExoticComponent<ComponentType>> = {
   '/purchases': page(() => import('@/features/purchases/PurchasesPage')),
   '/reports': page(() => import('@/features/reports/ReportsPage')),
   '/users': page(() => import('@/features/users/UsersPage')),
+  '/online-store': page(() => import('@/features/onlineStore/OnlineStoreSettingsPage')),
   '/settings': page(() => import('@/features/settings/SettingsPage')),
 };
 
