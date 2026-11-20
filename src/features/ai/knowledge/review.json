@@ -129,6 +129,58 @@
       "sourceHash": "04a6b9feb2b29f9324dc7be3d89e5ac87402ca26dd7832118a3280105428ba23"
     },
     {
+      "id": "callable:onlineOrdersList",
+      "sourceHash": "bf9b30367905c990f406a878972ebc85df8f8c56c987d1df9fdc5ca2f6f730c1"
+    },
+    {
+      "id": "callable:onlineOrdersSetStatus",
+      "sourceHash": "a697cc037b538d8cee55175682a31c579671d67bf23a5bc2f6c0d05d5a8026af"
+    },
+    {
+      "id": "callable:onlineReviewsList",
+      "sourceHash": "c40058ed8bb38b77562c13b537dea3485f5a164988a778f80c277de940a9774a"
+    },
+    {
+      "id": "callable:onlineReviewsSetStatus",
+      "sourceHash": "0867057877f7a878a2d9f4583068260b3e1d1f3d89c0bf9978d9e036ba8f1237"
+    },
+    {
+      "id": "callable:onlineStoreGetConfig",
+      "sourceHash": "7825b1651bfcadba5381ddd41c7e05401ae5c72670edadeef1fe28f299f5918b"
+    },
+    {
+      "id": "callable:onlineStorePublish",
+      "sourceHash": "4a849859d56109270a6e90c3aa61da13ffda21fcdd199f366bde40e56921d196"
+    },
+    {
+      "id": "callable:onlineStoreSaveDraft",
+      "sourceHash": "f70bef74afa80a5ce1cbc59cfaee3d5ed1561dc4bf30c4781c802f5a46fe0843"
+    },
+    {
+      "id": "callable:onlineStoreSaveListing",
+      "sourceHash": "8c38a9ed69109c19aeeaf7a193fef82c3186da16b7224a6c11ef42f43ecd4417"
+    },
+    {
+      "id": "callable:onlineStoreSetDomain",
+      "sourceHash": "7dadf0ceb6a52930a2e3d3a0399a06eacb4e5b724859a7ab01be10901d0cecf5"
+    },
+    {
+      "id": "callable:onlineStoreSetProductVisibility",
+      "sourceHash": "78471cbcefc70414a7641566f8b34471d570720d60ed3a23be9db3bf47035035"
+    },
+    {
+      "id": "callable:onlineStoreSetSlug",
+      "sourceHash": "6cdf84c2f6d768efba725db82407959cdd0dc5dd2f2f8d8c2d1c8bc7b6be3722"
+    },
+    {
+      "id": "callable:onlineStoreStats",
+      "sourceHash": "a6411d4169c0f7236ab2047ef49fa887df97f0c94a4a95f0922ef6e4012321c4"
+    },
+    {
+      "id": "callable:onlineStoreUnpublish",
+      "sourceHash": "4ab01b28ea81af88065c8c9110c01ad6781c249191e9e77e3197ef65442b4bd8"
+    },
+    {
       "id": "callable:partnerListMyClients",
       "sourceHash": "1396d0b3a17352b0d0b01d23feadbe630830ccd5da6ac27d143f57f6d017e7dd"
     },
@@ -203,6 +255,34 @@
     {
       "id": "callable:previewPos",
       "sourceHash": "3169c51ed9967fac8080204301081a1a4e8fa394dac2728e67034b7d356440d7"
+    },
+    {
+      "id": "callable:publicPlaceOrder",
+      "sourceHash": "a74e9c0eb4dc66e02cefcdb2c73a4061b28737c2f7f149dce83cdbabd5b285b9"
+    },
+    {
+      "id": "callable:publicProductReviews",
+      "sourceHash": "403482627de90045f19430259301d0d5dea0a864ee044448cc73766f7b775100"
+    },
+    {
+      "id": "callable:publicStoreByDomain",
+      "sourceHash": "f26fd29e9cd5300bc4e5f3e7717070deaf94e4027d888413029a471d0db53b47"
+    },
+    {
+      "id": "callable:publicStoreCatalog",
+      "sourceHash": "e0e3f6a7d301795d290972f19bc7ad6531d90132434eb66e9d0756b2bbf315e0"
+    },
+    {
+      "id": "callable:publicSubmitReview",
+      "sourceHash": "f5b92d43fe54899a47c811e0a0ba39e37fbddfd317065e7225e65e4ea6ff9dd2"
+    },
+    {
+      "id": "callable:publicTrackEvent",
+      "sourceHash": "2d5afa360502ccddfa76138621ee47f80012acae9662db6094319d97e121eeb2"
+    },
+    {
+      "id": "callable:publicTrackOrder",
+      "sourceHash": "d8a5611b4283e1bcb76973bba3150e4af49478941d47c9a68dac0a01b246a401"
     },
     {
       "id": "callable:publishFeature",
@@ -331,6 +411,14 @@
     {
       "id": "label:nav.menu",
       "sourceHash": "65aae6ce9375bb24cf5c5239e6e2b0e98b4becf12beb98508c1ce057259e1ab0"
+    },
+    {
+      "id": "label:nav.onlineOrders",
+      "sourceHash": "b910aed5a4f4461f261b94b81fc25f7c41dabaa5cb9aa3733018f59c411cf394"
+    },
+    {
+      "id": "label:nav.onlineStore",
+      "sourceHash": "5455db16b6750039d758eb54d5608a43a411d23cb40d0e738d885f2631ced678"
     },
     {
       "id": "label:nav.pos",
@@ -643,6 +731,14 @@
     {
       "id": "route:/login",
       "sourceHash": "23ffa62e08ffad5ac0f4af2cf44ab5f210ffe80f878761d890f7f765b49d443b"
+    },
+    {
+      "id": "route:/online-orders",
+      "sourceHash": "d73fdd2527c28b950f22e2c40e0998e2956c090109de7e1467d4206adf9a4fe0"
+    },
+    {
+      "id": "route:/online-store",
+      "sourceHash": "fedcadd0e8b0f840268a195f12c36c131c0b254aa7d55ff27c87fd9dbfb820a4"
     },
     {
       "id": "route:/pos",

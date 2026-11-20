@@ -31,19 +31,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminAssignClient",
-        "startLine": 37,
-        "endLine": 37,
+        "startLine": 62,
+        "endLine": 62,
         "sha256": "5876e2dd05eea6df90a1e1d98c78e63bae976b3cd611f175fd10905c4d87b7e4",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 37,
-            "endLine": 37
+            "startLine": 62,
+            "endLine": 62
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 389,
-            "endLine": 389
+            "startLine": 428,
+            "endLine": 428
           }
         ]
       },
@@ -106,8 +106,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 295,
-            "endLine": 295
+            "startLine": 334,
+            "endLine": 334
           }
         ]
       },
@@ -170,8 +170,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 249,
-            "endLine": 249
+            "startLine": 251,
+            "endLine": 251
           }
         ]
       },
@@ -225,19 +225,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListClientAssignmentAudit",
-        "startLine": 38,
-        "endLine": 38,
+        "startLine": 63,
+        "endLine": 63,
         "sha256": "0399920620772d78c40592dc4640d3bd0ac6bb75b145c2374e103258f5e8c0b0",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 38,
-            "endLine": 38
+            "startLine": 63,
+            "endLine": 63
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 393,
-            "endLine": 393
+            "startLine": 432,
+            "endLine": 432
           }
         ]
       },
@@ -290,19 +290,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListClientAssignments",
-        "startLine": 36,
-        "endLine": 36,
+        "startLine": 61,
+        "endLine": 61,
         "sha256": "f99c2903ee6d05f41f9daa86888713c4b20fab05597503b53938b9e6ef5ade11",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 36,
-            "endLine": 36
+            "startLine": 61,
+            "endLine": 61
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 385,
-            "endLine": 385
+            "startLine": 424,
+            "endLine": 424
           }
         ]
       },
@@ -354,19 +354,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListLeads",
-        "startLine": 14,
-        "endLine": 14,
+        "startLine": 39,
+        "endLine": 39,
         "sha256": "b006990aa5e682b8e33388a541e27165a4613140dbdb5e5d622747fe547fc0e6",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 14,
-            "endLine": 14
+            "startLine": 39,
+            "endLine": 39
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 275,
-            "endLine": 275
+            "startLine": 314,
+            "endLine": 314
           }
         ]
       },
@@ -418,19 +418,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListPartners",
-        "startLine": 35,
-        "endLine": 35,
+        "startLine": 60,
+        "endLine": 60,
         "sha256": "6ce1065101cb7cbac46d2aa7639a26d80bc3f8bc6c3db180443bbc2704a2176c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 35,
-            "endLine": 35
+            "startLine": 60,
+            "endLine": 60
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 381,
-            "endLine": 381
+            "startLine": 420,
+            "endLine": 420
           }
         ]
       },
@@ -494,8 +494,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 305,
-            "endLine": 305
+            "startLine": 344,
+            "endLine": 344
           }
         ]
       },
@@ -547,19 +547,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListTrials",
-        "startLine": 16,
-        "endLine": 16,
+        "startLine": 41,
+        "endLine": 41,
         "sha256": "e86aff8cea78caa9aebbe05a8f463d87fd8d59b9daa85f2ef0fe75121fee6a17",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 16,
-            "endLine": 16
+            "startLine": 41,
+            "endLine": 41
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 293,
-            "endLine": 293
+            "startLine": 332,
+            "endLine": 332
           }
         ]
       },
@@ -623,8 +623,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 250,
-            "endLine": 250
+            "startLine": 252,
+            "endLine": 252
           }
         ]
       },
@@ -688,8 +688,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 296,
-            "endLine": 296
+            "startLine": 335,
+            "endLine": 335
           }
         ]
       },
@@ -742,19 +742,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminSetLeadStatus",
-        "startLine": 15,
-        "endLine": 15,
+        "startLine": 40,
+        "endLine": 40,
         "sha256": "7f267185b1f80e86e14d3fe21b15ff7097eee5ae5e5ff9b0e83c57eb470f94df",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 15,
-            "endLine": 15
+            "startLine": 40,
+            "endLine": 40
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 276,
-            "endLine": 276
+            "startLine": 315,
+            "endLine": 315
           }
         ]
       },
@@ -817,8 +817,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 294,
-            "endLine": 294
+            "startLine": 333,
+            "endLine": 333
           }
         ]
       },
@@ -881,8 +881,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 252,
-            "endLine": 252
+            "startLine": 254,
+            "endLine": 254
           }
         ]
       },
@@ -945,8 +945,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 253,
-            "endLine": 253
+            "startLine": 255,
+            "endLine": 255
           }
         ]
       },
@@ -998,19 +998,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "assignReleaseTenants",
-        "startLine": 22,
-        "endLine": 22,
+        "startLine": 47,
+        "endLine": 47,
         "sha256": "36650032fb5ab11785508effdc6220207a289bfc111e171e84b7e8c8813e954c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 22,
-            "endLine": 22
+            "startLine": 47,
+            "endLine": 47
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 311,
-            "endLine": 311
+            "startLine": 350,
+            "endLine": 350
           }
         ]
       },
@@ -1073,8 +1073,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 248,
-            "endLine": 248
+            "startLine": 250,
+            "endLine": 250
           }
         ]
       },
@@ -1126,19 +1126,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "checkReleaseTreeRetention",
-        "startLine": 29,
-        "endLine": 29,
+        "startLine": 54,
+        "endLine": 54,
         "sha256": "c9c6a895f95b24514e522bf60a17d4ae3211a6a9dcd67657de16dd6afc88ad79",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 29,
-            "endLine": 29
+            "startLine": 54,
+            "endLine": 54
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 359,
-            "endLine": 359
+            "startLine": 398,
+            "endLine": 398
           }
         ]
       },
@@ -1200,8 +1200,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 235,
-            "endLine": 235
+            "startLine": 237,
+            "endLine": 237
           }
         ]
       },
@@ -1252,19 +1252,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "clearTenantData",
-        "startLine": 31,
-        "endLine": 31,
+        "startLine": 56,
+        "endLine": 56,
         "sha256": "93bc935efb66f9d7666c132f390c79137c4fe00bbda4773c0495f9c68a821899",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 31,
-            "endLine": 31
+            "startLine": 56,
+            "endLine": 56
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 246,
-            "endLine": 246
+            "startLine": 248,
+            "endLine": 248
           }
         ]
       },
@@ -1326,8 +1326,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 236,
-            "endLine": 236
+            "startLine": 238,
+            "endLine": 238
           }
         ]
       },
@@ -1378,19 +1378,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "createRelease",
-        "startLine": 20,
-        "endLine": 20,
+        "startLine": 45,
+        "endLine": 45,
         "sha256": "bd068dce3daf0d8bbf747a903ff43596d7e8468c31ffc4299d60c60e64822eee",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 20,
-            "endLine": 20
+            "startLine": 45,
+            "endLine": 45
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 309,
-            "endLine": 309
+            "startLine": 348,
+            "endLine": 348
           }
         ]
       },
@@ -1453,8 +1453,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 245,
-            "endLine": 245
+            "startLine": 247,
+            "endLine": 247
           }
         ]
       },
@@ -1507,19 +1507,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "getMyReleaseAssignment",
-        "startLine": 27,
-        "endLine": 27,
+        "startLine": 52,
+        "endLine": 52,
         "sha256": "e355aef66471030c292e95b1f3fa68c085e4a10f5953299948ea3ba273053ff5",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 27,
-            "endLine": 27
+            "startLine": 52,
+            "endLine": 52
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 329,
-            "endLine": 329
+            "startLine": 368,
+            "endLine": 368
           }
         ]
       },
@@ -1571,19 +1571,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "grantFeaturePurchase",
-        "startLine": 48,
-        "endLine": 48,
+        "startLine": 73,
+        "endLine": 73,
         "sha256": "43c4be4e101022c4380edb811ef8b71fa99e5be994858961438aab5f3259f30c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 48,
-            "endLine": 48
+            "startLine": 73,
+            "endLine": 73
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 368,
-            "endLine": 368
+            "startLine": 407,
+            "endLine": 407
           }
         ]
       },
@@ -1635,19 +1635,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "grantMarketingPartner",
-        "startLine": 33,
-        "endLine": 33,
+        "startLine": 58,
+        "endLine": 58,
         "sha256": "f75c0e28756a1174cfc682bcffc8c767e5fd716f3cbb3b49fd6188763f955dc5",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 33,
-            "endLine": 33
+            "startLine": 58,
+            "endLine": 58
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 379,
-            "endLine": 379
+            "startLine": 418,
+            "endLine": 418
           }
         ]
       },
@@ -1710,8 +1710,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 254,
-            "endLine": 254
+            "startLine": 293,
+            "endLine": 293
           }
         ]
       },
@@ -1763,19 +1763,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "listFeatureCatalog",
-        "startLine": 43,
-        "endLine": 43,
+        "startLine": 68,
+        "endLine": 68,
         "sha256": "f7536c45bfcc6fab7c30386f43db748ba72c05b09514ff35495e4bd71a5993c2",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 43,
-            "endLine": 43
+            "startLine": 68,
+            "endLine": 68
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 360,
-            "endLine": 360
+            "startLine": 399,
+            "endLine": 399
           }
         ]
       },
@@ -1828,19 +1828,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "listMyFeatureUpdates",
-        "startLine": 51,
-        "endLine": 51,
+        "startLine": 76,
+        "endLine": 76,
         "sha256": "569759d38b83eadfa51b7ca0b42aea2e9e17b5256596b2e79ba26b26913bf21a",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 51,
-            "endLine": 51
+            "startLine": 76,
+            "endLine": 76
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 371,
-            "endLine": 371
+            "startLine": 410,
+            "endLine": 410
           }
         ]
       },
@@ -1891,19 +1891,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "listReleases",
-        "startLine": 28,
-        "endLine": 28,
+        "startLine": 53,
+        "endLine": 53,
         "sha256": "f4a6056a6536099cfb71ee8744914d0875e11f0d5d6fe82af0aa3153018dad6f",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 28,
-            "endLine": 28
+            "startLine": 53,
+            "endLine": 53
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 358,
-            "endLine": 358
+            "startLine": 397,
+            "endLine": 397
           }
         ]
       },
@@ -1955,19 +1955,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "markFeatureReady",
-        "startLine": 44,
-        "endLine": 44,
+        "startLine": 69,
+        "endLine": 69,
         "sha256": "04a6b9feb2b29f9324dc7be3d89e5ac87402ca26dd7832118a3280105428ba23",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 44,
-            "endLine": 44
+            "startLine": 69,
+            "endLine": 69
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 361,
-            "endLine": 361
+            "startLine": 400,
+            "endLine": 400
           }
         ]
       },
@@ -1988,6 +1988,847 @@
         ],
         "source": [
           "markFeatureReady"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineOrdersList",
+      "kind": "callable",
+      "title": {
+        "en": "onlineOrdersList",
+        "ar": "onlineOrdersList"
+      },
+      "body": {
+        "en": "onlineOrdersList is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineOrdersList دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlineorderslist",
+        "online",
+        "orders",
+        "list",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineOrdersList",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineOrdersList",
+        "startLine": 26,
+        "endLine": 26,
+        "sha256": "bf9b30367905c990f406a878972ebc85df8f8c56c987d1df9fdc5ca2f6f730c1",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 26,
+            "endLine": 26
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 286,
+            "endLine": 286
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineOrdersList",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineOrdersList",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineOrdersList"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineOrdersSetStatus",
+      "kind": "callable",
+      "title": {
+        "en": "onlineOrdersSetStatus",
+        "ar": "onlineOrdersSetStatus"
+      },
+      "body": {
+        "en": "onlineOrdersSetStatus is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineOrdersSetStatus دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlineorderssetstatus",
+        "online",
+        "orders",
+        "set",
+        "status",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineOrdersSetStatus",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineOrdersSetStatus",
+        "startLine": 27,
+        "endLine": 27,
+        "sha256": "a697cc037b538d8cee55175682a31c579671d67bf23a5bc2f6c0d05d5a8026af",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 27,
+            "endLine": 27
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 287,
+            "endLine": 287
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineOrdersSetStatus",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineOrdersSetStatus",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineOrdersSetStatus"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineReviewsList",
+      "kind": "callable",
+      "title": {
+        "en": "onlineReviewsList",
+        "ar": "onlineReviewsList"
+      },
+      "body": {
+        "en": "onlineReviewsList is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineReviewsList دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinereviewslist",
+        "online",
+        "reviews",
+        "list",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineReviewsList",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineReviewsList",
+        "startLine": 31,
+        "endLine": 31,
+        "sha256": "c40058ed8bb38b77562c13b537dea3485f5a164988a778f80c277de940a9774a",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 31,
+            "endLine": 31
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 291,
+            "endLine": 291
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineReviewsList",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineReviewsList",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineReviewsList"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineReviewsSetStatus",
+      "kind": "callable",
+      "title": {
+        "en": "onlineReviewsSetStatus",
+        "ar": "onlineReviewsSetStatus"
+      },
+      "body": {
+        "en": "onlineReviewsSetStatus is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineReviewsSetStatus دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinereviewssetstatus",
+        "online",
+        "reviews",
+        "set",
+        "status",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineReviewsSetStatus",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineReviewsSetStatus",
+        "startLine": 32,
+        "endLine": 32,
+        "sha256": "0867057877f7a878a2d9f4583068260b3e1d1f3d89c0bf9978d9e036ba8f1237",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 32,
+            "endLine": 32
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 292,
+            "endLine": 292
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineReviewsSetStatus",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineReviewsSetStatus",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineReviewsSetStatus"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreGetConfig",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreGetConfig",
+        "ar": "onlineStoreGetConfig"
+      },
+      "body": {
+        "en": "onlineStoreGetConfig is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreGetConfig دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestoregetconfig",
+        "online",
+        "store",
+        "get",
+        "config",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreGetConfig",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreGetConfig",
+        "startLine": 10,
+        "endLine": 10,
+        "sha256": "7825b1651bfcadba5381ddd41c7e05401ae5c72670edadeef1fe28f299f5918b",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 10,
+            "endLine": 10
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 257,
+            "endLine": 257
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreGetConfig",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreGetConfig",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreGetConfig"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStorePublish",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStorePublish",
+        "ar": "onlineStorePublish"
+      },
+      "body": {
+        "en": "onlineStorePublish is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStorePublish دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestorepublish",
+        "online",
+        "store",
+        "publish",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStorePublish",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStorePublish",
+        "startLine": 13,
+        "endLine": 13,
+        "sha256": "4a849859d56109270a6e90c3aa61da13ffda21fcdd199f366bde40e56921d196",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 13,
+            "endLine": 13
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 260,
+            "endLine": 260
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStorePublish",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStorePublish",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStorePublish"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreSaveDraft",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreSaveDraft",
+        "ar": "onlineStoreSaveDraft"
+      },
+      "body": {
+        "en": "onlineStoreSaveDraft is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreSaveDraft دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestoresavedraft",
+        "online",
+        "store",
+        "save",
+        "draft",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreSaveDraft",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreSaveDraft",
+        "startLine": 11,
+        "endLine": 11,
+        "sha256": "f70bef74afa80a5ce1cbc59cfaee3d5ed1561dc4bf30c4781c802f5a46fe0843",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 11,
+            "endLine": 11
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 258,
+            "endLine": 258
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreSaveDraft",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreSaveDraft",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreSaveDraft"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreSaveListing",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreSaveListing",
+        "ar": "onlineStoreSaveListing"
+      },
+      "body": {
+        "en": "onlineStoreSaveListing is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreSaveListing دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestoresavelisting",
+        "online",
+        "store",
+        "save",
+        "listing",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreSaveListing",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreSaveListing",
+        "startLine": 16,
+        "endLine": 16,
+        "sha256": "8c38a9ed69109c19aeeaf7a193fef82c3186da16b7224a6c11ef42f43ecd4417",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 16,
+            "endLine": 16
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 266,
+            "endLine": 266
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreSaveListing",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreSaveListing",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreSaveListing"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreSetDomain",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreSetDomain",
+        "ar": "onlineStoreSetDomain"
+      },
+      "body": {
+        "en": "onlineStoreSetDomain is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreSetDomain دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestoresetdomain",
+        "online",
+        "store",
+        "set",
+        "domain",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreSetDomain",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreSetDomain",
+        "startLine": 18,
+        "endLine": 18,
+        "sha256": "7dadf0ceb6a52930a2e3d3a0399a06eacb4e5b724859a7ab01be10901d0cecf5",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 18,
+            "endLine": 18
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 267,
+            "endLine": 267
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreSetDomain",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreSetDomain",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreSetDomain"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreSetProductVisibility",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreSetProductVisibility",
+        "ar": "onlineStoreSetProductVisibility"
+      },
+      "body": {
+        "en": "onlineStoreSetProductVisibility is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreSetProductVisibility دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestoresetproductvisibility",
+        "online",
+        "store",
+        "set",
+        "product",
+        "visibility",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreSetProductVisibility",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreSetProductVisibility",
+        "startLine": 15,
+        "endLine": 15,
+        "sha256": "78471cbcefc70414a7641566f8b34471d570720d60ed3a23be9db3bf47035035",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 15,
+            "endLine": 15
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 262,
+            "endLine": 262
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreSetProductVisibility",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreSetProductVisibility",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreSetProductVisibility"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreSetSlug",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreSetSlug",
+        "ar": "onlineStoreSetSlug"
+      },
+      "body": {
+        "en": "onlineStoreSetSlug is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreSetSlug دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestoresetslug",
+        "online",
+        "store",
+        "set",
+        "slug",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreSetSlug",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreSetSlug",
+        "startLine": 12,
+        "endLine": 12,
+        "sha256": "6cdf84c2f6d768efba725db82407959cdd0dc5dd2f2f8d8c2d1c8bc7b6be3722",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 12,
+            "endLine": 12
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 259,
+            "endLine": 259
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreSetSlug",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreSetSlug",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreSetSlug"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreStats",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreStats",
+        "ar": "onlineStoreStats"
+      },
+      "body": {
+        "en": "onlineStoreStats is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreStats دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestorestats",
+        "online",
+        "store",
+        "stats",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreStats",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreStats",
+        "startLine": 17,
+        "endLine": 17,
+        "sha256": "a6411d4169c0f7236ab2047ef49fa887df97f0c94a4a95f0922ef6e4012321c4",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 17,
+            "endLine": 17
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 269,
+            "endLine": 269
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreStats",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreStats",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreStats"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreUnpublish",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreUnpublish",
+        "ar": "onlineStoreUnpublish"
+      },
+      "body": {
+        "en": "onlineStoreUnpublish is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreUnpublish دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestoreunpublish",
+        "online",
+        "store",
+        "unpublish",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreUnpublish",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreUnpublish",
+        "startLine": 14,
+        "endLine": 14,
+        "sha256": "4ab01b28ea81af88065c8c9110c01ad6781c249191e9e77e3197ef65442b4bd8",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 14,
+            "endLine": 14
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 261,
+            "endLine": 261
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreUnpublish",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreUnpublish",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreUnpublish"
         ]
       }
     },
@@ -2020,19 +2861,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "partnerListMyClients",
-        "startLine": 40,
-        "endLine": 40,
+        "startLine": 65,
+        "endLine": 65,
         "sha256": "1396d0b3a17352b0d0b01d23feadbe630830ccd5da6ac27d143f57f6d017e7dd",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 40,
-            "endLine": 40
+            "startLine": 65,
+            "endLine": 65
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 394,
-            "endLine": 394
+            "startLine": 433,
+            "endLine": 433
           }
         ]
       },
@@ -2083,19 +2924,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "pauseFeature",
-        "startLine": 46,
-        "endLine": 46,
+        "startLine": 71,
+        "endLine": 71,
         "sha256": "c390907ddf78c7f793e916f82f4aef8929fa2dba136a7d8c2f98a59033cef175",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 46,
-            "endLine": 46
+            "startLine": 71,
+            "endLine": 71
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 366,
-            "endLine": 366
+            "startLine": 405,
+            "endLine": 405
           }
         ]
       },
@@ -2146,19 +2987,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "pauseRelease",
-        "startLine": 24,
-        "endLine": 24,
+        "startLine": 49,
+        "endLine": 49,
         "sha256": "0b4a020a10dfe22eef46de3cdba5e6ed06ec4384a5afb483a71a9ea32933f051",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 24,
-            "endLine": 24
+            "startLine": 49,
+            "endLine": 49
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 313,
-            "endLine": 313
+            "startLine": 352,
+            "endLine": 352
           }
         ]
       },
@@ -2221,13 +3062,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 56,
-            "endLine": 56
+            "startLine": 81,
+            "endLine": 81
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 189,
-            "endLine": 189
+            "startLine": 191,
+            "endLine": 191
           }
         ]
       },
@@ -2291,13 +3132,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 57,
-            "endLine": 57
+            "startLine": 82,
+            "endLine": 82
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 201,
-            "endLine": 201
+            "startLine": 203,
+            "endLine": 203
           }
         ]
       },
@@ -2369,13 +3210,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 55,
-            "endLine": 55
+            "startLine": 80,
+            "endLine": 80
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 176,
-            "endLine": 176
+            "startLine": 178,
+            "endLine": 178
           }
         ]
       },
@@ -2444,13 +3285,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 57,
-            "endLine": 57
+            "startLine": 82,
+            "endLine": 82
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 200,
-            "endLine": 200
+            "startLine": 202,
+            "endLine": 202
           }
         ]
       },
@@ -2519,13 +3360,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 54,
-            "endLine": 54
+            "startLine": 79,
+            "endLine": 79
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 149,
-            "endLine": 149
+            "startLine": 151,
+            "endLine": 151
           }
         ]
       },
@@ -2594,13 +3435,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 56,
-            "endLine": 56
+            "startLine": 81,
+            "endLine": 81
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 184,
-            "endLine": 184
+            "startLine": 186,
+            "endLine": 186
           }
         ]
       },
@@ -2668,13 +3509,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 55,
-            "endLine": 55
+            "startLine": 80,
+            "endLine": 80
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 159,
-            "endLine": 159
+            "startLine": 161,
+            "endLine": 161
           }
         ]
       },
@@ -2746,13 +3587,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 58,
-            "endLine": 58
+            "startLine": 83,
+            "endLine": 83
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 215,
-            "endLine": 215
+            "startLine": 217,
+            "endLine": 217
           }
         ]
       },
@@ -2820,13 +3661,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 55,
-            "endLine": 55
+            "startLine": 80,
+            "endLine": 80
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 162,
-            "endLine": 162
+            "startLine": 164,
+            "endLine": 164
           }
         ]
       },
@@ -2892,13 +3733,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 55,
-            "endLine": 55
+            "startLine": 80,
+            "endLine": 80
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 160,
-            "endLine": 160
+            "startLine": 162,
+            "endLine": 162
           }
         ]
       },
@@ -2966,13 +3807,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 56,
-            "endLine": 56
+            "startLine": 81,
+            "endLine": 81
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 188,
-            "endLine": 188
+            "startLine": 190,
+            "endLine": 190
           }
         ]
       },
@@ -3044,13 +3885,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 58,
-            "endLine": 58
+            "startLine": 83,
+            "endLine": 83
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 227,
-            "endLine": 227
+            "startLine": 229,
+            "endLine": 229
           }
         ]
       },
@@ -3124,13 +3965,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 54,
-            "endLine": 54
+            "startLine": 79,
+            "endLine": 79
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 155,
-            "endLine": 155
+            "startLine": 157,
+            "endLine": 157
           }
         ]
       },
@@ -3201,13 +4042,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 58,
-            "endLine": 58
+            "startLine": 83,
+            "endLine": 83
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 231,
-            "endLine": 231
+            "startLine": 233,
+            "endLine": 233
           }
         ]
       },
@@ -3276,13 +4117,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 55,
-            "endLine": 55
+            "startLine": 80,
+            "endLine": 80
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 161,
-            "endLine": 161
+            "startLine": 163,
+            "endLine": 163
           }
         ]
       },
@@ -3345,8 +4186,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 24,
-            "endLine": 24
+            "startLine": 26,
+            "endLine": 26
           }
         ]
       },
@@ -3367,6 +4208,455 @@
         ],
         "source": [
           "previewPos"
+        ]
+      }
+    },
+    {
+      "id": "callable:publicPlaceOrder",
+      "kind": "callable",
+      "title": {
+        "en": "publicPlaceOrder",
+        "ar": "publicPlaceOrder"
+      },
+      "body": {
+        "en": "publicPlaceOrder is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "publicPlaceOrder دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "publicplaceorder",
+        "public",
+        "place",
+        "order",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "publicPlaceOrder",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "publicPlaceOrder",
+        "startLine": 25,
+        "endLine": 25,
+        "sha256": "a74e9c0eb4dc66e02cefcdb2c73a4061b28737c2f7f149dce83cdbabd5b285b9",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 25,
+            "endLine": 25
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 285,
+            "endLine": 285
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "publicPlaceOrder",
+          "cannot call this function"
+        ],
+        "ar": [
+          "publicPlaceOrder",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "publicPlaceOrder"
+        ]
+      }
+    },
+    {
+      "id": "callable:publicProductReviews",
+      "kind": "callable",
+      "title": {
+        "en": "publicProductReviews",
+        "ar": "publicProductReviews"
+      },
+      "body": {
+        "en": "publicProductReviews is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "publicProductReviews دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "publicproductreviews",
+        "public",
+        "product",
+        "reviews",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "publicProductReviews",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "publicProductReviews",
+        "startLine": 30,
+        "endLine": 30,
+        "sha256": "403482627de90045f19430259301d0d5dea0a864ee044448cc73766f7b775100",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 30,
+            "endLine": 30
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 290,
+            "endLine": 290
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "publicProductReviews",
+          "cannot call this function"
+        ],
+        "ar": [
+          "publicProductReviews",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "publicProductReviews"
+        ]
+      }
+    },
+    {
+      "id": "callable:publicStoreByDomain",
+      "kind": "callable",
+      "title": {
+        "en": "publicStoreByDomain",
+        "ar": "publicStoreByDomain"
+      },
+      "body": {
+        "en": "publicStoreByDomain is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "publicStoreByDomain دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "publicstorebydomain",
+        "public",
+        "store",
+        "by",
+        "domain",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "publicStoreByDomain",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "publicStoreByDomain",
+        "startLine": 19,
+        "endLine": 19,
+        "sha256": "f26fd29e9cd5300bc4e5f3e7717070deaf94e4027d888413029a471d0db53b47",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 19,
+            "endLine": 19
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 268,
+            "endLine": 268
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "publicStoreByDomain",
+          "cannot call this function"
+        ],
+        "ar": [
+          "publicStoreByDomain",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "publicStoreByDomain"
+        ]
+      }
+    },
+    {
+      "id": "callable:publicStoreCatalog",
+      "kind": "callable",
+      "title": {
+        "en": "publicStoreCatalog",
+        "ar": "publicStoreCatalog"
+      },
+      "body": {
+        "en": "publicStoreCatalog is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "publicStoreCatalog دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "publicstorecatalog",
+        "public",
+        "store",
+        "catalog",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "publicStoreCatalog",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "publicStoreCatalog",
+        "startLine": 20,
+        "endLine": 20,
+        "sha256": "e0e3f6a7d301795d290972f19bc7ad6531d90132434eb66e9d0756b2bbf315e0",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 20,
+            "endLine": 20
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 271,
+            "endLine": 271
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "publicStoreCatalog",
+          "cannot call this function"
+        ],
+        "ar": [
+          "publicStoreCatalog",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "publicStoreCatalog"
+        ]
+      }
+    },
+    {
+      "id": "callable:publicSubmitReview",
+      "kind": "callable",
+      "title": {
+        "en": "publicSubmitReview",
+        "ar": "publicSubmitReview"
+      },
+      "body": {
+        "en": "publicSubmitReview is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "publicSubmitReview دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "publicsubmitreview",
+        "public",
+        "submit",
+        "review",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "publicSubmitReview",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "publicSubmitReview",
+        "startLine": 29,
+        "endLine": 29,
+        "sha256": "f5b92d43fe54899a47c811e0a0ba39e37fbddfd317065e7225e65e4ea6ff9dd2",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 29,
+            "endLine": 29
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 289,
+            "endLine": 289
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "publicSubmitReview",
+          "cannot call this function"
+        ],
+        "ar": [
+          "publicSubmitReview",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "publicSubmitReview"
+        ]
+      }
+    },
+    {
+      "id": "callable:publicTrackEvent",
+      "kind": "callable",
+      "title": {
+        "en": "publicTrackEvent",
+        "ar": "publicTrackEvent"
+      },
+      "body": {
+        "en": "publicTrackEvent is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "publicTrackEvent دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "publictrackevent",
+        "public",
+        "track",
+        "event",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "publicTrackEvent",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "publicTrackEvent",
+        "startLine": 21,
+        "endLine": 21,
+        "sha256": "2d5afa360502ccddfa76138621ee47f80012acae9662db6094319d97e121eeb2",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 21,
+            "endLine": 21
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 270,
+            "endLine": 270
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "publicTrackEvent",
+          "cannot call this function"
+        ],
+        "ar": [
+          "publicTrackEvent",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "publicTrackEvent"
+        ]
+      }
+    },
+    {
+      "id": "callable:publicTrackOrder",
+      "kind": "callable",
+      "title": {
+        "en": "publicTrackOrder",
+        "ar": "publicTrackOrder"
+      },
+      "body": {
+        "en": "publicTrackOrder is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "publicTrackOrder دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "publictrackorder",
+        "public",
+        "track",
+        "order",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "publicTrackOrder",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "publicTrackOrder",
+        "startLine": 28,
+        "endLine": 28,
+        "sha256": "d8a5611b4283e1bcb76973bba3150e4af49478941d47c9a68dac0a01b246a401",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 28,
+            "endLine": 28
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 288,
+            "endLine": 288
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "publicTrackOrder",
+          "cannot call this function"
+        ],
+        "ar": [
+          "publicTrackOrder",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "publicTrackOrder"
         ]
       }
     },
@@ -3397,19 +4687,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "publishFeature",
-        "startLine": 45,
-        "endLine": 45,
+        "startLine": 70,
+        "endLine": 70,
         "sha256": "5361e6dd2c664956fddd243bdd103ba52c6afb165513ab23f29640bfa0be63a3",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 45,
-            "endLine": 45
+            "startLine": 70,
+            "endLine": 70
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 365,
-            "endLine": 365
+            "startLine": 404,
+            "endLine": 404
           }
         ]
       },
@@ -3461,19 +4751,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "recordFeaturePreview",
-        "startLine": 50,
-        "endLine": 50,
+        "startLine": 75,
+        "endLine": 75,
         "sha256": "650a53d618735a0e818e79c8e2a5eafee8aad39bf3739c6ab8862e909ff3cf9c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 50,
-            "endLine": 50
+            "startLine": 75,
+            "endLine": 75
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 370,
-            "endLine": 370
+            "startLine": 409,
+            "endLine": 409
           }
         ]
       },
@@ -3536,8 +4826,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 237,
-            "endLine": 237
+            "startLine": 239,
+            "endLine": 239
           }
         ]
       },
@@ -3589,19 +4879,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "releaseToEveryone",
-        "startLine": 23,
-        "endLine": 23,
+        "startLine": 48,
+        "endLine": 48,
         "sha256": "03bca8e0b6af04888da2d3d8317a65e30de2919341de00c6eac43fe0fb40d5a2",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 23,
-            "endLine": 23
+            "startLine": 48,
+            "endLine": 48
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 312,
-            "endLine": 312
+            "startLine": 351,
+            "endLine": 351
           }
         ]
       },
@@ -3653,19 +4943,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "revokeMarketingPartner",
-        "startLine": 34,
-        "endLine": 34,
+        "startLine": 59,
+        "endLine": 59,
         "sha256": "76de024ce6155e08d01794016d85b60e85a4dd493d88afa192122bb6bb9e0d79",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 34,
-            "endLine": 34
+            "startLine": 59,
+            "endLine": 59
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 380,
-            "endLine": 380
+            "startLine": 419,
+            "endLine": 419
           }
         ]
       },
@@ -3716,19 +5006,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "rollbackFeature",
-        "startLine": 47,
-        "endLine": 47,
+        "startLine": 72,
+        "endLine": 72,
         "sha256": "9352af591bdb3d61a1bedf42e8164107d54bdeaeea8d387f3d35100e127194bb",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 47,
-            "endLine": 47
+            "startLine": 72,
+            "endLine": 72
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 367,
-            "endLine": 367
+            "startLine": 406,
+            "endLine": 406
           }
         ]
       },
@@ -3779,19 +5069,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "rollbackRelease",
-        "startLine": 25,
-        "endLine": 25,
+        "startLine": 50,
+        "endLine": 50,
         "sha256": "c244f228d0ec2181f9626571c8953cdb6625e78f4188c82d5ed00b6abc0b76eb",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 25,
-            "endLine": 25
+            "startLine": 50,
+            "endLine": 50
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 314,
-            "endLine": 314
+            "startLine": 353,
+            "endLine": 353
           }
         ]
       },
@@ -3844,19 +5134,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "setFeatureKillSwitch",
-        "startLine": 49,
-        "endLine": 49,
+        "startLine": 74,
+        "endLine": 74,
         "sha256": "15eca3817fc4171ac86d1d0b5e76efc6d2e8fc6b8ee475199476801876e44811",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 49,
-            "endLine": 49
+            "startLine": 74,
+            "endLine": 74
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 369,
-            "endLine": 369
+            "startLine": 408,
+            "endLine": 408
           }
         ]
       },
@@ -3909,19 +5199,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "setMinSupportedVersion",
-        "startLine": 26,
-        "endLine": 26,
+        "startLine": 51,
+        "endLine": 51,
         "sha256": "a9f31dc8f7f6d964e7e716010b27f0be869e8c9e2ef5c1b187266138a4fd176c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 26,
-            "endLine": 26
+            "startLine": 51,
+            "endLine": 51
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 315,
-            "endLine": 315
+            "startLine": 354,
+            "endLine": 354
           }
         ]
       },
@@ -3973,19 +5263,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "setReleaseStatus",
-        "startLine": 21,
-        "endLine": 21,
+        "startLine": 46,
+        "endLine": 46,
         "sha256": "581f1c2e5cb4a1fd4567e3688f6903228db94e99807953b28ac9ad4765dc501d",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 21,
-            "endLine": 21
+            "startLine": 46,
+            "endLine": 46
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 310,
-            "endLine": 310
+            "startLine": 349,
+            "endLine": 349
           }
         ]
       },
@@ -4036,19 +5326,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "testTelegram",
-        "startLine": 59,
-        "endLine": 59,
+        "startLine": 84,
+        "endLine": 84,
         "sha256": "15612a27da8e6cc9af89077242472b37631289ee1cdae8d8d704e8776d83ade4",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 59,
-            "endLine": 59
+            "startLine": 84,
+            "endLine": 84
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 247,
-            "endLine": 247
+            "startLine": 249,
+            "endLine": 249
           }
         ]
       },
@@ -4111,8 +5401,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 244,
-            "endLine": 244
+            "startLine": 246,
+            "endLine": 246
           }
         ]
       },
@@ -5475,6 +6765,134 @@
       }
     },
     {
+      "id": "label:nav.onlineOrders",
+      "kind": "label",
+      "title": {
+        "en": "Online orders",
+        "ar": "طلبات الموقع"
+      },
+      "body": {
+        "en": "The English label for nav.onlineOrders is \"Online orders\". The Arabic label is \"طلبات الموقع\". It belongs to route /online-orders. Zelvero AI cannot press this control. This is from the local working tree, not a production deployment check.",
+        "ar": "النص الإنجليزي للمفتاح nav.onlineOrders هو \"Online orders\". النص العربي هو «طلبات الموقع». تتبع المسار /online-orders. Zelvero AI لا يستطيع الضغط على هذا العنصر. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "nav",
+        "onlineorders",
+        "online",
+        "orders",
+        "طلبات",
+        "الموقع"
+      ],
+      "route": "/online-orders",
+      "permission": null,
+      "audience": "owner",
+      "callable": null,
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "src/i18n/en.ts",
+        "symbol": "nav.onlineOrders",
+        "startLine": 1324,
+        "endLine": 1324,
+        "sha256": "b910aed5a4f4461f261b94b81fc25f7c41dabaa5cb9aa3733018f59c411cf394",
+        "anchors": [
+          {
+            "path": "src/i18n/en.ts",
+            "startLine": 1324,
+            "endLine": 1324
+          },
+          {
+            "path": "src/i18n/ar.ts",
+            "startLine": 1301,
+            "endLine": 1301
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "Online orders",
+          "nav.onlineOrders"
+        ],
+        "ar": [
+          "طلبات الموقع",
+          "nav.onlineOrders"
+        ],
+        "source": [
+          "'nav.onlineOrders':"
+        ]
+      }
+    },
+    {
+      "id": "label:nav.onlineStore",
+      "kind": "label",
+      "title": {
+        "en": "Online store",
+        "ar": "المتجر الإلكتروني"
+      },
+      "body": {
+        "en": "The English label for nav.onlineStore is \"Online store\". The Arabic label is \"المتجر الإلكتروني\". It belongs to route /online-store. Zelvero AI cannot press this control. This is from the local working tree, not a production deployment check.",
+        "ar": "النص الإنجليزي للمفتاح nav.onlineStore هو \"Online store\". النص العربي هو «المتجر الإلكتروني». تتبع المسار /online-store. Zelvero AI لا يستطيع الضغط على هذا العنصر. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "nav",
+        "onlinestore",
+        "online",
+        "store",
+        "المتجر",
+        "الإلكتروني"
+      ],
+      "route": "/online-store",
+      "permission": null,
+      "audience": "owner",
+      "callable": null,
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "src/i18n/en.ts",
+        "symbol": "nav.onlineStore",
+        "startLine": 1257,
+        "endLine": 1257,
+        "sha256": "5455db16b6750039d758eb54d5608a43a411d23cb40d0e738d885f2631ced678",
+        "anchors": [
+          {
+            "path": "src/i18n/en.ts",
+            "startLine": 1257,
+            "endLine": 1257
+          },
+          {
+            "path": "src/i18n/ar.ts",
+            "startLine": 1234,
+            "endLine": 1234
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "Online store",
+          "nav.onlineStore"
+        ],
+        "ar": [
+          "المتجر الإلكتروني",
+          "nav.onlineStore"
+        ],
+        "source": [
+          "'nav.onlineStore':"
+        ]
+      }
+    },
+    {
       "id": "label:nav.pos",
       "kind": "label",
       "title": {
@@ -6058,19 +7476,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "offline.posBanner",
-        "startLine": 1064,
-        "endLine": 1064,
+        "startLine": 1065,
+        "endLine": 1065,
         "sha256": "b5c95b7aefe4504316b36e622d2c9e359247f6073fe56aaab53f13f7c376bf1f",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 1064,
-            "endLine": 1064
+            "startLine": 1065,
+            "endLine": 1065
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 1041,
-            "endLine": 1041
+            "startLine": 1042,
+            "endLine": 1042
           }
         ]
       },
@@ -6145,19 +7563,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "offline.receiptNotInvoice",
-        "startLine": 1056,
-        "endLine": 1056,
+        "startLine": 1057,
+        "endLine": 1057,
         "sha256": "e087cbd0cb655512c7febefb63e096beef61810e6bb7c7735956d6c813e1e416",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 1056,
-            "endLine": 1056
+            "startLine": 1057,
+            "endLine": 1057
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 1033,
-            "endLine": 1033
+            "startLine": 1034,
+            "endLine": 1034
           }
         ]
       },
@@ -6246,19 +7664,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "offline.savedNotInvoice",
-        "startLine": 1061,
-        "endLine": 1061,
+        "startLine": 1062,
+        "endLine": 1062,
         "sha256": "b633af1161b49dabae2e03439d87be8199fedd65b12c509b1d4878d413888966",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 1061,
-            "endLine": 1061
+            "startLine": 1062,
+            "endLine": 1062
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 1038,
-            "endLine": 1038
+            "startLine": 1039,
+            "endLine": 1039
           }
         ]
       },
@@ -6311,19 +7729,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canAddProducts",
-        "startLine": 854,
-        "endLine": 854,
+        "startLine": 855,
+        "endLine": 855,
         "sha256": "522ed0e454e580ba5d72d9991193ef3bd6be4e319578bf3919081c955d245f2a",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 854,
-            "endLine": 854
+            "startLine": 855,
+            "endLine": 855
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 833,
-            "endLine": 833
+            "startLine": 834,
+            "endLine": 834
           }
         ]
       },
@@ -6376,19 +7794,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canDeleteProducts",
-        "startLine": 856,
-        "endLine": 856,
+        "startLine": 857,
+        "endLine": 857,
         "sha256": "12420e04e5199632485c2118fc8a01fdf67727b0553376147aaf7de3bd13b0c1",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 856,
-            "endLine": 856
+            "startLine": 857,
+            "endLine": 857
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 835,
-            "endLine": 835
+            "startLine": 836,
+            "endLine": 836
           }
         ]
       },
@@ -6447,19 +7865,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canEditPrice",
-        "startLine": 851,
-        "endLine": 851,
+        "startLine": 852,
+        "endLine": 852,
         "sha256": "f89c923ed54a4b6ad5b31300ca6146964eb59364256ee4a865b0b5f7729886d3",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 851,
-            "endLine": 851
+            "startLine": 852,
+            "endLine": 852
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 830,
-            "endLine": 830
+            "startLine": 831,
+            "endLine": 831
           }
         ]
       },
@@ -6514,19 +7932,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canEditProducts",
-        "startLine": 855,
-        "endLine": 855,
+        "startLine": 856,
+        "endLine": 856,
         "sha256": "eb48c4eb53a31024ddab786fa8eec9981465a9bb514a6546e472a3b4c92d0bbf",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 855,
-            "endLine": 855
+            "startLine": 856,
+            "endLine": 856
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 834,
-            "endLine": 834
+            "startLine": 835,
+            "endLine": 835
           }
         ]
       },
@@ -6579,19 +7997,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canEditSettings",
-        "startLine": 864,
-        "endLine": 864,
+        "startLine": 865,
+        "endLine": 865,
         "sha256": "6480ccf3b1e53eb8da7dd18a0b928f5bf52e7f88338bbe761f4a9d4c82ab28fa",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 864,
-            "endLine": 864
+            "startLine": 865,
+            "endLine": 865
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 843,
-            "endLine": 843
+            "startLine": 844,
+            "endLine": 844
           }
         ]
       },
@@ -6644,19 +8062,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canExportProducts",
-        "startLine": 858,
-        "endLine": 858,
+        "startLine": 859,
+        "endLine": 859,
         "sha256": "5e2431c302086e19b7654e82147683998aff4458de5b362981d8ffae6d670421",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 858,
-            "endLine": 858
+            "startLine": 859,
+            "endLine": 859
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 837,
-            "endLine": 837
+            "startLine": 838,
+            "endLine": 838
           }
         ]
       },
@@ -6709,19 +8127,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canImportProducts",
-        "startLine": 857,
-        "endLine": 857,
+        "startLine": 858,
+        "endLine": 858,
         "sha256": "d29dac97b2b949d6fd5f7a043d2554803a855388e7dc8427544b09d01224b695",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 857,
-            "endLine": 857
+            "startLine": 858,
+            "endLine": 858
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 836,
-            "endLine": 836
+            "startLine": 837,
+            "endLine": 837
           }
         ]
       },
@@ -6774,19 +8192,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canManageCashDrawer",
-        "startLine": 862,
-        "endLine": 862,
+        "startLine": 863,
+        "endLine": 863,
         "sha256": "ce1c42056df673e8348baa7286547930986d66b9aff43b1bdd66c50c93ecc3bd",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 862,
-            "endLine": 862
+            "startLine": 863,
+            "endLine": 863
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 841,
-            "endLine": 841
+            "startLine": 842,
+            "endLine": 842
           }
         ]
       },
@@ -6841,19 +8259,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canSell",
-        "startLine": 850,
-        "endLine": 850,
+        "startLine": 851,
+        "endLine": 851,
         "sha256": "09021190837eb99056b5a8e4c9cea064c70533dd435be75a440d7d0e17e1e97d",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 850,
-            "endLine": 850
+            "startLine": 851,
+            "endLine": 851
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 829,
-            "endLine": 829
+            "startLine": 830,
+            "endLine": 830
           }
         ]
       },
@@ -6908,19 +8326,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canUseZelveroAI",
-        "startLine": 867,
-        "endLine": 867,
+        "startLine": 868,
+        "endLine": 868,
         "sha256": "6f6029128d1c592f58a076b3fe6fdf66cc14d554ed3bf9f9ebc836a3eb5418e6",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 867,
-            "endLine": 867
+            "startLine": 868,
+            "endLine": 868
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 846,
-            "endLine": 846
+            "startLine": 847,
+            "endLine": 847
           }
         ]
       },
@@ -6975,19 +8393,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canViewCosts",
-        "startLine": 865,
-        "endLine": 865,
+        "startLine": 866,
+        "endLine": 866,
         "sha256": "58292db2e506be7c7d7571727d558e84d03902f973bacc4d87961ef8d8599678",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 865,
-            "endLine": 865
+            "startLine": 866,
+            "endLine": 866
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 844,
-            "endLine": 844
+            "startLine": 845,
+            "endLine": 845
           }
         ]
       },
@@ -7041,19 +8459,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canViewCustomers",
-        "startLine": 859,
-        "endLine": 859,
+        "startLine": 860,
+        "endLine": 860,
         "sha256": "413e94b29823ccd5dcf091a3c9dbba25c6c770fb7626dfe93af1441f235131bf",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 859,
-            "endLine": 859
+            "startLine": 860,
+            "endLine": 860
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 838,
-            "endLine": 838
+            "startLine": 839,
+            "endLine": 839
           }
         ]
       },
@@ -7106,19 +8524,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canViewProducts",
-        "startLine": 853,
-        "endLine": 853,
+        "startLine": 854,
+        "endLine": 854,
         "sha256": "5ee6a44ee94f4481742817b51119a99f05a5f4c8ef153f4d61f1ee921885e9ab",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 853,
-            "endLine": 853
+            "startLine": 854,
+            "endLine": 854
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 832,
-            "endLine": 832
+            "startLine": 833,
+            "endLine": 833
           }
         ]
       },
@@ -7175,19 +8593,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canViewReports",
-        "startLine": 860,
-        "endLine": 860,
+        "startLine": 861,
+        "endLine": 861,
         "sha256": "ef19f932dc1608ee760528fc64c0b75276f0ca339605e8348457ac7090cbe9cb",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 860,
-            "endLine": 860
+            "startLine": 861,
+            "endLine": 861
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 839,
-            "endLine": 839
+            "startLine": 840,
+            "endLine": 840
           }
         ]
       },
@@ -7242,19 +8660,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canViewSales",
-        "startLine": 852,
-        "endLine": 852,
+        "startLine": 853,
+        "endLine": 853,
         "sha256": "b258506a21ba54640709ed09d7f3e14b86a631b5975994877d5de28e8a02610c",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 852,
-            "endLine": 852
+            "startLine": 853,
+            "endLine": 853
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 831,
-            "endLine": 831
+            "startLine": 832,
+            "endLine": 832
           }
         ]
       },
@@ -7312,19 +8730,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canViewSensitiveData",
-        "startLine": 866,
-        "endLine": 866,
+        "startLine": 867,
+        "endLine": 867,
         "sha256": "144cd0535c6b545be7ca23aeac13c8f35d5003b2a7b2d5776be501c00a1d53cf",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 866,
-            "endLine": 866
+            "startLine": 867,
+            "endLine": 867
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 845,
-            "endLine": 845
+            "startLine": 846,
+            "endLine": 846
           }
         ]
       },
@@ -7377,19 +8795,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canViewSettings",
-        "startLine": 863,
-        "endLine": 863,
+        "startLine": 864,
+        "endLine": 864,
         "sha256": "e5cf258970c08bee26e8350c9be2f8ead19b8fe8daacd645c7b27a802c165523",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 863,
-            "endLine": 863
+            "startLine": 864,
+            "endLine": 864
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 842,
-            "endLine": 842
+            "startLine": 843,
+            "endLine": 843
           }
         ]
       },
@@ -7443,19 +8861,19 @@
       "source": {
         "path": "src/i18n/en.ts",
         "symbol": "perm.canViewSuppliers",
-        "startLine": 861,
-        "endLine": 861,
+        "startLine": 862,
+        "endLine": 862,
         "sha256": "34fcb1e964610019599474cb292ebd3e358e6d2c8d00f1a4d0cab24570c101bc",
         "anchors": [
           {
             "path": "src/i18n/en.ts",
-            "startLine": 861,
-            "endLine": 861
+            "startLine": 862,
+            "endLine": 862
           },
           {
             "path": "src/i18n/ar.ts",
-            "startLine": 840,
-            "endLine": 840
+            "startLine": 841,
+            "endLine": 841
           }
         ]
       },
@@ -10183,14 +11601,14 @@
       "source": {
         "path": "src/app/AppRoutes.tsx",
         "symbol": "/admin",
-        "startLine": 99,
-        "endLine": 99,
+        "startLine": 102,
+        "endLine": 102,
         "sha256": "af43adc21595685294c51e59011be78b66ed1d7a158317912194392d9598a157",
         "anchors": [
           {
             "path": "src/app/AppRoutes.tsx",
-            "startLine": 99,
-            "endLine": 99
+            "startLine": 102,
+            "endLine": 102
           },
           {
             "path": "src/app/AppRoutes.tsx",
@@ -10247,14 +11665,14 @@
       "source": {
         "path": "src/app/AppRoutes.tsx",
         "symbol": "/auth/action",
-        "startLine": 93,
-        "endLine": 93,
+        "startLine": 96,
+        "endLine": 96,
         "sha256": "e8984bf044feaaf0effe2f10d05fbe10604f5e9aa76ac71529c3dece07ac5892",
         "anchors": [
           {
             "path": "src/app/AppRoutes.tsx",
-            "startLine": 93,
-            "endLine": 93
+            "startLine": 96,
+            "endLine": 96
           }
         ]
       },
@@ -10594,14 +12012,14 @@
       "source": {
         "path": "src/app/AppRoutes.tsx",
         "symbol": "/forgot-password",
-        "startLine": 90,
-        "endLine": 90,
+        "startLine": 93,
+        "endLine": 93,
         "sha256": "3690ef69b6234048d35a5f4da9667878ecaeceed23829a50e9a440095d4873fe",
         "anchors": [
           {
             "path": "src/app/AppRoutes.tsx",
-            "startLine": 90,
-            "endLine": 90
+            "startLine": 93,
+            "endLine": 93
           }
         ]
       },
@@ -10650,14 +12068,14 @@
       "source": {
         "path": "src/app/AppRoutes.tsx",
         "symbol": "/login",
-        "startLine": 88,
-        "endLine": 88,
+        "startLine": 91,
+        "endLine": 91,
         "sha256": "23ffa62e08ffad5ac0f4af2cf44ab5f210ffe80f878761d890f7f765b49d443b",
         "anchors": [
           {
             "path": "src/app/AppRoutes.tsx",
-            "startLine": 88,
-            "endLine": 88
+            "startLine": 91,
+            "endLine": 91
           }
         ]
       },
@@ -10676,6 +12094,150 @@
         ],
         "source": [
           "path=\"/login\""
+        ]
+      }
+    },
+    {
+      "id": "route:/online-orders",
+      "kind": "route",
+      "title": {
+        "en": "Online orders",
+        "ar": "طلبات الموقع"
+      },
+      "body": {
+        "en": "The menu label is \"Online orders\". The route is /online-orders. Only the store owner can open it. Zelvero AI cannot open it for you. This is from the local working tree, not a production deployment check.",
+        "ar": "اسم القائمة «طلبات الموقع». المسار /online-orders. مالك المتجر فقط يستطيع فتحها. Zelvero AI لا يستطيع فتحها نيابة عنك. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "online",
+        "orders",
+        "طلبات",
+        "الموقع",
+        "nav",
+        "onlineorders",
+        "menu",
+        "route"
+      ],
+      "route": "/online-orders",
+      "permission": null,
+      "audience": "owner",
+      "callable": null,
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "src/app/navigation.ts",
+        "symbol": "nav.onlineOrders",
+        "startLine": 27,
+        "endLine": 27,
+        "sha256": "d73fdd2527c28b950f22e2c40e0998e2956c090109de7e1467d4206adf9a4fe0",
+        "anchors": [
+          {
+            "path": "src/app/navigation.ts",
+            "startLine": 27,
+            "endLine": 27
+          },
+          {
+            "path": "src/i18n/en.ts",
+            "startLine": 1324,
+            "endLine": 1324
+          },
+          {
+            "path": "src/i18n/ar.ts",
+            "startLine": 1301,
+            "endLine": 1301
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "Online orders",
+          "/online-orders"
+        ],
+        "ar": [
+          "طلبات الموقع",
+          "/online-orders"
+        ],
+        "source": [
+          "/online-orders",
+          "nav.onlineOrders"
+        ]
+      }
+    },
+    {
+      "id": "route:/online-store",
+      "kind": "route",
+      "title": {
+        "en": "Online store",
+        "ar": "المتجر الإلكتروني"
+      },
+      "body": {
+        "en": "The menu label is \"Online store\". The route is /online-store. Only the store owner can open it. Zelvero AI cannot open it for you. This is from the local working tree, not a production deployment check.",
+        "ar": "اسم القائمة «المتجر الإلكتروني». المسار /online-store. مالك المتجر فقط يستطيع فتحها. Zelvero AI لا يستطيع فتحها نيابة عنك. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "online",
+        "store",
+        "المتجر",
+        "الإلكتروني",
+        "nav",
+        "onlinestore",
+        "menu",
+        "route"
+      ],
+      "route": "/online-store",
+      "permission": null,
+      "audience": "owner",
+      "callable": null,
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "src/app/navigation.ts",
+        "symbol": "nav.onlineStore",
+        "startLine": 26,
+        "endLine": 26,
+        "sha256": "fedcadd0e8b0f840268a195f12c36c131c0b254aa7d55ff27c87fd9dbfb820a4",
+        "anchors": [
+          {
+            "path": "src/app/navigation.ts",
+            "startLine": 26,
+            "endLine": 26
+          },
+          {
+            "path": "src/i18n/en.ts",
+            "startLine": 1257,
+            "endLine": 1257
+          },
+          {
+            "path": "src/i18n/ar.ts",
+            "startLine": 1234,
+            "endLine": 1234
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "Online store",
+          "/online-store"
+        ],
+        "ar": [
+          "المتجر الإلكتروني",
+          "/online-store"
+        ],
+        "source": [
+          "/online-store",
+          "nav.onlineStore"
         ]
       }
     },
@@ -11074,14 +12636,14 @@
       "source": {
         "path": "src/app/navigation.ts",
         "symbol": "nav.settings",
-        "startLine": 26,
-        "endLine": 26,
+        "startLine": 28,
+        "endLine": 28,
         "sha256": "de70a6bd21f0528a2c0c384acbe853e52ea1017795a996607485381233477b4c",
         "anchors": [
           {
             "path": "src/app/navigation.ts",
-            "startLine": 26,
-            "endLine": 26
+            "startLine": 28,
+            "endLine": 28
           },
           {
             "path": "src/i18n/en.ts",
@@ -11143,14 +12705,14 @@
       "source": {
         "path": "src/app/AppRoutes.tsx",
         "symbol": "/setup",
-        "startLine": 94,
-        "endLine": 94,
+        "startLine": 97,
+        "endLine": 97,
         "sha256": "d4d17af9fed2a9906d17435ac4b8815432b5881737e6ea25e4456b4433159042",
         "anchors": [
           {
             "path": "src/app/AppRoutes.tsx",
-            "startLine": 94,
-            "endLine": 94
+            "startLine": 97,
+            "endLine": 97
           }
         ]
       },
@@ -11200,14 +12762,14 @@
       "source": {
         "path": "src/app/AppRoutes.tsx",
         "symbol": "/signup",
-        "startLine": 89,
-        "endLine": 89,
+        "startLine": 92,
+        "endLine": 92,
         "sha256": "4302db875eeee7a1273d339bf9892b4276975af774eb84e90660cf50a100c7cd",
         "anchors": [
           {
             "path": "src/app/AppRoutes.tsx",
-            "startLine": 89,
-            "endLine": 89
+            "startLine": 92,
+            "endLine": 92
           }
         ]
       },
@@ -11398,14 +12960,14 @@
       "source": {
         "path": "src/app/AppRoutes.tsx",
         "symbol": "/verify-email",
-        "startLine": 92,
-        "endLine": 92,
+        "startLine": 95,
+        "endLine": 95,
         "sha256": "4c60081600103dc22b67251b5d8324632b0d866a0f10add1c85497468484f363",
         "anchors": [
           {
             "path": "src/app/AppRoutes.tsx",
-            "startLine": 92,
-            "endLine": 92
+            "startLine": 95,
+            "endLine": 95
           }
         ]
       },
