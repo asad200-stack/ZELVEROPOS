@@ -209,7 +209,7 @@ function SalesForm({ settings, disabled }: { settings: StoreSettings; disabled: 
   );
 }
 
-const EVENT_KEYS: (keyof TelegramEvents)[] = ['sales', 'returns', 'cash', 'lowStock'];
+const EVENT_KEYS: (keyof TelegramEvents)[] = ['sales', 'onlineOrders', 'returns', 'cash', 'lowStock'];
 
 function TelegramCard({ settings, disabled, showSecrets }: { settings: StoreSettings; disabled: boolean; showSecrets: boolean }) {
   const { t } = useI18n();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type SyntheticEvent } from 'react';
 import { useParams } from 'react-router';
 import { EmptyState } from '@/components/ui/Layout';
 import {
@@ -10,23 +10,166 @@ import {
   type FulfillmentMethod,
   type PublicOrderReceipt,
 } from '@/domain/onlineOrders';
-import { isRtl, type PublicProduct, type StoreLocale } from '@/domain/onlineStore';
+import { deliveryQuote, discountPercent, freeDeliveryProgress, isRtl, mapLink, openState, shopClock, type PublicProduct, type StoreLocale } from '@/domain/onlineStore';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { translate, type TranslationKey, type TParams } from '@/i18n/i18n';
 import { toUserMessage, type UserMessage } from '@/services/errors';
 import { api } from '@/services/functionsClient';
+import { trackStoreEvent } from './storefrontTrack';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { fitKind, withSizes } from './sizeAdvisor';
 import StorefrontQuickView, { HeartIcon } from './StorefrontQuickView';
+import StorefrontTrackOrder from './StorefrontTrackOrder';
+import { whatsAppLink, whatsAppOrderText, type WaWords } from './storefrontWhatsApp';
 import './storefront.css';
 
 type Cart = Record<string, number>;
 type SfVars = CSSProperties & Record<`--${string}`, string>;
 type Step = 'cart' | 'details';
+type SortKey = 'featured' | 'priceLow' | 'priceHigh' | 'name';
+/** Pseudo category for the deals filter (real categories never start with a double underscore). */
+const DEALS = '__deals__';
+const DAY_KEYS = [
+  'onlineStore.day.0',
+  'onlineStore.day.1',
+  'onlineStore.day.2',
+  'onlineStore.day.3',
+  'onlineStore.day.4',
+  'onlineStore.day.5',
+  'onlineStore.day.6',
+] as const;
 
-const RING_MAX = 8;
+/** "21:00" → "9:00 PM" / "9:00 م" (hours are stored as shop-local wall-clock times). */
+function clockLabel(hhmm: string, lang: StoreLocale): string {
+  const d = new Date(2000, 0, 1, Number(hhmm.slice(0, 2)), Number(hhmm.slice(3, 5)));
+  return d.toLocaleTimeString(lang === 'ar' ? 'ar-LB-u-nu-latn' : 'en-US', { hour: 'numeric', minute: '2-digit' });
+}
+const SORTS: SortKey[] = ['featured', 'priceLow', 'priceHigh', 'name'];
+
+const HERO_PICS = 4;
+const FOOT_CATS = 5;
 const RELATED_MAX = 4;
+const TOAST_MS = 2600;
+
+/** Fades a product photo in once it has decoded (the shimmer behind it stops). */
+function markImageLoaded(e: SyntheticEvent<HTMLImageElement>) {
+  e.currentTarget.classList.add('is-loaded');
+}
+
+/** Cached images can finish before React attaches onLoad. */
+function markIfComplete(el: HTMLImageElement | null) {
+  if (el?.complete) el.classList.add('is-loaded');
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * Pointer-driven 3D: any element with data-tilt="<max degrees>" leans toward the mouse.
+ * One delegated listener for the whole page, writes CSS variables once per frame, and stays
+ * off for touch screens and reduced motion (those get the CSS-only idle motion instead).
+ */
+function useTilt3d(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled || prefersReducedMotion()) return;
+    if (typeof window.matchMedia !== 'function' || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    let active: HTMLElement | null = null;
+    let frame = 0;
+    let px = 0;
+    let py = 0;
+    const reset = (el: HTMLElement) => {
+      el.style.setProperty('--rx', '0deg');
+      el.style.setProperty('--ry', '0deg');
+      el.classList.remove('is-tilting');
+    };
+    const apply = () => {
+      frame = 0;
+      if (!active) return;
+      const r = active.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return;
+      const x = Math.min(1, Math.max(0, (px - r.left) / r.width));
+      const y = Math.min(1, Math.max(0, (py - r.top) / r.height));
+      const max = Number(active.dataset.tilt) || 6;
+      active.style.setProperty('--ry', `${((x - 0.5) * 2 * max).toFixed(2)}deg`);
+      active.style.setProperty('--rx', `${((0.5 - y) * 2 * max).toFixed(2)}deg`);
+      active.style.setProperty('--gx', `${(x * 100).toFixed(1)}%`);
+      active.style.setProperty('--gy', `${(y * 100).toFixed(1)}%`);
+    };
+    const onMove = (e: globalThis.PointerEvent) => {
+      if (e.pointerType !== 'mouse') return;
+      const target = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-tilt]') : null;
+      if (target !== active) {
+        if (active) reset(active);
+        active = target;
+        active?.classList.add('is-tilting');
+      }
+      px = e.clientX;
+      py = e.clientY;
+      if (active && !frame) frame = requestAnimationFrame(apply);
+    };
+    const onLeave = () => {
+      if (active) reset(active);
+      active = null;
+    };
+    document.addEventListener('pointermove', onMove, { passive: true });
+    document.documentElement.addEventListener('pointerleave', onLeave);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.documentElement.removeEventListener('pointerleave', onLeave);
+      if (frame) cancelAnimationFrame(frame);
+      if (active) reset(active);
+    };
+  }, [enabled]);
+}
+
+/** The cart button the shopper can see right now (header on desktop, bottom bar on phones). */
+function visibleCartTarget(): HTMLElement | null {
+  for (const el of document.querySelectorAll<HTMLElement>('[data-sf-cart]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return el;
+  }
+  return null;
+}
+
+/** Flies a copy of the product photo from `from` into the visible cart button. */
+function flyToCart(from: Element | null | undefined, imageUrl: string | null) {
+  const target = visibleCartTarget();
+  if (!from || !target || prefersReducedMotion()) return;
+  const a = from.getBoundingClientRect();
+  const b = target.getBoundingClientRect();
+  if (a.width === 0 || typeof document.body.animate !== 'function') return;
+  const size = Math.min(a.width, a.height, 160);
+  const ghost = document.createElement(imageUrl ? 'img' : 'div');
+  if (ghost instanceof HTMLImageElement && imageUrl) ghost.src = imageUrl;
+  ghost.className = 'sf-fly';
+  ghost.setAttribute('aria-hidden', 'true');
+  Object.assign(ghost.style, {
+    width: `${size}px`,
+    height: `${size}px`,
+    left: `${a.left + a.width / 2 - size / 2}px`,
+    top: `${a.top + a.height / 2 - size / 2}px`,
+  });
+  document.body.appendChild(ghost);
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  const anim = ghost.animate(
+    [
+      { transform: 'perspective(700px) translate3d(0, 0, 0) rotateY(0deg) scale(1)', opacity: 1 },
+      {
+        transform: `perspective(700px) translate3d(${dx * 0.55}px, ${dy * 0.35 - 60}px, 120px) rotateY(180deg) scale(0.6)`,
+        opacity: 0.95,
+        offset: 0.55,
+      },
+      { transform: `perspective(700px) translate3d(${dx}px, ${dy}px, 0) rotateY(360deg) scale(0.12)`, opacity: 0.4 },
+    ],
+    { duration: 650, easing: 'cubic-bezier(0.45, 0, 0.2, 1)' },
+  );
+  const done = () => ghost.remove();
+  anim.onfinish = done;
+  anim.oncancel = done;
+}
 
 function readWish(slug: string): string[] {
   try {
@@ -49,31 +192,24 @@ function initial(name: string): string {
 
 function ProductVisual({ product }: { product: PublicProduct }) {
   if (product.imageUrl) {
-    return <img src={product.imageUrl} alt="" loading="lazy" decoding="async" />;
+    return (
+      <img
+        className="sf-img"
+        src={product.imageUrl}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onLoad={markImageLoaded}
+        onError={markImageLoaded}
+        ref={markIfComplete}
+      />
+    );
   }
   return (
     <div className="sf-ph" aria-hidden="true">
       {initial(product.name)}
     </div>
   );
-}
-
-function tilt(e: PointerEvent<HTMLElement>) {
-  if (e.pointerType !== 'mouse') return;
-  const el = e.currentTarget;
-  const r = el.getBoundingClientRect();
-  const x = (e.clientX - r.left) / r.width;
-  const y = (e.clientY - r.top) / r.height;
-  el.style.setProperty('--ry', `${(x - 0.5) * 10}deg`);
-  el.style.setProperty('--rx', `${(0.5 - y) * 10}deg`);
-  el.style.setProperty('--gx', `${x * 100}%`);
-  el.style.setProperty('--gy', `${y * 100}%`);
-}
-
-function untilt(e: PointerEvent<HTMLElement>) {
-  const el = e.currentTarget;
-  el.style.setProperty('--rx', '0deg');
-  el.style.setProperty('--ry', '0deg');
 }
 
 const IconSearch = () => (
@@ -116,14 +252,33 @@ const IconWhatsApp = () => (
     <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z" />
   </svg>
 );
+const IconTruck = () => (
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 6h11v10H3zM14 9h4l3 3v4h-7" />
+    <circle cx="7" cy="17.5" r="1.6" />
+    <circle cx="17.5" cy="17.5" r="1.6" />
+  </svg>
+);
+const IconHome = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 11 12 4l8 7v9h-5v-6h-6v6H4z" />
+  </svg>
+);
+const IconCheck = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 12.5 10 17l9-10" />
+  </svg>
+);
 const IconClose = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
     <path d="M6 6l12 12M18 6 6 18" />
   </svg>
 );
 
-export default function PublicStorePage() {
-  const { slug = '' } = useParams();
+/** `slug` is passed when the shop is opened on its own domain; otherwise it comes from /s/:slug. */
+export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } = {}) {
+  const params = useParams();
+  const slug = fixedSlug ?? params.slug ?? '';
   const data = useAsyncData(`public-store-${slug}`, () => api.publicStoreCatalog({ slug }));
   const [chosenLang, setChosenLang] = useState<StoreLocale | null>(null);
   const [cart, setCart] = useState<Cart>({});
@@ -136,14 +291,29 @@ export default function PublicStorePage() {
   const [address, setAddress] = useState('');
   const [note, setNote] = useState('');
   const [fulfillment, setFulfillment] = useState<FulfillmentMethod>('delivery');
+  const [zoneId, setZoneId] = useState('');
   const [showProblem, setShowProblem] = useState(false);
   const [receipt, setReceipt] = useState<PublicOrderReceipt | null>(null);
   const [serverError, setServerError] = useState<UserMessage | null>(null);
-  const [quick, setQuick] = useState<string | null>(null);
+  // Deep link: /s/<slug>?p=<productId> opens that product (ignored if it is not in the catalog).
+  const [quick, setQuick] = useState<string | null>(() => new URLSearchParams(window.location.search).get('p'));
   const [sizes, setSizes] = useState<Record<string, string>>({});
   const [wish, setWish] = useState<string[]>(() => readWish(slug));
   const [wishOnly, setWishOnly] = useState(false);
+  const [trackOpen, setTrackOpen] = useState(false);
+  const [trackRef, setTrackRef] = useState('');
+  const [bump, setBump] = useState(0);
+  const [sort, setSort] = useState<SortKey>('featured');
+  // Re-evaluated every minute so "open now" flips without a reload.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const [toast, setToast] = useState<{ name: string; id: number } | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
   const place = useAsyncAction('storefront');
+  useTilt3d(!!data.data);
 
   useEffect(() => {
     try {
@@ -152,6 +322,35 @@ export default function PublicStorePage() {
       // Private mode or blocked storage: favorites just won't persist.
     }
   }, [slug, wish]);
+
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  // Anonymous counters for the owner's stats tab (see storefrontTrack.ts).
+  const loaded = !!data.data;
+  useEffect(() => {
+    if (loaded) trackStoreEvent(slug, 'visit');
+  }, [loaded, slug]);
+  useEffect(() => {
+    if (quick) trackStoreEvent(slug, 'view', quick);
+  }, [quick, slug]);
+  // The tab, bookmark and history entry carry the shop's name instead of the POS app's.
+  const shopName = data.data?.store.storeName ?? '';
+  useEffect(() => {
+    if (!shopName) return;
+    const before = document.title;
+    document.title = shopName;
+    return () => {
+      document.title = before;
+    };
+  }, [shopName]);
+
+  // Keep the address bar in step with the open product so it can be copied or shared.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (quick) url.searchParams.set('p', quick);
+    else url.searchParams.delete('p');
+    window.history.replaceState(window.history.state, '', url);
+  }, [quick]);
 
   const store = data.data?.store;
   const products = useMemo(() => data.data?.products ?? [], [data.data]);
@@ -171,17 +370,32 @@ export default function PublicStorePage() {
     const q = query.trim().toLowerCase();
     return products.filter(
       (p) =>
-        (category === 'all' || p.category.trim() === category) &&
+        (category === 'all' || (category === DEALS ? p.compareAtUsdCents !== null : p.category.trim() === category)) &&
         (!wishOnly || wish.includes(p.id)) &&
         (!q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)),
     );
   }, [products, query, category, wishOnly, wish]);
 
-  const ring = useMemo(() => {
-    const withImage = products.filter((p) => p.imageUrl);
-    const rest = products.filter((p) => !p.imageUrl);
-    return [...withImage, ...rest].slice(0, RING_MAX);
-  }, [products]);
+  const sorted = useMemo(() => {
+    if (sort === 'featured') return visible;
+    const list = [...visible];
+    // Products priced only in LBP sort after the dollar-priced ones.
+    const usd = (p: PublicProduct) => (p.priceUsdCents > 0 ? p.priceUsdCents : Number.MAX_SAFE_INTEGER);
+    if (sort === 'priceLow') list.sort((a, b) => usd(a) - usd(b));
+    else if (sort === 'priceHigh') list.sort((a, b) => (b.priceUsdCents || -1) - (a.priceUsdCents || -1));
+    else list.sort((a, b) => a.name.localeCompare(b.name));
+    return list;
+  }, [visible, sort]);
+
+  const heroPics = useMemo(() => products.filter((p) => p.imageUrl && p.inStock).slice(0, HERO_PICS), [products]);
+  const categoryTiles = useMemo(
+    () =>
+      categories.map((c) => ({
+        ...c,
+        image: products.find((p) => p.category.trim() === c.label && p.imageUrl)?.imageUrl ?? null,
+      })),
+    [categories, products],
+  );
 
   const lines = useMemo(
     () => Object.entries(cart).filter(([, q]) => q > 0).map(([productId, qty]) => ({ productId, qty })),
@@ -192,9 +406,11 @@ export default function PublicStorePage() {
     .filter((x): x is typeof x & { product: PublicProduct } => !!x.product);
   const estUsd = cartItems.reduce((s, x) => s + x.product.priceUsdCents * x.qty, 0);
   const itemCount = lines.reduce((s, l) => s + l.qty, 0);
-  const problem = orderProblem(lines, { name, phone, address }, fulfillment);
+  const delivery = data.data?.store ? deliveryQuote(data.data.store, estUsd, fulfillment, zoneId) : null;
+  const problem = orderProblem(lines, { name, phone, address }, fulfillment) ?? delivery?.problem ?? null;
 
-  const overlay = cartOpen || quick !== null;
+  const quickOpen = quick !== null && products.some((p) => p.id === quick);
+  const overlay = cartOpen || quickOpen || trackOpen;
   useEffect(() => {
     if (!overlay) return;
     const onKey = (e: KeyboardEvent) => {
@@ -202,7 +418,8 @@ export default function PublicStorePage() {
       // A nested layer (the try-on view) already handled it.
       if (e.defaultPrevented) return;
       // Close the top-most layer first.
-      if (quick !== null) setQuick(null);
+      if (trackOpen) setTrackOpen(false);
+      else if (quick !== null) setQuick(null);
       else setCartOpen(false);
     };
     window.addEventListener('keydown', onKey);
@@ -212,7 +429,7 @@ export default function PublicStorePage() {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [overlay, quick]);
+  }, [overlay, quick, trackOpen]);
 
   if (data.loading) {
     return (
@@ -257,8 +474,26 @@ export default function PublicStorePage() {
     '--sf-accent': store.accentColor,
     fontFamily: font,
   };
-  const addQty = (id: string, delta: number) =>
+  const addQty = (id: string, delta: number) => {
     setCart((c) => ({ ...c, [id]: Math.max(0, Math.min(ORDER_MAX_QTY, (c[id] ?? 0) + delta)) }));
+    if (delta > 0) {
+      setBump((n) => n + 1);
+      trackStoreEvent(slug, 'add', id);
+    }
+  };
+  /** First add of a product: photo flies to the cart and a short confirmation shows. */
+  const addFrom = (p: PublicProduct, from: Element | null | undefined) => {
+    addQty(p.id, 1);
+    flyToCart(from, p.imageUrl);
+    window.clearTimeout(toastTimer.current);
+    setToast({ name: p.name, id: Date.now() });
+    toastTimer.current = window.setTimeout(() => setToast(null), TOAST_MS);
+  };
+  const focusSearch = () => {
+    setReceipt(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.setTimeout(() => document.getElementById('sf-q')?.focus({ preventScroll: true }), 350);
+  };
   const openCart = () => {
     setStep('cart');
     setCartOpen(true);
@@ -272,6 +507,23 @@ export default function PublicStorePage() {
   const contact = store.whatsapp || store.contactPhone;
   const waDigits = store.whatsapp.replace(/\D/g, '');
   const subtotal = estUsd > 0 ? formatUsd(estUsd) : '—';
+  const hasZones = store.deliveryZones.length > 0;
+  const deliveryFee = delivery?.feeUsdCents ?? 0;
+  const grandTotal = estUsd > 0 ? formatUsd(estUsd + deliveryFee) : '—';
+  const minShort = store.minOrderUsdCents !== null && estUsd < store.minOrderUsdCents ? store.minOrderUsdCents - estUsd : 0;
+  const freeProgress = freeDeliveryProgress(store.freeDeliveryOverUsdCents, estUsd);
+  const freebar = freeProgress && (
+    <div className="sf-freebar">
+      <p>
+        {freeProgress.reached
+          ? t('storefront.freeDelivery.reached')
+          : t('storefront.freeDelivery.remaining', { amount: formatUsd(freeProgress.remainingUsdCents) })}
+      </p>
+      <div className="sf-freebar-track" aria-hidden="true">
+        <span style={{ width: `${Math.round(freeProgress.ratio * 100)}%` }} />
+      </div>
+    </div>
+  );
   const toggleWish = (id: string) => setWish((w) => (w.includes(id) ? w.filter((x) => x !== id) : [...w, id]));
   const quickProduct = quick ? products.find((p) => p.id === quick) : undefined;
   const related = quickProduct
@@ -286,21 +538,53 @@ export default function PublicStorePage() {
     ORDER_NOTE_MAX,
   );
 
-  async function submit() {
+  const waWords: WaWords = {
+    hello: (storeName, ref) => t('storefront.wa.hello', { store: storeName, ref }),
+    total: (amount) => t('storefront.wa.total', { amount }),
+    name: (v) => t('storefront.wa.name', { name: v }),
+    phone: (v) => t('storefront.wa.phone', { phone: v }),
+    delivery: (v) => t('storefront.wa.delivery', { address: v }),
+    pickup: t('storefront.wa.pickup'),
+    note: (v) => t('storefront.wa.note', { note: v }),
+    fee: (zone, amount) => t('storefront.wa.fee', { zone, amount }),
+  };
+  const waFor = (r: PublicOrderReceipt) =>
+    whatsAppLink(store.whatsapp, whatsAppOrderText(r, { storeName: store.storeName, name, phone, address, note: sizedNote }, waWords, lang));
+
+  async function submit(viaWhatsApp = false) {
     if (problem) {
       setShowProblem(true);
       return;
     }
     setServerError(null);
+    // Opened during the click so the browser does not block it; filled once the order exists.
+    const waWindow = viaWhatsApp ? window.open('about:blank', '_blank') : null;
     const res = await place.run(async () => {
       try {
-        return await api.publicPlaceOrder({ slug, lines, name, phone, address, note: sizedNote, fulfillment, payment: 'cod' });
+        return await api.publicPlaceOrder({
+          slug,
+          lines,
+          name,
+          phone,
+          address,
+          note: sizedNote,
+          fulfillment,
+          payment: 'cod',
+          ...(fulfillment === 'delivery' && hasZones ? { zoneId } : {}),
+        });
       } catch (e) {
         // Show the reason inside the drawer; guests may not see a toast.
         setServerError(toUserMessage(e));
         return undefined;
       }
     });
+    if (!res) waWindow?.close();
+    if (res && viaWhatsApp) {
+      const url = waFor(res);
+      if (url && waWindow) waWindow.location.href = url;
+      else if (url) window.location.assign(url);
+      else waWindow?.close();
+    }
     if (res) {
       setReceipt(res);
       setCart({});
@@ -349,6 +633,7 @@ export default function PublicStorePage() {
             <IconSearch />
             <span className="sf-sr">{t('storefront.searchLabel')}</span>
             <input
+              id="sf-q"
               type="search"
               value={query}
               placeholder={t('storefront.search')}
@@ -386,40 +671,294 @@ export default function PublicStorePage() {
           )}
           <button
             type="button"
+            className="sf-track-btn"
+            aria-label={t('storefront.track.open')}
+            title={t('storefront.track.open')}
+            onClick={() => {
+              setTrackRef('');
+              setTrackOpen(true);
+            }}
+          >
+            <IconTruck />
+            <span className="sf-track-label">{t('storefront.track.open')}</span>
+          </button>
+          <button
+            type="button"
             className="sf-cart-btn"
+            data-sf-cart=""
             onClick={openCart}
             aria-label={t('storefront.openCart', { count: itemCount })}
           >
             <IconBag />
             <span className="sf-cart-label">{t('storefront.cart')}</span>
-            {itemCount > 0 && <span className="sf-badge">{itemCount}</span>}
+            {itemCount > 0 && (
+              <span key={bump} className="sf-badge">
+                {itemCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
     </header>
   );
 
+  const openNow = openState(store.hours, shopClock(new Date(now)));
+  const openText = openNow
+    ? openNow.open
+      ? openNow.until
+        ? `${t('storefront.hours.openNow')} · ${t('storefront.hours.closesAt', { time: clockLabel(openNow.until, lang) })}`
+        : t('storefront.hours.openNow')
+      : openNow.until
+        ? `${t('storefront.hours.closedNow')} · ${
+            openNow.untilDay === null
+              ? t('storefront.hours.opensAt', { time: clockLabel(openNow.until, lang) })
+              : t('storefront.hours.opensDay', { day: t(DAY_KEYS[openNow.untilDay] ?? 'onlineStore.day.0'), time: clockLabel(openNow.until, lang) })
+          }`
+        : t('storefront.hours.closedNow')
+    : null;
+  const mapUrl = mapLink(store.storeAddress);
+
+  const pickCategory = (label: string) => {
+    setReceipt(null);
+    setWishOnly(false);
+    setCategory(label);
+    window.setTimeout(toCatalog, 0);
+  };
+
+  const bar = (
+    <div className="sf-bar">
+      <div className="sf-wrap sf-bar-row">
+        <span>
+          {store.freeDeliveryOverUsdCents
+            ? t('storefront.bar.freeOver', { amount: formatUsd(store.freeDeliveryOverUsdCents) })
+            : t('storefront.bar.cod')}
+        </span>
+        {contact && (
+          <a href={`tel:${contact}`} dir="ltr">
+            {contact}
+          </a>
+        )}
+      </div>
+    </div>
+  );
+
   const footer = (
     <footer className="sf-foot">
-      <div className="sf-wrap sf-foot-row">
-        <span>
-          © {new Date().getFullYear()} {store.storeName}
-        </span>
-        <div className="sf-foot-links">
-          {contact && (
-            <a href={`tel:${contact}`} dir="ltr">
-              {contact}
-            </a>
+      <div className="sf-wrap">
+        <ul className="sf-trust">
+          <li>
+            <span className="sf-trust-ic">
+              <IconCash />
+            </span>
+            <div>
+              <b>{t('storefront.perkCod')}</b>
+              <span>{t('storefront.trust.codDesc')}</span>
+            </div>
+          </li>
+          <li>
+            <span className="sf-trust-ic">
+              <IconStore />
+            </span>
+            <div>
+              <b>{t('storefront.perkPickup')}</b>
+              <span>{t('storefront.trust.pickupDesc')}</span>
+            </div>
+          </li>
+          <li>
+            <span className="sf-trust-ic">
+              <IconBolt />
+            </span>
+            <div>
+              <b>{t('storefront.perkEasy')}</b>
+              <span>{t('storefront.trust.easyDesc')}</span>
+            </div>
+          </li>
+          {waDigits && (
+            <li>
+              <span className="sf-trust-ic">
+                <IconWhatsApp />
+              </span>
+              <div>
+                <b>{t('storefront.whatsapp')}</b>
+                <span>{t('storefront.trust.chatDesc')}</span>
+              </div>
+            </li>
           )}
+        </ul>
+        <div className="sf-foot-grid">
+          <div className="sf-foot-brand">
+            <span className="sf-mark" aria-hidden="true">
+              {initial(store.storeName)}
+            </span>
+            <b>{store.storeName}</b>
+            <p>{store.tagline || t('storefront.heroFallback')}</p>
+          </div>
+          {categories.length > 0 && (
+            <nav aria-label={t('storefront.footer.shop')}>
+              <h3>{t('storefront.footer.shop')}</h3>
+              <ul>
+                {categories.slice(0, FOOT_CATS).map((c) => (
+                  <li key={c.label}>
+                    <button type="button" onClick={() => pickCategory(c.label)}>
+                      {c.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )}
+          <nav aria-label={t('storefront.footer.help')}>
+            <h3>{t('storefront.footer.help')}</h3>
+            <ul>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTrackRef(receipt?.ref ?? '');
+                    setTrackOpen(true);
+                  }}
+                >
+                  {t('storefront.track.open')}
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={openCart}>
+                  {t('storefront.cart')}
+                </button>
+              </li>
+            </ul>
+          </nav>
+          {(contact || waDigits || store.storeAddress) && (
+            <div>
+              <h3>{t('storefront.footer.contact')}</h3>
+              <ul>
+                {store.storeAddress && (
+                  <li>
+                    {mapUrl ? (
+                      <a href={mapUrl} target="_blank" rel="noopener noreferrer">
+                        {store.storeAddress}
+                      </a>
+                    ) : (
+                      store.storeAddress
+                    )}
+                  </li>
+                )}
+                {contact && (
+                  <li>
+                    <a href={`tel:${contact}`} dir="ltr">
+                      {contact}
+                    </a>
+                  </li>
+                )}
+                {waDigits && (
+                  <li>
+                    <a href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer">
+                      {t('storefront.whatsapp')}
+                    </a>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+        {store.hours.length === 7 && (
+          <div className="sf-hours">
+            <h3>{t('storefront.hours.title')}</h3>
+            <ul>
+              {store.hours.map((h, d) => (
+                <li key={DAY_KEYS[d]} className={openNow && shopClock(new Date(now)).day === d ? 'is-today' : undefined}>
+                  <span>{t(DAY_KEYS[d] ?? 'onlineStore.day.0')}</span>
+                  <span dir="ltr">{h.closed ? t('storefront.hours.closed') : `${clockLabel(h.open, lang)} – ${clockLabel(h.close, lang)}`}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="sf-foot-row">
+          <span>
+            © {new Date(now).getFullYear()} {store.storeName}
+          </span>
           <span>{t('storefront.poweredBy')}</span>
         </div>
       </div>
     </footer>
   );
 
+  const bottomNav = (
+    <nav className="sf-bnav" aria-label={t('storefront.nav.label')}>
+      <button
+        type="button"
+        aria-current={!receipt && !wishOnly && !cartOpen ? 'page' : undefined}
+        onClick={() => {
+          setReceipt(null);
+          setWishOnly(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      >
+        <IconHome />
+        <span>{t('storefront.nav.home')}</span>
+      </button>
+      <button type="button" onClick={focusSearch}>
+        <IconSearch />
+        <span>{t('storefront.nav.search')}</span>
+      </button>
+      <button
+        type="button"
+        aria-pressed={wishOnly}
+        onClick={() => {
+          setReceipt(null);
+          setWishOnly((v) => !v);
+          window.setTimeout(toCatalog, 0);
+        }}
+      >
+        <HeartIcon filled={wishOnly} />
+        <span>{t('storefront.wishlist')}</span>
+        {wish.length > 0 && <b className="sf-bnav-dot">{wish.length}</b>}
+      </button>
+      <button type="button" className="sf-bnav-cart" data-sf-cart="" onClick={openCart} aria-label={t('storefront.openCart', { count: itemCount })}>
+        <IconBag />
+        <span>{t('storefront.nav.cart')}</span>
+        {itemCount > 0 && (
+          <b key={bump} className="sf-badge sf-bnav-badge">
+            {itemCount}
+          </b>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setTrackRef(receipt?.ref ?? '');
+          setTrackOpen(true);
+        }}
+      >
+        <IconTruck />
+        <span>{t('storefront.nav.track')}</span>
+      </button>
+    </nav>
+  );
+
+  const toastView = toast && !overlay && (
+    <div key={toast.id} className="sf-toast" role="status">
+      <span className="sf-toast-ic">
+        <IconCheck />
+      </span>
+      <span className="sf-toast-text">{t('storefront.addedToCart', { name: toast.name })}</span>
+      <button
+        type="button"
+        onClick={() => {
+          setToast(null);
+          openCart();
+        }}
+      >
+        {t('storefront.viewCart')}
+      </button>
+    </div>
+  );
+
   if (receipt) {
     return (
       <div className="sf" dir={isRtl(lang) ? 'rtl' : 'ltr'} lang={lang} style={rootStyle}>
+        {bar}
         {header}
         <main className="sf-wrap">
           <section className="sf-receipt" aria-live="polite">
@@ -442,6 +981,12 @@ export default function PublicStorePage() {
                   <span>{l.lineUsdCents > 0 ? formatUsd(l.lineUsdCents) : formatLbp(l.lineLbp, lang)}</span>
                 </li>
               ))}
+              {(receipt.deliveryFeeUsdCents > 0 || receipt.deliveryZone) && (
+                <li>
+                  <span>{t('storefront.zone.feeLine', { zone: receipt.deliveryZone })}</span>
+                  <span>{receipt.deliveryFeeUsdCents > 0 ? formatUsd(receipt.deliveryFeeUsdCents) : t('storefront.zone.free')}</span>
+                </li>
+              )}
             </ul>
             <div className="sf-total">
               <span>{t('storefront.total')}</span>
@@ -452,29 +997,152 @@ export default function PublicStorePage() {
             <button type="button" className="sf-primary" onClick={() => setReceipt(null)}>
               {t('storefront.backToShop')}
             </button>
+            {waFor(receipt) && (
+              <a className="sf-wa-order" href={waFor(receipt) ?? undefined} target="_blank" rel="noopener noreferrer">
+                <IconWhatsApp />
+                {t('storefront.wa.send')}
+              </a>
+            )}
+            <button
+              type="button"
+              className="sf-ghost"
+              onClick={() => {
+                setTrackRef(receipt.ref);
+                setTrackOpen(true);
+              }}
+            >
+              {t('storefront.track.thisOrder')}
+            </button>
           </section>
         </main>
+        {trackOpen && (
+          <StorefrontTrackOrder
+            slug={slug}
+            t={t}
+            lang={lang}
+            initialRef={trackRef}
+            initialPhone={phone}
+            onClose={() => setTrackOpen(false)}
+          />
+        )}
         {footer}
+        {!overlay && bottomNav}
       </div>
     );
   }
 
-  const activeTitle = wishOnly ? t('storefront.wishlist') : category === 'all' ? t('storefront.all') : category;
+  const card = (p: PublicProduct, k: number) => {
+      const qty = cart[p.id] ?? 0;
+      const wished = wish.includes(p.id);
+      const needsPick = fitKind(p) !== null && !sizes[p.id];
+      return (
+        <article
+          key={p.id}
+          className={p.inStock ? 'sf-card' : 'sf-card sf-soldout'}
+          style={{ '--k': String(k) } as SfVars}
+          data-tilt="6"
+        >
+          <div className="sf-media">
+            <button
+              type="button"
+              className="sf-open"
+              aria-label={t('storefront.openProduct', { name: p.name })}
+              onClick={() => setQuick(p.id)}
+            >
+              <ProductVisual product={p} />
+              <span className="sf-open-hint" aria-hidden="true">
+                {t('storefront.quickView')}
+              </span>
+            </button>
+            {!p.inStock && <span className="sf-chip-out">{t('storefront.outOfStock')}</span>}
+            {p.inStock && discountPercent(p) !== null && <span className="sf-chip-off">−{discountPercent(p)}%</span>}
+            <button
+              type="button"
+              className={wished ? 'sf-heart sf-heart-card is-on' : 'sf-heart sf-heart-card'}
+              aria-pressed={wished}
+              aria-label={t(wished ? 'storefront.wishRemove' : 'storefront.wishAdd', { name: p.name })}
+              onClick={() => toggleWish(p.id)}
+            >
+              <HeartIcon filled={wished} />
+            </button>
+          </div>
+          <div className="sf-body">
+            {p.category.trim() && <span className="sf-cat">{p.category}</span>}
+            <h3 className="sf-name">{p.name}</h3>
+            {p.rating && (
+              <span className="sf-rating" aria-label={t('storefront.ratingAria', { avg: p.rating.average, count: p.rating.count })}>
+                <span aria-hidden="true">★</span> {p.rating.average.toFixed(1)} <small>({p.rating.count})</small>
+              </span>
+            )}
+            <div className="sf-price">
+              <span className="sf-price-now">
+                {priceLabel(p, lang)}
+                {p.compareAtUsdCents !== null && <s className="sf-was">{formatUsd(p.compareAtUsdCents)}</s>}
+              </span>
+              {p.priceUsdCents > 0 && p.priceLbp ? <small>{formatLbp(p.priceLbp, lang)}</small> : null}
+            </div>
+            <div className="sf-buy">
+              {!p.inStock ? null : qty === 0 ? (
+                <button
+                  type="button"
+                  className="sf-add"
+                  onClick={(e) => (needsPick ? setQuick(p.id) : addFrom(p, e.currentTarget.closest('.sf-card')?.querySelector('.sf-media')))}
+                >
+                  <IconBag />
+                  {needsPick ? t('storefront.chooseSize') : t('storefront.add')}
+                </button>
+              ) : (
+                stepper(p, qty)
+              )}
+            </div>
+          </div>
+        </article>
+      );
+  };
+
+  const bestSellers = (data.data?.bestSellerIds ?? [])
+    .map((id) => products.find((p) => p.id === id))
+    .filter((p): p is PublicProduct => !!p);
+  const newArrivals = products.filter((p) => p.isNew && p.inStock).slice(0, 8);
+  const shelf = (id: string, title: string, list: PublicProduct[]) =>
+    list.length >= 2 && category === 'all' && !wishOnly && !query.trim() ? (
+      <section className="sf-wrap sf-shelf" aria-labelledby={id}>
+        <h2 id={id} className="sf-sec-title">
+          {title}
+        </h2>
+        <div className="sf-row">{list.map((p, k) => card(p, k))}</div>
+      </section>
+    ) : null;
+
+  const dealsCount = products.filter((p) => p.compareAtUsdCents !== null).length;
+  const activeTitle = wishOnly ? t('storefront.wishlist') : category === 'all' ? t('storefront.all') : category === DEALS ? t('storefront.deals') : category;
 
   return (
     <div className="sf" dir={isRtl(lang) ? 'rtl' : 'ltr'} lang={lang} style={rootStyle}>
+      {bar}
       {header}
 
       <section className="sf-hero">
-        <div className="sf-wrap sf-hero-grid">
-          <div>
-            <p className="sf-eyebrow">{t('storefront.featured')}</p>
+        <div className={heroPics.length >= 3 ? 'sf-wrap sf-hero-grid' : 'sf-wrap sf-hero-grid sf-hero-solo'}>
+          <div className="sf-hero-copy">
+            <div className="sf-hero-tags">
+              <p className="sf-eyebrow">{t('storefront.heroStats', { count: products.filter((p) => p.inStock).length })}</p>
+              {openNow && <p className={openNow.open ? 'sf-open is-open' : 'sf-open'}>{openText}</p>}
+            </div>
             <h1>{store.storeName}</h1>
             <p className="sf-hero-sub">{store.tagline || t('storefront.heroFallback')}</p>
-            <button type="button" className="sf-cta" onClick={toCatalog}>
-              {t('storefront.shopNow')}
-              <IconArrow />
-            </button>
+            <div className="sf-hero-actions">
+              <button type="button" className="sf-cta" onClick={toCatalog}>
+                {t('storefront.shopNow')}
+                <IconArrow />
+              </button>
+              {waDigits && (
+                <a className="sf-cta-2" href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer">
+                  <IconWhatsApp />
+                  {t('storefront.whatsapp')}
+                </a>
+              )}
+            </div>
             <ul className="sf-perks">
               <li>
                 <IconCash />
@@ -490,54 +1158,105 @@ export default function PublicStorePage() {
               </li>
             </ul>
           </div>
-          {ring.length >= 3 && (
-            <div className="sf-stage" aria-hidden="true">
-              <div className="sf-tilt">
-                <div className="sf-ring" style={{ '--n': String(ring.length) } as SfVars}>
-                  {ring.map((p, i) => (
-                    <div key={p.id} className="sf-ring-item" style={{ '--i': String(i) } as SfVars}>
-                      {p.imageUrl ? <img src={p.imageUrl} alt="" decoding="async" /> : <div className="sf-ph">{initial(p.name)}</div>}
-                      <div className="sf-ring-cap">
-                        <b>{p.name}</b>
-                        <span>{priceLabel(p, lang)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          {heroPics.length >= 3 && (
+            <div className="sf-scene" data-tilt="7" aria-hidden="true">
+              <div className="sf-sway">
+            <div className={`sf-bento sf-bento-${heroPics.length}`}>
+              {heroPics.map((p) => (
+                <figure key={p.id} className="sf-bento-item">
+                  <span className="sf-bento-img">
+                    <img src={p.imageUrl ?? ''} alt="" decoding="async" fetchPriority="high" />
+                  </span>
+                  <figcaption>
+                    <b>{p.name}</b>
+                    <span>{priceLabel(p, lang)}</span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
               </div>
             </div>
           )}
         </div>
       </section>
 
-      <section id="catalog" className="sf-wrap sf-catalog">
-        {categories.length > 0 && (
-          <aside className="sf-side">
-            <h2>{t('storefront.categories')}</h2>
-            <ul className="sf-cats">
-              <li>
-                <button type="button" aria-pressed={category === 'all'} onClick={() => setCategory('all')}>
-                  {t('storefront.all')}
-                  <small>{products.length}</small>
-                </button>
-              </li>
-              {categories.map((c) => (
-                <li key={c.label}>
-                  <button type="button" aria-pressed={category === c.label} onClick={() => setCategory(c.label)}>
-                    {c.label}
-                    <small>{c.count}</small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </aside>
-        )}
-
-        <div>
-          <div className="sf-list-head">
-            <h2>{activeTitle}</h2>
-            <span>{t('storefront.productCount', { count: visible.length })}</span>
+      {categoryTiles.length >= 2 && (
+        <section className="sf-wrap sf-shelf" aria-labelledby="sf-shelf-title">
+          <h2 id="sf-shelf-title" className="sf-sec-title">
+            {t('storefront.shopByCategory')}
+          </h2>
+          <div className="sf-tiles">
+            {categoryTiles.map((c) => (
+              <button
+                key={c.label}
+                type="button"
+                className="sf-tile"
+                aria-pressed={category === c.label}
+                onClick={() => pickCategory(c.label)}
+              >
+                <span className="sf-tile-img">
+                  {c.image ? (
+                    <img src={c.image} alt="" loading="lazy" decoding="async" />
+                  ) : (
+                    <span className="sf-ph">{initial(c.label)}</span>
+                  )}
+                </span>
+                <span className="sf-tile-name">{c.label}</span>
+                <small>{t('storefront.productCount', { count: c.count })}</small>
+              </button>
+            ))}
           </div>
+        </section>
+      )}
+
+      {shelf('sf-best', t('storefront.bestSellers'), bestSellers)}
+      {shelf('sf-new', t('storefront.newArrivals'), newArrivals)}
+
+      <section id="catalog" className="sf-wrap sf-catalog">
+        <div>
+          <div className="sf-toolbar">
+            <div className="sf-list-head">
+              <h2>{activeTitle}</h2>
+              <span>{t('storefront.productCount', { count: visible.length })}</span>
+            </div>
+            <label className="sf-sort">
+              <span>{t('storefront.sort.label')}</span>
+              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+                {SORTS.map((k) => (
+                  <option key={k} value={k}>
+                    {t(`storefront.sort.${k}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {categories.length > 0 && (
+            <div className="sf-chips" role="group" aria-label={t('storefront.categories')}>
+              <button
+                type="button"
+                aria-pressed={category === 'all' && !wishOnly}
+                onClick={() => {
+                  setWishOnly(false);
+                  setCategory('all');
+                }}
+              >
+                {t('storefront.all')}
+                <small>{products.length}</small>
+              </button>
+              {dealsCount > 0 && (
+                <button type="button" className="sf-chip-deals" aria-pressed={category === DEALS} onClick={() => setCategory(DEALS)}>
+                  {t('storefront.deals')}
+                  <small>{dealsCount}</small>
+                </button>
+              )}
+              {categories.map((c) => (
+                <button key={c.label} type="button" aria-pressed={category === c.label} onClick={() => setCategory(c.label)}>
+                  {c.label}
+                  <small>{c.count}</small>
+                </button>
+              ))}
+            </div>
+          )}
 
           {products.length === 0 ? (
             <div className="sf-empty">{t('storefront.noProducts')}</div>
@@ -550,67 +1269,21 @@ export default function PublicStorePage() {
             </div>
           ) : (
             <div className="sf-grid">
-              {visible.map((p, k) => {
-                const qty = cart[p.id] ?? 0;
-                const wished = wish.includes(p.id);
-                const needsPick = fitKind(p) !== null && !sizes[p.id];
-                return (
-                  <article
-                    key={p.id}
-                    className={p.inStock ? 'sf-card' : 'sf-card sf-soldout'}
-                    style={{ '--k': String(k) } as SfVars}
-                    onPointerMove={tilt}
-                    onPointerLeave={untilt}
-                  >
-                    <div className="sf-media">
-                      <button
-                        type="button"
-                        className="sf-open"
-                        aria-label={t('storefront.openProduct', { name: p.name })}
-                        onClick={() => setQuick(p.id)}
-                      >
-                        <ProductVisual product={p} />
-                        <span className="sf-open-hint" aria-hidden="true">
-                          {t('storefront.quickView')}
-                        </span>
-                      </button>
-                      {p.category.trim() && <span className="sf-chip-cat">{p.category}</span>}
-                      {!p.inStock && <span className="sf-chip-out">{t('storefront.outOfStock')}</span>}
-                      <button
-                        type="button"
-                        className={wished ? 'sf-heart sf-heart-card is-on' : 'sf-heart sf-heart-card'}
-                        aria-pressed={wished}
-                        aria-label={t(wished ? 'storefront.wishRemove' : 'storefront.wishAdd', { name: p.name })}
-                        onClick={() => toggleWish(p.id)}
-                      >
-                        <HeartIcon filled={wished} />
-                      </button>
-                    </div>
-                    <div className="sf-body">
-                      <h3 className="sf-name">{p.name}</h3>
-                      <div className="sf-price">{priceLabel(p, lang)}</div>
-                      <div className="sf-buy">
-                        {!p.inStock ? null : qty === 0 ? (
-                          <button
-                            type="button"
-                            className="sf-add"
-                            onClick={() => (needsPick ? setQuick(p.id) : addQty(p.id, 1))}
-                          >
-                            <IconBag />
-                            {needsPick ? t('storefront.chooseSize') : t('storefront.add')}
-                          </button>
-                        ) : (
-                          stepper(p, qty)
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
+              {sorted.map((p, k) => card(p, k))}
             </div>
           )}
         </div>
       </section>
+
+      {trackOpen && (
+        <StorefrontTrackOrder
+          slug={slug}
+          t={t}
+          lang={lang}
+          initialRef={trackRef}
+          onClose={() => setTrackOpen(false)}
+        />
+      )}
 
       {footer}
 
@@ -634,16 +1307,25 @@ export default function PublicStorePage() {
         </a>
       )}
 
+      {toastView}
+      {!overlay && bottomNav}
+
       {quickProduct && (
         <StorefrontQuickView
           key={quickProduct.id}
+          slug={slug}
+          lang={lang}
           product={quickProduct}
           related={related}
           t={t}
           priceOf={(x) => priceLabel(x, lang)}
           qty={cart[quickProduct.id] ?? 0}
           maxQty={ORDER_MAX_QTY}
-          onAdd={() => addQty(quickProduct.id, 1)}
+          onAdd={() => {
+            const first = (cart[quickProduct.id] ?? 0) === 0;
+            addQty(quickProduct.id, 1);
+            if (first) flyToCart(document.querySelector('.sf-qv-stage'), quickProduct.imageUrl);
+          }}
           onLess={() => addQty(quickProduct.id, -1)}
           size={sizes[quickProduct.id] ?? ''}
           onSize={(s) => setSizes((m) => ({ ...m, [quickProduct.id]: s }))}
@@ -651,6 +1333,7 @@ export default function PublicStorePage() {
           onWish={() => toggleWish(quickProduct.id)}
           onClose={() => setQuick(null)}
           onPick={(x) => setQuick(x.id)}
+          shareUrl={`${window.location.origin}/s/${slug}?p=${encodeURIComponent(quickProduct.id)}`}
         />
       )}
 
@@ -695,11 +1378,20 @@ export default function PublicStorePage() {
                   </ul>
                 </div>
                 <div className="sf-drawer-foot">
+                  {freebar}
+                  {minShort > 0 && (
+                    <p className="sf-min-note">
+                      {t('storefront.zone.minShort', { min: formatUsd(store.minOrderUsdCents ?? 0), amount: formatUsd(minShort) })}
+                    </p>
+                  )}
                   <div className="sf-total">
                     <span>{t('storefront.subtotal')}</span>
                     <strong>{subtotal}</strong>
                   </div>
-                  <button type="button" className="sf-primary" onClick={() => setStep('details')}>
+                  <button type="button" className="sf-primary" onClick={() => {
+                      setStep('details');
+                      trackStoreEvent(slug, 'checkout');
+                    }}>
                     {t('storefront.continue')}
                   </button>
                 </div>
@@ -740,6 +1432,19 @@ export default function PublicStorePage() {
                         </label>
                       ))}
                     </div>
+                    {fulfillment === 'delivery' && hasZones && (
+                      <label className="sf-field">
+                        {t('storefront.zone.label')}
+                        <select className="sf-select" value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+                          <option value="">{t('storefront.zone.choose')}</option>
+                          {store.deliveryZones.map((z) => (
+                            <option key={z.id} value={z.id}>
+                              {z.name} — {z.feeUsdCents > 0 ? formatUsd(z.feeUsdCents) : t('storefront.zone.free')}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                     <label className="sf-field">
                       {t(fulfillment === 'delivery' ? 'storefront.address' : 'storefront.addressOptional')}
                       <textarea
@@ -771,9 +1476,17 @@ export default function PublicStorePage() {
                   </div>
                 </div>
                 <div className="sf-drawer-foot">
+                  {fulfillment === 'delivery' && hasZones && (
+                    <div className="sf-sum">
+                      <span>{t('storefront.subtotal')}</span>
+                      <span>{subtotal}</span>
+                      <span>{delivery?.zone ? t('storefront.zone.feeLine', { zone: delivery.zone.name }) : t('storefront.zone.feeTbd')}</span>
+                      <span>{delivery?.zone ? (deliveryFee > 0 ? formatUsd(deliveryFee) : t('storefront.zone.free')) : '—'}</span>
+                    </div>
+                  )}
                   <div className="sf-total">
-                    <span>{t('storefront.subtotal')}</span>
-                    <strong>{subtotal}</strong>
+                    <span>{fulfillment === 'delivery' && hasZones ? t('storefront.total') : t('storefront.subtotal')}</span>
+                    <strong>{fulfillment === 'delivery' && hasZones ? grandTotal : subtotal}</strong>
                   </div>
                   <button
                     type="button"
@@ -783,6 +1496,17 @@ export default function PublicStorePage() {
                   >
                     {place.busy ? t('storefront.placing') : t('storefront.placeOrder')}
                   </button>
+                  {waDigits && (
+                    <button
+                      type="button"
+                      className="sf-wa-order"
+                      onClick={() => void submit(true)}
+                      disabled={place.busy || lines.length === 0}
+                    >
+                      <IconWhatsApp />
+                      {t('storefront.wa.order')}
+                    </button>
+                  )}
                   <button type="button" className="sf-ghost" onClick={() => setStep('cart')}>
                     {t('storefront.backToCart')}
                   </button>

@@ -8,7 +8,7 @@ import {
   normalizePermissions as clientNormalize,
   PERMISSION_KEYS as CLIENT_KEYS,
 } from '../../src/constants/permissions';
-import { cashMessage, crossedLowStock, formatDate, lowStockMessage, saleMessage } from '../../functions/src/telegram/format';
+import { cashMessage, crossedLowStock, formatDate, lowStockMessage, onlineOrderMessage, saleMessage } from '../../functions/src/telegram/format';
 
 const sharedPerms = resolve(__dirname, '../../functions/src/shared/permissions.ts');
 if (!existsSync(sharedPerms)) {
@@ -88,5 +88,46 @@ describe('telegram messages (legacy CATCH POS format)', () => {
     expect(crossedLowStock(11, 10, 10)).toBe(true);
     expect(crossedLowStock(10, 9, 10)).toBe(false);
     expect(lowStockMessage('Case', 3, 5)).toContain('📉 Stock: 3 (alert at 5)');
+  });
+});
+
+describe('telegram online order message', () => {
+  it('lists the customer, delivery area, items, fee and total', () => {
+    const text = onlineOrderMessage(
+      {
+        ref: 'ZV-000005',
+        createdAtMs: Date.UTC(2026, 10, 20, 13, 16, 0),
+        customerName: 'Test Customer',
+        customerPhone: '70123456',
+        fulfillment: 'delivery',
+        deliveryZone: 'Jounieh',
+        address: 'Main road',
+        lines: [{ name: 'Phone case', qty: 3, lineUsdCents: 1500, lineLbp: 1342500 }],
+        deliveryFeeUsdCents: 500,
+        totalUsdCents: 2000,
+        totalLbp: 1790000,
+        note: '',
+      },
+      'Asia/Beirut',
+    );
+    expect(text.split('\n')).toEqual([
+      '🛍️ New online order ZV-000005',
+      '📅 20/11/2026 15:16:00',
+      '👥 Customer: Test Customer · 70123456',
+      '🚚 Delivery (Jounieh)',
+      '📍 Main road',
+      '🛒 Products:',
+      '  • Phone case × 3 = 15.00 USD',
+      '🚚 Delivery fee: 5.00 USD',
+      '💰 Total: 20.00 USD / 1,790,000 LBP',
+      '💵 Cash on delivery / at pickup',
+    ]);
+  });
+
+  it('says pickup and skips the address and fee', () => {
+    const text = onlineOrderMessage({ ref: 'ZV-1', fulfillment: 'pickup', address: 'x', lines: [], totalUsdCents: 500 }, 'Asia/Beirut');
+    expect(text).toContain('🏪 Pickup from the shop');
+    expect(text).not.toContain('📍');
+    expect(text).not.toContain('Delivery fee');
   });
 });

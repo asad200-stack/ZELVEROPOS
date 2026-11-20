@@ -83,7 +83,7 @@ export function mergeOrderLines(lines: readonly OrderLineInput[]): OrderLineInpu
   return [...out].map(([productId, qty]) => ({ productId, qty }));
 }
 
-export type OrderProblem = 'empty' | 'tooManyLines' | 'qty' | 'name' | 'phone' | 'address';
+export type OrderProblem = 'empty' | 'tooManyLines' | 'qty' | 'name' | 'phone' | 'address' | 'zone' | 'minOrder';
 
 export interface OrderCustomerInput {
   name: string;
@@ -131,6 +131,10 @@ export interface OnlineOrder {
   address: string;
   note: string;
   lines: OnlineOrderLine[];
+  /** Delivery area name chosen by the guest ('' for pickup or a store without zones). */
+  deliveryZone: string;
+  /** Delivery fee charged in USD cents; already included in totalUsdCents. */
+  deliveryFeeUsdCents: number;
   totalUsdCents: number;
   totalLbp: number;
   createdAtMs: number;
@@ -143,18 +147,127 @@ export interface PublicOrderReceipt {
   status: OrderStatus;
   fulfillment: FulfillmentMethod;
   lines: { name: string; qty: number; lineUsdCents: number; lineLbp: number }[];
+  deliveryZone: string;
+  deliveryFeeUsdCents: number;
   totalUsdCents: number;
   totalLbp: number;
 }
 
-export function toReceipt(o: Pick<OnlineOrder, 'ref' | 'status' | 'fulfillment' | 'lines' | 'totalUsdCents' | 'totalLbp'>): PublicOrderReceipt {
+export function toReceipt(
+  o: Pick<OnlineOrder, 'ref' | 'status' | 'fulfillment' | 'lines' | 'totalUsdCents' | 'totalLbp'> &
+    Partial<Pick<OnlineOrder, 'deliveryZone' | 'deliveryFeeUsdCents'>>,
+): PublicOrderReceipt {
   return {
     ref: o.ref,
     status: o.status,
     fulfillment: o.fulfillment,
     lines: o.lines.map((l) => ({ name: l.name, qty: l.qty, lineUsdCents: l.lineUsdCents, lineLbp: l.lineLbp })),
+    deliveryZone: o.deliveryZone ?? '',
+    deliveryFeeUsdCents: o.deliveryFeeUsdCents ?? 0,
     totalUsdCents: o.totalUsdCents,
     totalLbp: o.totalLbp,
+  };
+}
+
+/** Order tracking for a guest who knows the reference and the phone: status timeline only. */
+export interface PublicOrderTracking {
+  ref: string;
+  status: OrderStatus;
+  fulfillment: FulfillmentMethod;
+  totalUsdCents: number;
+  totalLbp: number;
+  createdAtMs: number;
+  history: { status: OrderStatus; atMs: number }[];
+}
+
+/** Defensive read of the stored status history; drops unknown statuses and actor ids. */
+export function toHistory(raw: unknown): { status: OrderStatus; atMs: number }[] {
+  if (!Array.isArray(raw)) return [];
+  const out: { status: OrderStatus; atMs: number }[] = [];
+  for (const h of raw as unknown[]) {
+    const e = (h && typeof h === 'object' ? h : {}) as Record<string, unknown>;
+    if (isOneOf(ORDER_STATUSES, e.status)) out.push({ status: e.status, atMs: num(e.atMs) });
+  }
+  return out.sort((a, b) => a.atMs - b.atMs);
+}
+
+/** Customers type the reference loosely: "zv 123", "ZV-000123" and "123" all mean the same order. */
+export function normalizeOrderRef(raw: string): string | null {
+  const digits = raw.trim().toUpperCase().replace(/^ZV/, '').replace(/[\s-]/g, '');
+  if (!/^\d{1,9}$/.test(digits)) return null;
+  const n = Number(digits);
+  return n >= 1 ? formatOrderRef(n) : null;
+}
+
+/* ------------------------------------------------------------------ reviews */
+
+export const REVIEW_TEXT_MAX = 500;
+export const REVIEW_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+
+export interface ProductReview {
+  id: string;
+  productId: string;
+  productName: string;
+  orderRef: string;
+  name: string;
+  rating: number;
+  text: string;
+  status: ReviewStatus;
+  createdAtMs: number;
+}
+
+/** What shoppers see: no order reference, phone or status. */
+export interface PublicReview {
+  name: string;
+  rating: number;
+  text: string;
+  createdAtMs: number;
+}
+
+export interface ReviewSummary {
+  count: number;
+  average: number;
+}
+
+export function isValidRating(r: number): boolean {
+  return Number.isInteger(r) && r >= 1 && r <= 5;
+}
+
+/** Only orders that reached the customer can be reviewed. */
+export function canReviewOrder(status: OrderStatus): boolean {
+  return status === 'delivered';
+}
+
+/** Shows just a first name and initial, e.g. "Rami K.", so full names are never published. */
+export function publicReviewerName(raw: string): string {
+  const parts = raw.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  const first = parts[0]!.slice(0, 40);
+  const last = parts.length > 1 ? parts[parts.length - 1]!.charAt(0).toUpperCase() : '';
+  return last ? `${first} ${last}.` : first;
+}
+
+export function summarizeRatings(ratings: readonly number[]): ReviewSummary {
+  const ok = ratings.filter(isValidRating);
+  if (ok.length === 0) return { count: 0, average: 0 };
+  const avg = ok.reduce((s, r) => s + r, 0) / ok.length;
+  return { count: ok.length, average: Math.round(avg * 10) / 10 };
+}
+
+export function toProductReview(id: string, d: Record<string, unknown> | undefined): ProductReview {
+  const data = d ?? {};
+  const rating = num(data.rating);
+  return {
+    id,
+    productId: str(data.productId),
+    productName: str(data.productName),
+    orderRef: str(data.orderRef),
+    name: str(data.name),
+    rating: isValidRating(rating) ? rating : 0,
+    text: str(data.text),
+    status: isOneOf(REVIEW_STATUSES, data.status) ? data.status : 'pending',
+    createdAtMs: num(data.createdAtMs),
   };
 }
 
@@ -191,6 +304,8 @@ export function toOnlineOrder(id: string, d: Record<string, unknown> | undefined
         lineLbp: num(l.lineLbp),
       };
     }),
+    deliveryZone: str(data.deliveryZone),
+    deliveryFeeUsdCents: num(data.deliveryFeeUsdCents),
     totalUsdCents: num(data.totalUsdCents),
     totalLbp: num(data.totalLbp),
     createdAtMs: num(data.createdAtMs),

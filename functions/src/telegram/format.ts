@@ -113,6 +113,26 @@ export function cashMessage(d: Data, timeZone: string): string {
   return lines.join('\n');
 }
 
+export function onlineOrderMessage(d: Data, timeZone: string): string {
+  const items = Array.isArray(d.lines) ? (d.lines as Data[]) : [];
+  const delivery = d.fulfillment === 'delivery';
+  const lines = [`🛍️ New online order ${str(d.ref)}`, `📅 ${formatDate(num(d.createdAtMs) || Date.now(), timeZone)}`];
+  lines.push(`👥 Customer: ${str(d.customerName) || '-'} · ${str(d.customerPhone) || '-'}`);
+  lines.push(delivery ? `🚚 Delivery${str(d.deliveryZone) ? ` (${str(d.deliveryZone)})` : ''}` : '🏪 Pickup from the shop');
+  if (delivery && str(d.address)) lines.push(`📍 ${str(d.address)}`);
+  lines.push('🛒 Products:');
+  for (const item of items.slice(0, 30)) {
+    const usdCents = num(item.lineUsdCents);
+    lines.push(`  • ${str(item.name)} × ${num(item.qty)} = ${usdCents ? usd(usdCents) : lbp(num(item.lineLbp))}`);
+  }
+  if (items.length > 30) lines.push(`  … +${items.length - 30}`);
+  if (num(d.deliveryFeeUsdCents) > 0) lines.push(`🚚 Delivery fee: ${usd(num(d.deliveryFeeUsdCents))}`);
+  lines.push(`💰 Total: ${moneyPair(num(d.totalUsdCents), num(d.totalLbp), false)}`);
+  lines.push('💵 Cash on delivery / at pickup');
+  if (str(d.note)) lines.push(`📝 ${str(d.note)}`);
+  return lines.join('\n');
+}
+
 export function lowStockMessage(name: string, stock: number, threshold: number): string {
   return [`⚠️ Low stock`, `📦 ${name}`, `📉 Stock: ${stock} (alert at ${threshold})`].join('\n');
 }

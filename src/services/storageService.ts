@@ -5,7 +5,19 @@ import { AppError } from './errors';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-/** Downscales an image client-side (max 800px, JPEG/WebP) to keep uploads small and fast. */
+/** Aim for photos that load quickly on slow mobile data; quality steps down until they fit. */
+const TARGET_BYTES = 160 * 1024;
+const QUALITIES = [0.82, 0.72, 0.62];
+
+function encode(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
+/**
+ * Downscales an image client-side (max 800px) and re-encodes it as WebP where the browser can
+ * (about a third smaller than JPEG), otherwise JPEG. Transparent PNGs get a white background so
+ * they don't turn black as JPEG. Keeps the original if re-encoding wouldn't make it smaller.
+ */
 async function compressImage(file: File, maxSize = 800): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
@@ -14,10 +26,23 @@ async function compressImage(file: File, maxSize = 800): Promise<Blob> {
   canvas.height = Math.round(bitmap.height * scale);
   const ctx = canvas.getContext('2d');
   if (!ctx) return file;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
-  return blob && blob.size < file.size ? blob : file;
+  let best: Blob | null = null;
+  for (const quality of QUALITIES) {
+    const webp = await encode(canvas, 'image/webp', quality);
+    // Browsers without WebP encoding silently return PNG; use JPEG there instead.
+    const blob = webp && webp.type === 'image/webp' ? webp : await encode(canvas, 'image/jpeg', quality);
+    if (blob && (!best || blob.size < best.size)) best = blob;
+    if (best && best.size <= TARGET_BYTES) break;
+  }
+  return best && best.size < file.size ? best : file;
+}
+
+function extensionOf(type: string): string {
+  return type === 'image/webp' ? 'webp' : type === 'image/png' ? 'png' : 'jpg';
 }
 
 export async function uploadTenantImage(
@@ -29,9 +54,10 @@ export async function uploadTenantImage(
   if (!ALLOWED_TYPES.includes(file.type)) throw new AppError('error.imageType');
   const blob = await compressImage(file);
   if (blob.size > MAX_IMAGE_BYTES) throw new AppError('error.imageTooLarge');
-  const path = `tenants/${tenantId}/${folder}/${name}-${Date.now()}.jpg`;
+  const type = blob.type || file.type || 'image/jpeg';
+  const path = `tenants/${tenantId}/${folder}/${name}-${Date.now()}.${extensionOf(type)}`;
   const storageRef = ref(firebase.storage, path);
-  await uploadBytes(storageRef, blob, { contentType: blob.type || 'image/jpeg', cacheControl: 'public,max-age=31536000' });
+  await uploadBytes(storageRef, blob, { contentType: type, cacheControl: 'public,max-age=31536000' });
   return { url: await getDownloadURL(storageRef), path };
 }
 

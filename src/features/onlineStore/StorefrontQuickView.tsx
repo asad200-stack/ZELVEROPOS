@@ -1,8 +1,10 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import type { PublicProduct } from '@/domain/onlineStore';
+import { discountPercent, type PublicProduct, type StoreLocale } from '@/domain/onlineStore';
+import { formatUsd } from '@/utils/format';
 import type { TranslationKey, TParams } from '@/i18n/i18n';
 import { APPAREL_SIZES, SHOE_SIZES, apparelSize, fitKind, shoeSize, type FitPref } from './sizeAdvisor';
 import StorefrontTryOn from './StorefrontTryOn';
+import StorefrontReviews from './StorefrontReviews';
 
 type T = (key: TranslationKey, params?: TParams) => string;
 
@@ -21,6 +23,10 @@ interface Props {
   onWish: () => void;
   onClose: () => void;
   onPick: (p: PublicProduct) => void;
+  slug: string;
+  lang: StoreLocale;
+  /** Direct link to this product on the store page. */
+  shareUrl: string;
 }
 
 const FITS: { id: FitPref; key: TranslationKey }[] = [
@@ -47,6 +53,38 @@ export function HeartIcon({ filled }: { filled: boolean }): ReactNode {
     <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" />
     </svg>
+  );
+}
+
+/** Native share sheet where the phone has one, otherwise copy the link; plus a WhatsApp shortcut. */
+function ShareRow({ t, name, url }: { t: T; name: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+  const share = async () => {
+    const nav = navigator as Navigator & { share?: (d: { title: string; url: string }) => Promise<void> };
+    if (typeof nav.share === 'function') {
+      await nav.share({ title: name, url }).catch(() => undefined);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.prompt(t('storefront.share.copy'), url);
+    }
+  };
+  return (
+    <div className="sf-share">
+      <button type="button" className="sf-share-btn" onClick={() => void share()}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v12M7 8l5-5 5 5" />
+        </svg>
+        {copied ? t('storefront.share.copied') : t('storefront.share.label')}
+      </button>
+      <a className="sf-share-btn" href={`https://wa.me/?text=${encodeURIComponent(`${name} ${url}`)}`} target="_blank" rel="noopener noreferrer">
+        WhatsApp
+      </a>
+    </div>
   );
 }
 
@@ -158,7 +196,13 @@ export default function StorefrontQuickView(props: Props) {
         <div className="sf-qv-info">
           {p.category.trim() && <p className="sf-eyebrow">{p.category}</p>}
           <h2 id="sf-qv-title">{p.name}</h2>
-          <div className="sf-price">{priceOf(p)}</div>
+          <div className="sf-price sf-qv-price">
+            {priceOf(p)}
+            {p.compareAtUsdCents !== null && <s className="sf-was">{formatUsd(p.compareAtUsdCents)}</s>}
+            {discountPercent(p) !== null && <span className="sf-off">−{discountPercent(p)}%</span>}
+          </div>
+          {p.description && <p className="sf-qv-desc">{p.description}</p>}
+          <ShareRow t={t} name={p.name} url={props.shareUrl} />
           {!p.inStock && <p className="sf-msg sf-msg-warn">{t('storefront.outOfStock')}</p>}
 
           {needsSize && p.inStock && (
@@ -255,6 +299,8 @@ export default function StorefrontQuickView(props: Props) {
               <HeartIcon filled={wished} />
             </button>
           </div>
+
+          <StorefrontReviews slug={props.slug} productId={p.id} t={t} lang={props.lang} />
 
           {related.length > 0 && (
             <section className="sf-related">

@@ -21,7 +21,7 @@ import { auth, db } from './admin.js';
 import { subUntilOf } from './claims.js';
 import { REGION } from './config.js';
 import { fail, rethrowClientSafe } from './errors.js';
-import { idField, tenantPaths, toProduct } from './pos/common.js';
+import { businessDate, idField, tenantPaths, toProduct } from './pos/common.js';
 import { platformClientIp } from './requestIp.js';
 import { ipSignal } from './salesModel.js';
 import {
@@ -32,11 +32,31 @@ import {
   STORE_LOCALES,
   STORE_NAME_MAX,
   STORE_PHONE_RE,
+  FREE_DELIVERY_MAX_USD_CENTS,
+  LISTING_DESC_MAX,
+  HHMM_RE,
+  STORE_ADDRESS_MAX,
+  DELIVERY_FEE_MAX_USD_CENTS,
+  DELIVERY_ZONES_MAX,
+  ZONE_ID_RE,
+  ZONE_NAME_MAX,
   STORE_TAGLINE_MAX,
   STORE_TEMPLATES,
+  EVENT_FIELD,
+  STATS_RANGES,
+  STATS_TOP,
+  STORE_EVENTS,
+  DOMAIN_MAX,
+  domainProblem,
+  normalizeDomain,
   cleanVisibleIds,
+  statDates,
+  summarizeStats,
+  toDayStats,
+  type StoreStatsSummary,
   normalizeSlug,
   projectPublicProduct,
+  rankBestSellers,
   projectPublicStore,
   publishBlockers,
   slugProblem,
@@ -143,11 +163,38 @@ const brandingSchema = z.strictObject({
   enabledLocales: z.array(z.enum(STORE_LOCALES)).min(1).max(STORE_LOCALES.length),
   contactPhone: phoneField,
   whatsapp: phoneField,
+  // Optional so older clients that do not send it still validate; null = no free-delivery offer.
+  freeDeliveryOverUsdCents: z.number().int().min(1).max(FREE_DELIVERY_MAX_USD_CENTS).nullable().default(null),
+  // Optional for older clients. Zone ids must be unique (checked below).
+  deliveryZones: z
+    .array(
+      z.strictObject({
+        id: z.string().regex(ZONE_ID_RE),
+        name: z.string().trim().min(1).max(ZONE_NAME_MAX),
+        feeUsdCents: z.number().int().min(0).max(DELIVERY_FEE_MAX_USD_CENTS),
+      }),
+    )
+    .max(DELIVERY_ZONES_MAX)
+    .default([])
+    .refine((zones) => new Set(zones.map((z) => z.id)).size === zones.length),
+  minOrderUsdCents: z.number().int().min(1).max(FREE_DELIVERY_MAX_USD_CENTS).nullable().default(null),
+  storeAddress: z.string().trim().max(STORE_ADDRESS_MAX).default(''),
+  // Either not set (empty) or one entry per weekday, Sunday first.
+  hours: z
+    .array(z.strictObject({ closed: z.boolean(), open: z.string().regex(HHMM_RE), close: z.string().regex(HHMM_RE) }))
+    .max(7)
+    .default([])
+    .refine((h) => h.length === 0 || h.length === 7),
 });
 const emptySchema = z.strictObject({});
 const saveDraftSchema = z.strictObject({ enabled: z.boolean(), draft: brandingSchema });
 const slugSchema = z.strictObject({ slug: z.string().min(1).max(64) });
 const visibilitySchema = z.strictObject({ productIds: z.array(idField).max(MAX_VISIBLE_PRODUCTS) });
+const listingSchema = z.strictObject({
+  productId: idField,
+  description: z.string().max(LISTING_DESC_MAX * 2),
+  compareAtUsdCents: z.number().int().min(1).max(FREE_DELIVERY_MAX_USD_CENTS).nullable(),
+});
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -207,7 +254,7 @@ export const onlineStoreGetConfig = onCall({ region: REGION }, (request) =>
     ]);
     const docs = snap.docs.slice(0, OWNER_PICKER_CAP);
     const products = docs
-      .map((d) => projectPublicProduct(toProduct(d.id, d.data())))
+      .map((d) => projectPublicProduct(toProduct(d.id, d.data()), config.listings[d.id], config.ratings[d.id]))
       .sort((a, b) => a.name.localeCompare(b.name));
     return { config, products, productsTruncated: snap.docs.length > OWNER_PICKER_CAP };
   }),
@@ -308,6 +355,25 @@ export const onlineStoreSetProductVisibility = onCall({ region: REGION }, (reque
   }),
 );
 
+/** Owner sets the web description and price-before-discount of one product (live, no publish step). */
+export const onlineStoreSaveListing = onCall({ region: REGION }, (request) =>
+  ownerCall(request, async ({ tenantId }, data): Promise<{ config: OnlineStoreConfig }> => {
+    const input = parse(listingSchema, data);
+    const description = input.description.trim();
+    if (description.length > LISTING_DESC_MAX) fail('invalid-argument', 'error.onlineStore.description');
+    const found = await activeProducts(tenantId, [input.productId]);
+    if (!found.has(input.productId)) fail('invalid-argument', 'error.onlineStore.unknownProduct');
+    const ref = storeRef(tenantId);
+    if (!(await ref.get()).exists) await ref.set({ ...toStoreConfig(undefined), updatedAt: Date.now() });
+    const empty = !description && input.compareAtUsdCents === null;
+    await ref.update({
+      [`listings.${input.productId}`]: empty ? FieldValue.delete() : { description, compareAtUsdCents: input.compareAtUsdCents },
+      updatedAt: Date.now(),
+    });
+    return { config: await loadConfig(tenantId) };
+  }),
+);
+
 /* ------------------------------------------------------------------ public catalog */
 
 // App Check stays in monitoring mode platform-wide (see globalOptions.ts); enforcing it is a
@@ -336,6 +402,41 @@ export async function rateLimit(kind: string, ip: string, now: number, max: numb
 export interface PublicCatalogResponse {
   store: PublicStore;
   products: PublicProduct[];
+  /** Visible products that sold most in the last 30 days, best first (may be empty). */
+  bestSellerIds: string[];
+}
+
+const BEST_TTL_MS = 6 * 3_600_000;
+const BEST_DAYS = 30;
+const BEST_SCAN = 400;
+const BEST_KEEP = 24;
+const BEST_SHOW = 8;
+
+/**
+ * Best sellers from the shop's real POS sales (and nothing else). Recomputed at most every
+ * 6 hours and cached on the store doc, so public page loads never scan sales on every visit.
+ */
+async function bestSellerIds(tenantId: string): Promise<string[]> {
+  const ref = storeRef(tenantId);
+  const cached = (await ref.get()).get('bestSellers') as { ids?: unknown; atMs?: unknown } | undefined;
+  const cachedIds = Array.isArray(cached?.ids) ? cached.ids.filter((x): x is string => typeof x === 'string') : [];
+  if (typeof cached?.atMs === 'number' && Date.now() - cached.atMs < BEST_TTL_MS) return cachedIds;
+  try {
+    const from = businessDate(Date.now() - BEST_DAYS * 86_400_000);
+    const snap = await tenantPaths(tenantId).col('sales').where('localDate', '>=', from).orderBy('localDate', 'desc').limit(BEST_SCAN).get();
+    const items = snap.docs.flatMap((d) => {
+      const raw = d.get('items');
+      return Array.isArray(raw)
+        ? raw.map((it: DocumentData) => ({ productId: String(it?.productId ?? ''), quantity: Number(it?.quantity) || 0 }))
+        : [];
+    });
+    const ids = rankBestSellers(items, BEST_KEEP);
+    await ref.set({ bestSellers: { ids, atMs: Date.now() } }, { merge: true });
+    return ids;
+  } catch (err) {
+    console.warn('[onlineStore] best sellers unavailable', err);
+    return cachedIds;
+  }
 }
 
 export interface PublishedStore {
@@ -386,9 +487,137 @@ export const publicStoreCatalog = onCall(publicFn, async (request): Promise<Publ
       .map((id) => toProduct(id, found.get(id) as DocumentData))
       // Same rules as publicPlaceOrder: IMEI-tracked or unpriced items can't be ordered online.
       .filter((p) => !p.imeiTracking)
-      .map(projectPublicProduct)
+      .map((p) => projectPublicProduct(p, config.listings[p.id], config.ratings[p.id], Date.now()))
       .filter((p) => p.priceUsdCents > 0 || (p.priceLbp ?? 0) > 0);
-    return { store: projectPublicStore(slug, published), products };
+    const shown = new Set(products.filter((p) => p.inStock).map((p) => p.id));
+    const best = (await bestSellerIds(tenantId)).filter((id) => shown.has(id)).slice(0, BEST_SHOW);
+    return { store: projectPublicStore(slug, published), products, bestSellerIds: best };
+  } catch (err) {
+    rethrowClientSafe(err);
+  }
+});
+
+/* ------------------------------------------------------------------ store analytics */
+
+const TRACK_PER_HOUR = 600;
+const TRACK_CACHE_MS = 60_000;
+const trackSchema = z.strictObject({
+  slug: z.string().min(1).max(64),
+  type: z.enum(STORE_EVENTS),
+  productId: idField.optional(),
+});
+const statsSchema = z.strictObject({ days: z.union([z.literal(STATS_RANGES[0]), z.literal(STATS_RANGES[1])]) });
+
+/** Per-instance slug→tenant cache so a burst of storefront events doesn't re-read the store doc. */
+const trackTenants = new Map<string, { tenantId: string; atMs: number }>();
+
+async function trackTenant(slug: string, now: number): Promise<string> {
+  const hit = trackTenants.get(slug);
+  if (hit && now - hit.atMs < TRACK_CACHE_MS) return hit.tenantId;
+  const { tenantId } = await resolvePublishedStore(slug);
+  if (trackTenants.size > 500) trackTenants.clear();
+  trackTenants.set(slug, { tenantId, atMs: now });
+  return tenantId;
+}
+
+export const statsRef = (tenantId: string, date: string): DocumentReference =>
+  storeRef(tenantId).collection('stats').doc(date);
+
+/**
+ * Counts one storefront event (visit, product view, add to cart, checkout start) on today's
+ * counter doc. No visitor ids are stored. Product views are only counted for real, active
+ * products so the per-product map can't be filled with junk keys.
+ */
+export const publicTrackEvent = onCall(publicFn, async (request): Promise<{ ok: true }> => {
+  try {
+    const input = parse(trackSchema, stripTransport(request.data));
+    const slug = publicSlug(input.slug);
+    const now = Date.now();
+    await rateLimit('storeTrack', clientIp(request), now, TRACK_PER_HOUR);
+    const tenantId = await trackTenant(slug, now);
+    const field = EVENT_FIELD[input.type];
+    const update: Record<string, unknown> = { [field]: FieldValue.increment(1), updatedAt: now };
+    if (input.type === 'view' && input.productId) {
+      const found = await activeProducts(tenantId, [input.productId]);
+      if (found.has(input.productId)) update.viewsBy = { [input.productId]: FieldValue.increment(1) };
+    }
+    await statsRef(tenantId, businessDate(now)).set(update, { merge: true });
+    return { ok: true };
+  } catch (err) {
+    rethrowClientSafe(err);
+  }
+});
+
+export interface StoreStatsResponse extends StoreStatsSummary {
+  /** Names for topViewed, keyed by product id (archived products are left out). */
+  names: Record<string, string>;
+}
+
+/** Owner view of the storefront counters for the last 7 or 30 shop days. */
+export const onlineStoreStats = onCall({ region: REGION }, (request) =>
+  ownerCall(request, async ({ tenantId }, data): Promise<StoreStatsResponse> => {
+    const input = parse(statsSchema, data);
+    const dates = statDates(businessDate(Date.now()), input.days);
+    const snaps = await db.getAll(...dates.map((d) => statsRef(tenantId, d)));
+    const summary = summarizeStats(snaps.map((s, i) => toDayStats(dates[i] ?? s.id, s.data())), STATS_TOP);
+    const products = await activeProducts(tenantId, summary.topViewed.map((t) => t.productId));
+    const names: Record<string, string> = {};
+    for (const [id, p] of products) names[id] = typeof p.name === 'string' ? p.name : '';
+    return { ...summary, names };
+  }),
+);
+
+/* ------------------------------------------------------------------ custom domains */
+
+const domainRef = (domain: string): DocumentReference => db.doc(`onlineStoreDomains/${domain}`);
+const domainSchema = z.strictObject({ domain: z.string().max(DOMAIN_MAX + 20) });
+const DOMAIN_LOOKUPS_PER_HOUR = 300;
+
+/**
+ * Saves (or clears, with '') the shop's own domain. One domain belongs to one shop: the
+ * mapping doc onlineStoreDomains/{domain} is claimed in the same transaction. Pointing DNS
+ * and connecting the domain in Firebase Hosting stay manual platform steps (see the guide in
+ * .claude/storefront-progress.md); until then the domain simply doesn't reach us.
+ */
+export const onlineStoreSetDomain = onCall({ region: REGION }, (request) =>
+  ownerCall(request, async ({ tenantId }, data): Promise<{ config: OnlineStoreConfig }> => {
+    const domain = normalizeDomain(parse(domainSchema, data).domain);
+    if (domain) {
+      const problem = domainProblem(domain);
+      if (problem) fail('invalid-argument', `error.onlineStore.domain.${problem}`);
+    }
+    const ref = storeRef(tenantId);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const before = toStoreConfig(snap.data()).customDomain;
+      if (before === domain) return;
+      if (domain) {
+        const claimed = await tx.get(domainRef(domain));
+        const owner = claimed.get('tenantId');
+        if (claimed.exists && owner !== tenantId) fail('already-exists', 'error.onlineStore.domain.taken');
+        tx.set(domainRef(domain), { tenantId, updatedAt: Date.now() });
+      }
+      if (before) tx.delete(domainRef(before));
+      if (snap.exists) tx.update(ref, { customDomain: domain, updatedAt: Date.now() });
+      else tx.set(ref, { ...toStoreConfig(undefined), customDomain: domain, updatedAt: Date.now() });
+    });
+    return { config: await loadConfig(tenantId) };
+  }),
+);
+
+/** Which published shop a custom domain opens. Unknown or unpublished → not-found. */
+export const publicStoreByDomain = onCall(publicFn, async (request): Promise<{ slug: string }> => {
+  try {
+    const domain = normalizeDomain(parse(domainSchema, stripTransport(request.data)).domain);
+    if (!domain || domainProblem(domain)) fail('not-found', 'error.onlineStore.notFound');
+    await rateLimit('storeDomain', clientIp(request), Date.now(), DOMAIN_LOOKUPS_PER_HOUR);
+    const tenantId = (await domainRef(domain).get()).get('tenantId');
+    if (typeof tenantId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(tenantId)) fail('not-found', 'error.onlineStore.notFound');
+    const config = toStoreConfig((await storeRef(tenantId).get()).data());
+    if (config.customDomain !== domain || !config.slug) fail('not-found', 'error.onlineStore.notFound');
+    const slug = config.slug;
+    await resolvePublishedStore(slug); // same published + entitled checks as the catalog
+    return { slug };
   } catch (err) {
     rethrowClientSafe(err);
   }

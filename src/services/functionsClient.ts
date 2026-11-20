@@ -4,8 +4,8 @@ import { isAdminPreviewBuild } from '@/domain/adminPreview';
 import { customerReleaseCutoverAllowed } from '@/domain/previewAccess';
 import { firebase } from '@/firebase/app';
 import type { PermissionMap } from '@/constants/permissions';
-import type { OnlineStoreConfig, PublicProduct, PublicStore, StoreBranding } from '@/domain/onlineStore';
-import type { FulfillmentMethod, OnlineOrder, OrderStatus, PaymentMethod, PublicOrderReceipt } from '@/domain/onlineOrders';
+import type { OnlineStoreConfig, PublicProduct, PublicStore, StatsRange, StoreBranding, StoreEvent, StoreStatsSummary } from '@/domain/onlineStore';
+import type { FulfillmentMethod, OnlineOrder, OrderStatus, PaymentMethod, ProductReview, PublicOrderReceipt, PublicOrderTracking, PublicReview, ReviewStatus, ReviewSummary } from '@/domain/onlineOrders';
 import { withoutUndefined } from './callableData';
 import { requirePreviewCredential } from './previewCredential';
 
@@ -260,7 +260,15 @@ export const api = {
   onlineStorePublish: callable<Record<string, never>, { config: OnlineStoreConfig }>('onlineStorePublish'),
   onlineStoreUnpublish: callable<Record<string, never>, { config: OnlineStoreConfig }>('onlineStoreUnpublish'),
   onlineStoreSetProductVisibility: callable<{ productIds: string[] }, { config: OnlineStoreConfig }>('onlineStoreSetProductVisibility'),
-  publicStoreCatalog: callable<{ slug: string }, { store: PublicStore; products: PublicProduct[] }>('publicStoreCatalog'),
+  onlineStoreSaveListing: callable<
+    { productId: string; description: string; compareAtUsdCents: number | null },
+    { config: OnlineStoreConfig }
+  >('onlineStoreSaveListing'),
+  onlineStoreSetDomain: callable<{ domain: string }, { config: OnlineStoreConfig }>('onlineStoreSetDomain'),
+  publicStoreByDomain: callable<{ domain: string }, { slug: string }>('publicStoreByDomain'),
+  onlineStoreStats: callable<{ days: StatsRange }, StoreStatsSummary & { names: Record<string, string> }>('onlineStoreStats'),
+  publicTrackEvent: callable<{ slug: string; type: StoreEvent; productId?: string }, { ok: true }>('publicTrackEvent'),
+  publicStoreCatalog: callable<{ slug: string }, { store: PublicStore; products: PublicProduct[]; bestSellerIds?: string[] }>('publicStoreCatalog'),
   publicPlaceOrder: callable<
     {
       slug: string;
@@ -271,11 +279,17 @@ export const api = {
       note: string;
       fulfillment: FulfillmentMethod;
       payment: PaymentMethod;
+      zoneId?: string;
     },
     PublicOrderReceipt
   >('publicPlaceOrder'),
   onlineOrdersList: callable<{ status?: OrderStatus; limit?: number }, { orders: OnlineOrder[] }>('onlineOrdersList'),
   onlineOrdersSetStatus: callable<{ orderId: string; status: OrderStatus }, { order: OnlineOrder }>('onlineOrdersSetStatus'),
+  publicTrackOrder: callable<{ slug: string; ref: string; phone: string }, PublicOrderTracking>('publicTrackOrder'),
+  publicSubmitReview: callable<{ slug: string; ref: string; phone: string; productId: string; rating: number; text: string }, { ok: true }>('publicSubmitReview'),
+  publicProductReviews: callable<{ slug: string; productId: string }, { reviews: PublicReview[]; summary: ReviewSummary }>('publicProductReviews'),
+  onlineReviewsList: callable<{ status?: ReviewStatus; limit?: number }, { reviews: ProductReview[] }>('onlineReviewsList'),
+  onlineReviewsSetStatus: callable<{ reviewId: string; status: ReviewStatus }, { review: ProductReview }>('onlineReviewsSetStatus'),
   issuePreviewCredential: callable<Record<string, never>, { credentialId: string; secret: string; tenantId: string; expiresAtMs: number }>('issuePreviewCredential'),
   adminListLeads: callable<
     Record<string, never>,

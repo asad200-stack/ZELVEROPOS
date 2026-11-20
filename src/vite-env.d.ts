@@ -25,6 +25,10 @@ interface ImportMetaEnv {
   readonly VITE_ADMIN_PREVIEW?: string;
   /** Optional loopback URL for a local llama.cpp server. Never a paid AI API. */
   readonly VITE_ZELVERO_AI_URL?: string;
+  /** 'true' lets a shop's own domain open its storefront (see CustomDomainStore.tsx). */
+  readonly VITE_STORE_CUSTOM_DOMAINS?: string;
+  /** Comma-separated hosts that always open the POS app, never a storefront. */
+  readonly VITE_APP_HOSTS?: string;
 }
 
 interface ImportMeta {

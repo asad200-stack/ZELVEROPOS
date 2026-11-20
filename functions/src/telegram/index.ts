@@ -5,11 +5,11 @@ import { REGION, TELEGRAM_TIMEZONE } from '../config.js';
 import { fail } from '../errors.js';
 import { assertLiveTenantUser } from '../liveUser.js';
 import { caller } from '../validate.js';
-import { cashMessage, crossedLowStock, lowStockMessage, NOTIFIED_CASH_TYPES, returnMessage, saleMessage } from './format.js';
+import { cashMessage, crossedLowStock, lowStockMessage, NOTIFIED_CASH_TYPES, onlineOrderMessage, returnMessage, saleMessage } from './format.js';
 
-type TelegramEvent = 'sales' | 'returns' | 'cash' | 'lowStock';
+type TelegramEvent = 'sales' | 'returns' | 'cash' | 'lowStock' | 'onlineOrders';
 
-const DEFAULT_EVENTS: Record<TelegramEvent, boolean> = { sales: true, returns: true, cash: true, lowStock: false };
+const DEFAULT_EVENTS: Record<TelegramEvent, boolean> = { sales: true, returns: true, cash: true, lowStock: false, onlineOrders: true };
 const DEFAULT_LOW_STOCK_THRESHOLD = 10;
 const TRIGGER_OPTIONS = { region: REGION, maxInstances: 10, timeoutSeconds: 30 } as const;
 
@@ -67,6 +67,15 @@ export const onReturnCreated = onDocumentCreated({ ...TRIGGER_OPTIONS, document:
   const data = event.data?.data();
   if (data) await notify(event.params.tenantId, 'returns', (tz) => returnMessage(data, tz));
 });
+
+/** A guest placed an order on the online store: tell the owner right away. */
+export const onOnlineOrderCreated = onDocumentCreated(
+  { ...TRIGGER_OPTIONS, document: 'onlineStores/{tenantId}/orders/{orderId}' },
+  async (event) => {
+    const data = event.data?.data();
+    if (data) await notify(event.params.tenantId, 'onlineOrders', (tz) => onlineOrderMessage(data, tz));
+  },
+);
 
 export const onCashTransactionCreated = onDocumentCreated(
   { ...TRIGGER_OPTIONS, document: 'tenants/{tenantId}/cashTransactions/{txId}' },

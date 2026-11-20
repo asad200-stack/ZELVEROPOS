@@ -40,6 +40,18 @@ export const BUSINESS_TIMEZONE = defineString('BUSINESS_TIMEZONE', {
   description: 'IANA time zone used to compute business dates',
 });
 
+/** Public origin of the hosted app; the store share page reads its HTML shell from here. */
+export const STORE_SITE_ORIGIN = defineString('STORE_SITE_ORIGIN', {
+  default: 'https://zelvoropos.web.app',
+  description: 'Origin (https://host) whose /index.html is used as the storefront shell',
+});
+
+/** Extra hostnames (comma separated) that may appear in store links, e.g. connected custom domains. */
+export const STORE_EXTRA_HOSTS = defineString('STORE_EXTRA_HOSTS', {
+  default: '',
+  description: 'Comma-separated custom domains allowed in storefront share links',
+});
+
 export const DAY_MS = 86_400_000;
 /** Claim value used for lifetime subscriptions (2100-01-01). */
 export { LIFETIME_UNTIL } from './subscriptionUntil.js';

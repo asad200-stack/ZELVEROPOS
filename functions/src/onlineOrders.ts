@@ -4,6 +4,11 @@
  *   publicPlaceOrder       guest checkout from a published store (cash on delivery / pay at pickup)
  *   onlineOrdersList       owner inbox
  *   onlineOrdersSetStatus  owner moves an order through the status machine
+ *   publicTrackOrder       guest looks up an order by reference + phone (status timeline only)
+ *   publicSubmitReview     guest reviews a product from a delivered order (held for moderation)
+ *   publicProductReviews   approved reviews and rating summary for one visible product
+ *   onlineReviewsList      owner moderation queue
+ *   onlineReviewsSetStatus owner approves or rejects a review
  *
  * The tenant always comes from the server-owned slug index (public) or from the caller's own
  * principal (owner); strict schemas reject any tenant/store/uid/price field. Prices, availability
@@ -18,7 +23,7 @@ import { z } from 'zod';
 import { db } from './admin.js';
 import { REGION } from './config.js';
 import { fail, rethrowClientSafe } from './errors.js';
-import { clientIp, ownerCall, publicFn, publicSlug, rateLimit, resolvePublishedStore, storeRef, stripTransport } from './onlineStore.js';
+import { clientIp, ownerCall, publicFn, publicSlug, rateLimit, resolvePublishedStore, statsRef, storeRef, stripTransport } from './onlineStore.js';
 import { businessDate, exchangeRateOf, idField, tenantPaths, toProduct } from './pos/common.js';
 import {
   FULFILLMENT_METHODS,
@@ -37,10 +42,23 @@ import {
   restoresStock,
   toOnlineOrder,
   toReceipt,
+  REVIEW_STATUSES,
+  REVIEW_TEXT_MAX,
+  canReviewOrder,
+  normalizeOrderRef,
+  publicReviewerName,
+  summarizeRatings,
+  toHistory,
+  toProductReview,
   type OnlineOrder,
   type OnlineOrderLine,
+  type ProductReview,
   type PublicOrderReceipt,
+  type PublicOrderTracking,
+  type PublicReview,
+  type ReviewSummary,
 } from './shared/onlineOrders.js';
+import { deliveryQuote } from './shared/onlineStore.js';
 import { tierLbp, tierUsdCents } from './shared/pricing.js';
 import { parse } from './validate.js';
 
@@ -49,7 +67,32 @@ const LIST_DEFAULT = 50;
 const LIST_MAX = 200;
 const ONLINE_ACTOR = { createdBy: 'online-store', createdByName: 'Online order' } as const;
 
+const TRACK_PER_HOUR = 30;
+const REVIEW_PER_HOUR = 10;
+const REVIEWS_READ_PER_HOUR = 300;
+const PUBLIC_REVIEWS_MAX = 20;
+
 const ordersCol = (tenantId: string) => storeRef(tenantId).collection('orders');
+const reviewsCol = (tenantId: string) => storeRef(tenantId).collection('reviews');
+
+const guestOrderFields = {
+  slug: z.string().min(1).max(64),
+  ref: z.string().max(20),
+  phone: z.string().max(40),
+};
+const trackSchema = z.strictObject(guestOrderFields);
+const submitReviewSchema = z.strictObject({
+  ...guestOrderFields,
+  productId: idField,
+  rating: z.number().int().min(1).max(5),
+  text: z.string().max(REVIEW_TEXT_MAX * 2),
+});
+const productReviewsSchema = z.strictObject({ slug: z.string().min(1).max(64), productId: idField });
+const reviewsListSchema = z.strictObject({
+  status: z.enum(REVIEW_STATUSES).optional(),
+  limit: z.number().int().min(1).max(LIST_MAX).optional(),
+});
+const reviewSetStatusSchema = z.strictObject({ reviewId: z.string().min(1).max(300), status: z.enum(REVIEW_STATUSES) });
 
 const placeOrderSchema = z.strictObject({
   slug: z.string().min(1).max(64),
@@ -63,6 +106,8 @@ const placeOrderSchema = z.strictObject({
   note: z.string().max(ORDER_NOTE_MAX * 2),
   fulfillment: z.enum(FULFILLMENT_METHODS),
   payment: z.enum(PAYMENT_METHODS),
+  // Optional for older storefronts; required by deliveryQuote when the store has zones.
+  zoneId: z.string().max(20).optional(),
 });
 
 const listSchema = z.strictObject({
@@ -133,6 +178,11 @@ export const publicPlaceOrder = onCall(publicFn, async (request): Promise<Public
       if (storeSnap.get('publication') !== 'published' || storeSnap.get('enabled') !== true) {
         fail('not-found', 'error.onlineStore.notFound');
       }
+      // Delivery fee and minimum are decided here from the published store, never by the client.
+      const itemsUsdCents = priced.reduce((s, l) => s + l.lineUsdCents, 0);
+      const delivery = deliveryQuote(config.published ?? { deliveryZones: [], freeDeliveryOverUsdCents: null, minOrderUsdCents: null }, itemsUsdCents, input.fulfillment, input.zoneId);
+      if (delivery.problem) fail('invalid-argument', `error.onlineOrders.${delivery.problem}`);
+
       const seq = Number(storeSnap.get('orderSeq') ?? 0) + 1;
       const ref = formatOrderRef(seq);
       const audit = auditAt(now);
@@ -168,12 +218,20 @@ export const publicPlaceOrder = onCall(publicFn, async (request): Promise<Public
         address: input.address.trim(),
         note,
         lines: priced,
-        totalUsdCents: priced.reduce((s, l) => s + l.lineUsdCents, 0),
-        totalLbp: priced.reduce((s, l) => s + l.lineLbp, 0),
+        deliveryZone: delivery.zone?.name ?? '',
+        deliveryFeeUsdCents: delivery.feeUsdCents,
+        totalUsdCents: itemsUsdCents + delivery.feeUsdCents,
+        // The fee is set in USD; the LBP total converts it at the store's rate so both totals agree.
+        totalLbp: priced.reduce((s, l) => s + l.lineLbp, 0) + Math.round((delivery.feeUsdCents / 100) * rate),
         createdAtMs: now,
         updatedAtMs: now,
       };
       tx.set(storeRef(tenantId), { orderSeq: seq }, { merge: true });
+      tx.set(
+        statsRef(tenantId, businessDate(now)),
+        { orders: FieldValue.increment(1), revenueUsdCents: FieldValue.increment(doc.totalUsdCents), updatedAt: now },
+        { merge: true },
+      );
       tx.set(orderRef, { ...doc, ...audit, history: [{ status: 'pending', atMs: now, by: ONLINE_ACTOR.createdBy }] });
       return doc;
     });
@@ -248,6 +306,157 @@ export const onlineOrdersSetStatus = onCall({ region: REGION }, (request) =>
         history: FieldValue.arrayUnion({ status: input.status, atMs: now, by: uid }),
       });
       return { order: { ...order, status: input.status, updatedAtMs: now } };
+    });
+  }),
+);
+
+/* ------------------------------------------------------------------ guest tracking */
+
+/**
+ * Finds a guest's order from the reference and the phone used at checkout. Every mismatch answers
+ * the same not-found so the endpoint cannot be used to learn which references exist.
+ */
+async function findGuestOrder(tenantId: string, refRaw: string, phoneRaw: string) {
+  const ref = normalizeOrderRef(refRaw);
+  const phone = normalizeOrderPhone(phoneRaw);
+  if (!ref || phone.length < 6) fail('not-found', 'error.onlineOrders.notFound');
+  const snap = await ordersCol(tenantId).where('ref', '==', ref).limit(1).get();
+  const doc = snap.docs[0];
+  const data = doc?.data();
+  if (!doc || !data || data.customerPhone !== phone) fail('not-found', 'error.onlineOrders.notFound');
+  return { id: doc.id, data, order: toOnlineOrder(doc.id, data) };
+}
+
+export const publicTrackOrder = onCall(publicFn, async (request): Promise<PublicOrderTracking> => {
+  try {
+    const input = parse(trackSchema, stripTransport(request.data));
+    const slug = publicSlug(input.slug);
+    await rateLimit('trackOrder', clientIp(request), Date.now(), TRACK_PER_HOUR);
+    const { tenantId } = await resolvePublishedStore(slug);
+    const { data, order } = await findGuestOrder(tenantId, input.ref, input.phone);
+    return {
+      ref: order.ref,
+      status: order.status,
+      fulfillment: order.fulfillment,
+      totalUsdCents: order.totalUsdCents,
+      totalLbp: order.totalLbp,
+      createdAtMs: order.createdAtMs,
+      history: toHistory(data.history),
+    };
+  } catch (err) {
+    rethrowClientSafe(err);
+  }
+});
+
+/* ------------------------------------------------------------------ reviews */
+
+export interface SubmitReviewResponse {
+  ok: true;
+}
+
+/** Verified-buyer review: the order must be delivered and contain the product. One per order line. */
+export const publicSubmitReview = onCall(publicFn, async (request): Promise<SubmitReviewResponse> => {
+  try {
+    const input = parse(submitReviewSchema, stripTransport(request.data));
+    const slug = publicSlug(input.slug);
+    const text = input.text.trim();
+    if (text.length > REVIEW_TEXT_MAX) fail('invalid-argument', 'error.onlineOrders.reviewText');
+    const now = Date.now();
+    await rateLimit('submitReview', clientIp(request), now, REVIEW_PER_HOUR);
+    const { tenantId } = await resolvePublishedStore(slug);
+    const { id, order } = await findGuestOrder(tenantId, input.ref, input.phone);
+    if (!canReviewOrder(order.status)) fail('failed-precondition', 'error.onlineOrders.notDelivered');
+    const line = order.lines.find((l) => l.productId === input.productId);
+    if (!line) fail('failed-precondition', 'error.onlineOrders.notInOrder');
+
+    const review: Omit<ProductReview, 'id'> = {
+      productId: line.productId,
+      productName: line.name,
+      orderRef: order.ref,
+      name: publicReviewerName(order.customerName),
+      rating: input.rating,
+      text,
+      status: 'pending',
+      createdAtMs: now,
+    };
+    try {
+      await reviewsCol(tenantId).doc(`${id}_${line.productId}`).create({ ...review, updatedAtMs: now });
+    } catch (err) {
+      if ((err as { code?: unknown }).code === 6) fail('already-exists', 'error.onlineOrders.alreadyReviewed');
+      throw err;
+    }
+    return { ok: true };
+  } catch (err) {
+    rethrowClientSafe(err);
+  }
+});
+
+export interface ProductReviewsResponse {
+  reviews: PublicReview[];
+  summary: ReviewSummary;
+}
+
+/** Approved reviews of one visible product, newest first, with the rating summary. */
+export const publicProductReviews = onCall(publicFn, async (request): Promise<ProductReviewsResponse> => {
+  try {
+    const input = parse(productReviewsSchema, stripTransport(request.data));
+    const slug = publicSlug(input.slug);
+    await rateLimit('productReviews', clientIp(request), Date.now(), REVIEWS_READ_PER_HOUR);
+    const { tenantId, config } = await resolvePublishedStore(slug);
+    if (!config.visibleProductIds.includes(input.productId)) fail('not-found', 'error.onlineStore.notFound');
+    const snap = await reviewsCol(tenantId)
+      .where('productId', '==', input.productId)
+      .where('status', '==', 'approved')
+      .limit(200)
+      .get();
+    const all = snap.docs.map((d) => toProductReview(d.id, d.data())).sort((a, b) => b.createdAtMs - a.createdAtMs);
+    return {
+      reviews: all.slice(0, PUBLIC_REVIEWS_MAX).map((r) => ({ name: r.name, rating: r.rating, text: r.text, createdAtMs: r.createdAtMs })),
+      summary: summarizeRatings(all.map((r) => r.rating)),
+    };
+  } catch (err) {
+    rethrowClientSafe(err);
+  }
+});
+
+export interface OnlineReviewsListResponse {
+  reviews: ProductReview[];
+}
+
+export const onlineReviewsList = onCall({ region: REGION }, (request) =>
+  ownerCall(request, async ({ tenantId }, data): Promise<OnlineReviewsListResponse> => {
+    const input = parse(reviewsListSchema, data);
+    const base = input.status ? reviewsCol(tenantId).where('status', '==', input.status) : reviewsCol(tenantId);
+    const snap = await base.orderBy('createdAtMs', 'desc').limit(input.limit ?? LIST_DEFAULT).get();
+    return { reviews: snap.docs.map((d: DocumentSnapshot) => toProductReview(d.id, d.data())) };
+  }),
+);
+
+export interface OnlineReviewStatusResponse {
+  review: ProductReview;
+}
+
+export const onlineReviewsSetStatus = onCall({ region: REGION }, (request) =>
+  ownerCall(request, async ({ tenantId, uid }, data): Promise<OnlineReviewStatusResponse> => {
+    const input = parse(reviewSetStatusSchema, data);
+    const ref = reviewsCol(tenantId).doc(input.reviewId);
+    const now = Date.now();
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) fail('not-found', 'error.onlineOrders.reviewNotFound');
+      // Keep the per-product approved totals in step so the catalog can show stars without a query.
+      const before = toProductReview(snap.id, snap.data());
+      const wasCounted = before.status === 'approved';
+      const counts = input.status === 'approved';
+      if (wasCounted !== counts && /^[A-Za-z0-9_-]{1,128}$/.test(before.productId) && before.rating >= 1 && before.rating <= 5) {
+        const sign = counts ? 1 : -1;
+        tx.update(storeRef(tenantId), {
+          [`ratings.${before.productId}.count`]: FieldValue.increment(sign),
+          [`ratings.${before.productId}.sum`]: FieldValue.increment(sign * before.rating),
+        });
+      }
+      tx.update(ref, { status: input.status, moderatedBy: uid, updatedAtMs: now });
+      return { review: { ...toProductReview(snap.id, snap.data()), status: input.status } };
     });
   }),
 );

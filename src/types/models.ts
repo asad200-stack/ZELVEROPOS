@@ -322,6 +322,8 @@ export interface TelegramEvents {
   returns: boolean;
   cash: boolean;
   lowStock: boolean;
+  /** New orders from the online store. */
+  onlineOrders: boolean;
 }
 
 export interface StoreSettings {

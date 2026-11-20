@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { BrowserRouter } from 'react-router';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { FeedbackProvider } from '@/components/feedback/FeedbackProvider';
@@ -12,7 +12,10 @@ import { useI18n } from '@/i18n/i18n';
 import { APP_NAME } from '@/constants/app';
 import { AiConversationLifecycle } from '@/features/ai/AiConversationLifecycle';
 import { PosPreviewPage } from '@/features/pos/PosPreviewPage';
+import { customStoreHost } from '@/features/onlineStore/customStoreHost';
 import { AppRoutes } from './AppRoutes';
+
+const CustomDomainStore = lazy(() => import('@/features/onlineStore/CustomDomainStore'));
 
 function CrashScreen({ error, reset }: { error: Error; reset: () => void }) {
   const { t } = useI18n();
@@ -69,6 +72,7 @@ function FirebaseGate({ children }: { children: ReactNode }) {
 }
 
 export function App() {
+  const storeHost = customStoreHost(import.meta.env, window.location.hostname);
   const preview =
     import.meta.env.VITE_APP_CHANNEL === 'preview' && window.location.pathname.startsWith('/preview');
   if (preview) {
@@ -89,7 +93,13 @@ export function App() {
               <SessionProvider>
                 <AiConversationLifecycle />
                 <BrowserRouter basename={import.meta.env.BASE_URL === '/' ? undefined : String(import.meta.env.BASE_URL).replace(/\/$/, '')}>
-                  <AppRoutes />
+                  {storeHost ? (
+                    <Suspense fallback={null}>
+                      <CustomDomainStore host={storeHost} />
+                    </Suspense>
+                  ) : (
+                    <AppRoutes />
+                  )}
                 </BrowserRouter>
               </SessionProvider>
             </FirebaseGate>

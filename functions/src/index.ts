@@ -13,9 +13,24 @@ export {
   onlineStorePublish,
   onlineStoreUnpublish,
   onlineStoreSetProductVisibility,
+  onlineStoreSaveListing,
+  onlineStoreStats,
+  onlineStoreSetDomain,
+  publicStoreByDomain,
   publicStoreCatalog,
+  publicTrackEvent,
 } from './onlineStore.js';
-export { publicPlaceOrder, onlineOrdersList, onlineOrdersSetStatus } from './onlineOrders.js';
+export { publicStorePage } from './storePage.js';
+export {
+  publicPlaceOrder,
+  onlineOrdersList,
+  onlineOrdersSetStatus,
+  publicTrackOrder,
+  publicSubmitReview,
+  publicProductReviews,
+  onlineReviewsList,
+  onlineReviewsSetStatus,
+} from './onlineOrders.js';
 export {
   submitWebsiteLead,
   provisionWebsiteTrial,

@@ -19,7 +19,7 @@ const settings: StoreSettings = {
   defaultCurrency: 'USD',
   lowStockAlert: false,
   lowStockThreshold: 0,
-  telegram: { enabled: false, events: { sales: true, returns: true, cash: true, lowStock: false } },
+  telegram: { enabled: false, events: { sales: true, returns: true, cash: true, lowStock: false, onlineOrders: true } },
   updatedAt: 0,
 };
 

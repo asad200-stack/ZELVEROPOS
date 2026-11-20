@@ -3,14 +3,20 @@ import {
   ORDER_MAX_LINES,
   ORDER_MAX_QTY,
   ORDER_STATUSES,
+  canReviewOrder,
   canTransition,
   formatOrderRef,
   isFinalStatus,
+  isValidRating,
   mergeOrderLines,
   nextStatuses,
+  normalizeOrderRef,
   orderProblem,
+  publicReviewerName,
   restoresStock,
+  summarizeRatings,
   toOnlineOrder,
+  toProductReview,
   toReceipt,
 } from './onlineOrders';
 
@@ -109,9 +115,54 @@ describe('toOnlineOrder / toReceipt', () => {
         { name: 'Case', qty: 2, lineUsdCents: 1000, lineLbp: 0 },
         { name: '', qty: 0, lineUsdCents: 0, lineLbp: 0 },
       ],
+      deliveryZone: '',
+      deliveryFeeUsdCents: 0,
       totalUsdCents: 1000,
       totalLbp: 0,
     });
     expect(JSON.stringify(r)).not.toContain('+96170123456');
+  });
+});
+
+describe('order references', () => {
+  it('accepts loose customer input', () => {
+    const ref = formatOrderRef(123);
+    expect(normalizeOrderRef(ref)).toBe(ref);
+    expect(normalizeOrderRef('zv 123')).toBe(ref);
+    expect(normalizeOrderRef(' 123 ')).toBe(ref);
+  });
+
+  it('rejects junk', () => {
+    expect(normalizeOrderRef('')).toBeNull();
+    expect(normalizeOrderRef('0')).toBeNull();
+    expect(normalizeOrderRef('abc')).toBeNull();
+    expect(normalizeOrderRef('1234567890')).toBeNull();
+  });
+});
+
+describe('reviews', () => {
+  it('only delivered orders can be reviewed', () => {
+    expect(canReviewOrder('delivered')).toBe(true);
+    expect(canReviewOrder('pending')).toBe(false);
+    expect(canReviewOrder('cancelled')).toBe(false);
+  });
+
+  it('validates ratings and summarizes them', () => {
+    expect(isValidRating(0)).toBe(false);
+    expect(isValidRating(6)).toBe(false);
+    expect(isValidRating(4.5)).toBe(false);
+    expect(summarizeRatings([])).toEqual({ count: 0, average: 0 });
+    expect(summarizeRatings([5, 4, 4, 9])).toEqual({ count: 3, average: 4.3 });
+  });
+
+  it('publishes only a first name and initial', () => {
+    expect(publicReviewerName('  Rami   Khoury ')).toBe('Rami K.');
+    expect(publicReviewerName('Rami')).toBe('Rami');
+    expect(publicReviewerName('   ')).toBe('');
+  });
+
+  it('reads stored reviews defensively', () => {
+    const r = toProductReview('r1', { rating: 7, status: 'weird', text: 3 });
+    expect(r).toMatchObject({ id: 'r1', rating: 0, status: 'pending', text: '' });
   });
 });

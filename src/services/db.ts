@@ -371,7 +371,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   defaultCurrency: 'USD',
   lowStockAlert: true,
   lowStockThreshold: DEFAULTS.lowStockThreshold,
-  telegram: { enabled: false, events: { sales: true, returns: true, cash: true, lowStock: false } },
+  telegram: { enabled: false, events: { sales: true, returns: true, cash: true, lowStock: false, onlineOrders: true } },
   updatedAt: null,
 };
 
@@ -400,6 +400,7 @@ export function toSettings(d: DocumentData | undefined): StoreSettings {
         returns: bool(ev.returns, true),
         cash: bool(ev.cash, true),
         lowStock: bool(ev.lowStock),
+        onlineOrders: bool(ev.onlineOrders, true),
       },
     },
     updatedAt: millis(d.updatedAt),
