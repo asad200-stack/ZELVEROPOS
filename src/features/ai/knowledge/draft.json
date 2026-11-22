@@ -31,19 +31,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminAssignClient",
-        "startLine": 62,
-        "endLine": 62,
+        "startLine": 67,
+        "endLine": 67,
         "sha256": "5876e2dd05eea6df90a1e1d98c78e63bae976b3cd611f175fd10905c4d87b7e4",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 62,
-            "endLine": 62
+            "startLine": 67,
+            "endLine": 67
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 428,
-            "endLine": 428
+            "startLine": 444,
+            "endLine": 444
           }
         ]
       },
@@ -106,8 +106,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 334,
-            "endLine": 334
+            "startLine": 350,
+            "endLine": 350
           }
         ]
       },
@@ -170,8 +170,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 251,
-            "endLine": 251
+            "startLine": 256,
+            "endLine": 256
           }
         ]
       },
@@ -225,19 +225,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListClientAssignmentAudit",
-        "startLine": 63,
-        "endLine": 63,
+        "startLine": 68,
+        "endLine": 68,
         "sha256": "0399920620772d78c40592dc4640d3bd0ac6bb75b145c2374e103258f5e8c0b0",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 63,
-            "endLine": 63
+            "startLine": 68,
+            "endLine": 68
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 432,
-            "endLine": 432
+            "startLine": 448,
+            "endLine": 448
           }
         ]
       },
@@ -290,19 +290,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListClientAssignments",
-        "startLine": 61,
-        "endLine": 61,
+        "startLine": 66,
+        "endLine": 66,
         "sha256": "f99c2903ee6d05f41f9daa86888713c4b20fab05597503b53938b9e6ef5ade11",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 61,
-            "endLine": 61
+            "startLine": 66,
+            "endLine": 66
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 424,
-            "endLine": 424
+            "startLine": 440,
+            "endLine": 440
           }
         ]
       },
@@ -354,19 +354,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListLeads",
-        "startLine": 39,
-        "endLine": 39,
+        "startLine": 44,
+        "endLine": 44,
         "sha256": "b006990aa5e682b8e33388a541e27165a4613140dbdb5e5d622747fe547fc0e6",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 39,
-            "endLine": 39
+            "startLine": 44,
+            "endLine": 44
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 314,
-            "endLine": 314
+            "startLine": 330,
+            "endLine": 330
           }
         ]
       },
@@ -418,19 +418,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListPartners",
-        "startLine": 60,
-        "endLine": 60,
+        "startLine": 65,
+        "endLine": 65,
         "sha256": "6ce1065101cb7cbac46d2aa7639a26d80bc3f8bc6c3db180443bbc2704a2176c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 60,
-            "endLine": 60
+            "startLine": 65,
+            "endLine": 65
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 420,
-            "endLine": 420
+            "startLine": 436,
+            "endLine": 436
           }
         ]
       },
@@ -494,8 +494,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 344,
-            "endLine": 344
+            "startLine": 360,
+            "endLine": 360
           }
         ]
       },
@@ -547,19 +547,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminListTrials",
-        "startLine": 41,
-        "endLine": 41,
+        "startLine": 46,
+        "endLine": 46,
         "sha256": "e86aff8cea78caa9aebbe05a8f463d87fd8d59b9daa85f2ef0fe75121fee6a17",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 41,
-            "endLine": 41
+            "startLine": 46,
+            "endLine": 46
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 332,
-            "endLine": 332
+            "startLine": 348,
+            "endLine": 348
           }
         ]
       },
@@ -623,8 +623,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 252,
-            "endLine": 252
+            "startLine": 257,
+            "endLine": 257
           }
         ]
       },
@@ -688,8 +688,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 335,
-            "endLine": 335
+            "startLine": 351,
+            "endLine": 351
           }
         ]
       },
@@ -742,19 +742,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "adminSetLeadStatus",
-        "startLine": 40,
-        "endLine": 40,
+        "startLine": 45,
+        "endLine": 45,
         "sha256": "7f267185b1f80e86e14d3fe21b15ff7097eee5ae5e5ff9b0e83c57eb470f94df",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 40,
-            "endLine": 40
+            "startLine": 45,
+            "endLine": 45
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 315,
-            "endLine": 315
+            "startLine": 331,
+            "endLine": 331
           }
         ]
       },
@@ -817,8 +817,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 333,
-            "endLine": 333
+            "startLine": 349,
+            "endLine": 349
           }
         ]
       },
@@ -881,8 +881,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 254,
-            "endLine": 254
+            "startLine": 259,
+            "endLine": 259
           }
         ]
       },
@@ -945,8 +945,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 255,
-            "endLine": 255
+            "startLine": 260,
+            "endLine": 260
           }
         ]
       },
@@ -998,19 +998,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "assignReleaseTenants",
-        "startLine": 47,
-        "endLine": 47,
+        "startLine": 52,
+        "endLine": 52,
         "sha256": "36650032fb5ab11785508effdc6220207a289bfc111e171e84b7e8c8813e954c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 47,
-            "endLine": 47
+            "startLine": 52,
+            "endLine": 52
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 350,
-            "endLine": 350
+            "startLine": 366,
+            "endLine": 366
           }
         ]
       },
@@ -1073,8 +1073,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 250,
-            "endLine": 250
+            "startLine": 255,
+            "endLine": 255
           }
         ]
       },
@@ -1126,19 +1126,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "checkReleaseTreeRetention",
-        "startLine": 54,
-        "endLine": 54,
+        "startLine": 59,
+        "endLine": 59,
         "sha256": "c9c6a895f95b24514e522bf60a17d4ae3211a6a9dcd67657de16dd6afc88ad79",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 54,
-            "endLine": 54
+            "startLine": 59,
+            "endLine": 59
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 398,
-            "endLine": 398
+            "startLine": 414,
+            "endLine": 414
           }
         ]
       },
@@ -1200,8 +1200,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 237,
-            "endLine": 237
+            "startLine": 242,
+            "endLine": 242
           }
         ]
       },
@@ -1252,19 +1252,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "clearTenantData",
-        "startLine": 56,
-        "endLine": 56,
+        "startLine": 61,
+        "endLine": 61,
         "sha256": "93bc935efb66f9d7666c132f390c79137c4fe00bbda4773c0495f9c68a821899",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 56,
-            "endLine": 56
+            "startLine": 61,
+            "endLine": 61
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 248,
-            "endLine": 248
+            "startLine": 253,
+            "endLine": 253
           }
         ]
       },
@@ -1326,8 +1326,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 238,
-            "endLine": 238
+            "startLine": 243,
+            "endLine": 243
           }
         ]
       },
@@ -1378,19 +1378,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "createRelease",
-        "startLine": 45,
-        "endLine": 45,
+        "startLine": 50,
+        "endLine": 50,
         "sha256": "bd068dce3daf0d8bbf747a903ff43596d7e8468c31ffc4299d60c60e64822eee",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 45,
-            "endLine": 45
+            "startLine": 50,
+            "endLine": 50
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 348,
-            "endLine": 348
+            "startLine": 364,
+            "endLine": 364
           }
         ]
       },
@@ -1453,8 +1453,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 247,
-            "endLine": 247
+            "startLine": 252,
+            "endLine": 252
           }
         ]
       },
@@ -1507,19 +1507,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "getMyReleaseAssignment",
-        "startLine": 52,
-        "endLine": 52,
+        "startLine": 57,
+        "endLine": 57,
         "sha256": "e355aef66471030c292e95b1f3fa68c085e4a10f5953299948ea3ba273053ff5",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 52,
-            "endLine": 52
+            "startLine": 57,
+            "endLine": 57
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 368,
-            "endLine": 368
+            "startLine": 384,
+            "endLine": 384
           }
         ]
       },
@@ -1571,19 +1571,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "grantFeaturePurchase",
-        "startLine": 73,
-        "endLine": 73,
+        "startLine": 78,
+        "endLine": 78,
         "sha256": "43c4be4e101022c4380edb811ef8b71fa99e5be994858961438aab5f3259f30c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 73,
-            "endLine": 73
+            "startLine": 78,
+            "endLine": 78
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 407,
-            "endLine": 407
+            "startLine": 423,
+            "endLine": 423
           }
         ]
       },
@@ -1635,19 +1635,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "grantMarketingPartner",
-        "startLine": 58,
-        "endLine": 58,
+        "startLine": 63,
+        "endLine": 63,
         "sha256": "f75c0e28756a1174cfc682bcffc8c767e5fd716f3cbb3b49fd6188763f955dc5",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 58,
-            "endLine": 58
+            "startLine": 63,
+            "endLine": 63
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 418,
-            "endLine": 418
+            "startLine": 434,
+            "endLine": 434
           }
         ]
       },
@@ -1710,8 +1710,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 293,
-            "endLine": 293
+            "startLine": 309,
+            "endLine": 309
           }
         ]
       },
@@ -1763,19 +1763,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "listFeatureCatalog",
-        "startLine": 68,
-        "endLine": 68,
+        "startLine": 73,
+        "endLine": 73,
         "sha256": "f7536c45bfcc6fab7c30386f43db748ba72c05b09514ff35495e4bd71a5993c2",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 68,
-            "endLine": 68
+            "startLine": 73,
+            "endLine": 73
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 399,
-            "endLine": 399
+            "startLine": 415,
+            "endLine": 415
           }
         ]
       },
@@ -1828,19 +1828,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "listMyFeatureUpdates",
-        "startLine": 76,
-        "endLine": 76,
+        "startLine": 81,
+        "endLine": 81,
         "sha256": "569759d38b83eadfa51b7ca0b42aea2e9e17b5256596b2e79ba26b26913bf21a",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 76,
-            "endLine": 76
+            "startLine": 81,
+            "endLine": 81
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 410,
-            "endLine": 410
+            "startLine": 426,
+            "endLine": 426
           }
         ]
       },
@@ -1891,19 +1891,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "listReleases",
-        "startLine": 53,
-        "endLine": 53,
+        "startLine": 58,
+        "endLine": 58,
         "sha256": "f4a6056a6536099cfb71ee8744914d0875e11f0d5d6fe82af0aa3153018dad6f",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 53,
-            "endLine": 53
+            "startLine": 58,
+            "endLine": 58
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 397,
-            "endLine": 397
+            "startLine": 413,
+            "endLine": 413
           }
         ]
       },
@@ -1955,19 +1955,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "markFeatureReady",
-        "startLine": 69,
-        "endLine": 69,
+        "startLine": 74,
+        "endLine": 74,
         "sha256": "04a6b9feb2b29f9324dc7be3d89e5ac87402ca26dd7832118a3280105428ba23",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 69,
-            "endLine": 69
+            "startLine": 74,
+            "endLine": 74
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 400,
-            "endLine": 400
+            "startLine": 416,
+            "endLine": 416
           }
         ]
       },
@@ -1988,6 +1988,70 @@
         ],
         "source": [
           "markFeatureReady"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineOrdersCheckPayment",
+      "kind": "callable",
+      "title": {
+        "en": "onlineOrdersCheckPayment",
+        "ar": "onlineOrdersCheckPayment"
+      },
+      "body": {
+        "en": "onlineOrdersCheckPayment is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineOrdersCheckPayment دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlineorderscheckpayment",
+        "online",
+        "orders",
+        "payment",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineOrdersCheckPayment",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineOrdersCheckPayment",
+        "startLine": 36,
+        "endLine": 36,
+        "sha256": "cf9668d700771d0560e1eaf4a701af31060a7eacf1d16afa48f1b2c5bc8d3b0d",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 36,
+            "endLine": 36
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 282,
+            "endLine": 282
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineOrdersCheckPayment",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineOrdersCheckPayment",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineOrdersCheckPayment"
         ]
       }
     },
@@ -2019,19 +2083,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "onlineOrdersList",
-        "startLine": 26,
-        "endLine": 26,
+        "startLine": 27,
+        "endLine": 27,
         "sha256": "bf9b30367905c990f406a878972ebc85df8f8c56c987d1df9fdc5ca2f6f730c1",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 26,
-            "endLine": 26
+            "startLine": 27,
+            "endLine": 27
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 286,
-            "endLine": 286
+            "startLine": 302,
+            "endLine": 302
           }
         ]
       },
@@ -2084,19 +2148,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "onlineOrdersSetStatus",
-        "startLine": 27,
-        "endLine": 27,
+        "startLine": 28,
+        "endLine": 28,
         "sha256": "a697cc037b538d8cee55175682a31c579671d67bf23a5bc2f6c0d05d5a8026af",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 27,
-            "endLine": 27
+            "startLine": 28,
+            "endLine": 28
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 287,
-            "endLine": 287
+            "startLine": 303,
+            "endLine": 303
           }
         ]
       },
@@ -2148,19 +2212,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "onlineReviewsList",
-        "startLine": 31,
-        "endLine": 31,
+        "startLine": 32,
+        "endLine": 32,
         "sha256": "c40058ed8bb38b77562c13b537dea3485f5a164988a778f80c277de940a9774a",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 31,
-            "endLine": 31
+            "startLine": 32,
+            "endLine": 32
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 291,
-            "endLine": 291
+            "startLine": 307,
+            "endLine": 307
           }
         ]
       },
@@ -2213,19 +2277,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "onlineReviewsSetStatus",
-        "startLine": 32,
-        "endLine": 32,
+        "startLine": 33,
+        "endLine": 33,
         "sha256": "0867057877f7a878a2d9f4583068260b3e1d1f3d89c0bf9978d9e036ba8f1237",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 32,
-            "endLine": 32
+            "startLine": 33,
+            "endLine": 33
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 292,
-            "endLine": 292
+            "startLine": 308,
+            "endLine": 308
           }
         ]
       },
@@ -2289,8 +2353,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 257,
-            "endLine": 257
+            "startLine": 262,
+            "endLine": 262
           }
         ]
       },
@@ -2311,6 +2375,71 @@
         ],
         "source": [
           "onlineStoreGetConfig"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreGetPayments",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreGetPayments",
+        "ar": "onlineStoreGetPayments"
+      },
+      "body": {
+        "en": "onlineStoreGetPayments is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreGetPayments دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestoregetpayments",
+        "online",
+        "store",
+        "get",
+        "payments",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreGetPayments",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreGetPayments",
+        "startLine": 24,
+        "endLine": 24,
+        "sha256": "2b4213aaea0ef45d56b6ca4c2b90d951a17db499df736be56697bc4f4e6b26ad",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 24,
+            "endLine": 24
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 283,
+            "endLine": 283
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreGetPayments",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreGetPayments",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreGetPayments"
         ]
       }
     },
@@ -2353,8 +2482,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 260,
-            "endLine": 260
+            "startLine": 265,
+            "endLine": 265
           }
         ]
       },
@@ -2418,8 +2547,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 258,
-            "endLine": 258
+            "startLine": 263,
+            "endLine": 263
           }
         ]
       },
@@ -2483,8 +2612,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 266,
-            "endLine": 266
+            "startLine": 271,
+            "endLine": 271
           }
         ]
       },
@@ -2548,8 +2677,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 267,
-            "endLine": 267
+            "startLine": 272,
+            "endLine": 272
           }
         ]
       },
@@ -2614,8 +2743,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 262,
-            "endLine": 262
+            "startLine": 267,
+            "endLine": 267
           }
         ]
       },
@@ -2679,8 +2808,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 259,
-            "endLine": 259
+            "startLine": 264,
+            "endLine": 264
           }
         ]
       },
@@ -2701,6 +2830,71 @@
         ],
         "source": [
           "onlineStoreSetSlug"
+        ]
+      }
+    },
+    {
+      "id": "callable:onlineStoreSetWhish",
+      "kind": "callable",
+      "title": {
+        "en": "onlineStoreSetWhish",
+        "ar": "onlineStoreSetWhish"
+      },
+      "body": {
+        "en": "onlineStoreSetWhish is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "onlineStoreSetWhish دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "onlinestoresetwhish",
+        "online",
+        "store",
+        "set",
+        "whish",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "onlineStoreSetWhish",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "onlineStoreSetWhish",
+        "startLine": 24,
+        "endLine": 24,
+        "sha256": "ec583fc3f598a418310927ad36f3b8621d77e5bb9f3b2e0f93d40f5ceb6ddc6a",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 24,
+            "endLine": 24
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 287,
+            "endLine": 287
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "onlineStoreSetWhish",
+          "cannot call this function"
+        ],
+        "ar": [
+          "onlineStoreSetWhish",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "onlineStoreSetWhish"
         ]
       }
     },
@@ -2743,8 +2937,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 269,
-            "endLine": 269
+            "startLine": 274,
+            "endLine": 274
           }
         ]
       },
@@ -2807,8 +3001,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 261,
-            "endLine": 261
+            "startLine": 266,
+            "endLine": 266
           }
         ]
       },
@@ -2861,19 +3055,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "partnerListMyClients",
-        "startLine": 65,
-        "endLine": 65,
+        "startLine": 70,
+        "endLine": 70,
         "sha256": "1396d0b3a17352b0d0b01d23feadbe630830ccd5da6ac27d143f57f6d017e7dd",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 65,
-            "endLine": 65
+            "startLine": 70,
+            "endLine": 70
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 433,
-            "endLine": 433
+            "startLine": 449,
+            "endLine": 449
           }
         ]
       },
@@ -2924,19 +3118,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "pauseFeature",
-        "startLine": 71,
-        "endLine": 71,
+        "startLine": 76,
+        "endLine": 76,
         "sha256": "c390907ddf78c7f793e916f82f4aef8929fa2dba136a7d8c2f98a59033cef175",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 71,
-            "endLine": 71
+            "startLine": 76,
+            "endLine": 76
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 405,
-            "endLine": 405
+            "startLine": 421,
+            "endLine": 421
           }
         ]
       },
@@ -2987,19 +3181,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "pauseRelease",
-        "startLine": 49,
-        "endLine": 49,
+        "startLine": 54,
+        "endLine": 54,
         "sha256": "0b4a020a10dfe22eef46de3cdba5e6ed06ec4384a5afb483a71a9ea32933f051",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 49,
-            "endLine": 49
+            "startLine": 54,
+            "endLine": 54
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 352,
-            "endLine": 352
+            "startLine": 368,
+            "endLine": 368
           }
         ]
       },
@@ -3062,13 +3256,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 81,
-            "endLine": 81
+            "startLine": 86,
+            "endLine": 86
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 191,
-            "endLine": 191
+            "startLine": 196,
+            "endLine": 196
           }
         ]
       },
@@ -3132,13 +3326,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 82,
-            "endLine": 82
+            "startLine": 87,
+            "endLine": 87
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 203,
-            "endLine": 203
+            "startLine": 208,
+            "endLine": 208
           }
         ]
       },
@@ -3210,13 +3404,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 80,
-            "endLine": 80
+            "startLine": 85,
+            "endLine": 85
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 178,
-            "endLine": 178
+            "startLine": 183,
+            "endLine": 183
           }
         ]
       },
@@ -3285,13 +3479,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 82,
-            "endLine": 82
+            "startLine": 87,
+            "endLine": 87
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 202,
-            "endLine": 202
+            "startLine": 207,
+            "endLine": 207
           }
         ]
       },
@@ -3360,13 +3554,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 79,
-            "endLine": 79
+            "startLine": 84,
+            "endLine": 84
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 151,
-            "endLine": 151
+            "startLine": 156,
+            "endLine": 156
           }
         ]
       },
@@ -3435,13 +3629,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 81,
-            "endLine": 81
+            "startLine": 86,
+            "endLine": 86
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 186,
-            "endLine": 186
+            "startLine": 191,
+            "endLine": 191
           }
         ]
       },
@@ -3509,13 +3703,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 80,
-            "endLine": 80
+            "startLine": 85,
+            "endLine": 85
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 161,
-            "endLine": 161
+            "startLine": 166,
+            "endLine": 166
           }
         ]
       },
@@ -3587,13 +3781,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 83,
-            "endLine": 83
+            "startLine": 88,
+            "endLine": 88
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 217,
-            "endLine": 217
+            "startLine": 222,
+            "endLine": 222
           }
         ]
       },
@@ -3661,13 +3855,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 80,
-            "endLine": 80
+            "startLine": 85,
+            "endLine": 85
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 164,
-            "endLine": 164
+            "startLine": 169,
+            "endLine": 169
           }
         ]
       },
@@ -3733,13 +3927,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 80,
-            "endLine": 80
+            "startLine": 85,
+            "endLine": 85
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 162,
-            "endLine": 162
+            "startLine": 167,
+            "endLine": 167
           }
         ]
       },
@@ -3807,13 +4001,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 81,
-            "endLine": 81
+            "startLine": 86,
+            "endLine": 86
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 190,
-            "endLine": 190
+            "startLine": 195,
+            "endLine": 195
           }
         ]
       },
@@ -3885,13 +4079,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 83,
-            "endLine": 83
+            "startLine": 88,
+            "endLine": 88
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 229,
-            "endLine": 229
+            "startLine": 234,
+            "endLine": 234
           }
         ]
       },
@@ -3965,13 +4159,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 79,
-            "endLine": 79
+            "startLine": 84,
+            "endLine": 84
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 157,
-            "endLine": 157
+            "startLine": 162,
+            "endLine": 162
           }
         ]
       },
@@ -4042,13 +4236,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 83,
-            "endLine": 83
+            "startLine": 88,
+            "endLine": 88
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 233,
-            "endLine": 233
+            "startLine": 238,
+            "endLine": 238
           }
         ]
       },
@@ -4117,13 +4311,13 @@
           },
           {
             "path": "functions/src/index.ts",
-            "startLine": 80,
-            "endLine": 80
+            "startLine": 85,
+            "endLine": 85
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 163,
-            "endLine": 163
+            "startLine": 168,
+            "endLine": 168
           }
         ]
       },
@@ -4186,8 +4380,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 26,
-            "endLine": 26
+            "startLine": 31,
+            "endLine": 31
           }
         ]
       },
@@ -4208,6 +4402,133 @@
         ],
         "source": [
           "previewPos"
+        ]
+      }
+    },
+    {
+      "id": "callable:publicCheckPayment",
+      "kind": "callable",
+      "title": {
+        "en": "publicCheckPayment",
+        "ar": "publicCheckPayment"
+      },
+      "body": {
+        "en": "publicCheckPayment is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "publicCheckPayment دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "publiccheckpayment",
+        "public",
+        "payment",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "publicCheckPayment",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "publicCheckPayment",
+        "startLine": 35,
+        "endLine": 35,
+        "sha256": "28cd8e7aca611d77ff779e8db0edb9962a75511ec4736db32e895a48e029eb40",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 35,
+            "endLine": 35
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 281,
+            "endLine": 281
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "publicCheckPayment",
+          "cannot call this function"
+        ],
+        "ar": [
+          "publicCheckPayment",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "publicCheckPayment"
+        ]
+      }
+    },
+    {
+      "id": "callable:publicPayOrder",
+      "kind": "callable",
+      "title": {
+        "en": "publicPayOrder",
+        "ar": "publicPayOrder"
+      },
+      "body": {
+        "en": "publicPayOrder is a Cloud Function named in the local source and in the POS client wrapper. The role check stays inside that function. This card does not guess it. Zelvero AI cannot call this function. This is from the local working tree, not a production deployment check.",
+        "ar": "publicPayOrder دالة سحابية مذكورة في المصدر المحلي وفي غلاف عميل نقطة البيع. فحص الدور يبقى داخل الدالة. هذه البطاقة لا تخمّنه. Zelvero AI لا يستطيع استدعاء هذه الدالة. هذه المعلومة من شجرة المصدر المحلية، وليست تأكيداً أن الميزة منشورة في الإنتاج."
+      },
+      "keywords": [
+        "publicpayorder",
+        "public",
+        "pay",
+        "order",
+        "function",
+        "callable"
+      ],
+      "route": null,
+      "permission": null,
+      "audience": "member",
+      "callable": "publicPayOrder",
+      "executes": false,
+      "valid": true,
+      "source": {
+        "path": "functions/src/index.ts",
+        "symbol": "publicPayOrder",
+        "startLine": 34,
+        "endLine": 34,
+        "sha256": "3b04e23e9d832dcf572192bcd7a1afbf4f45250bc43d4019c69924374d60736a",
+        "anchors": [
+          {
+            "path": "functions/src/index.ts",
+            "startLine": 34,
+            "endLine": 34
+          },
+          {
+            "path": "src/services/functionsClient.ts",
+            "startLine": 280,
+            "endLine": 280
+          }
+        ]
+      },
+      "release": {
+        "appVersion": "2.0.0",
+        "releaseVersion": "0.9.0-dev",
+        "channel": "local-working-tree",
+        "productionVerified": false
+      },
+      "evidence": {
+        "en": [
+          "publicPayOrder",
+          "cannot call this function"
+        ],
+        "ar": [
+          "publicPayOrder",
+          "لا يستطيع استدعاء هذه الدالة"
+        ],
+        "source": [
+          "publicPayOrder"
         ]
       }
     },
@@ -4239,19 +4560,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "publicPlaceOrder",
-        "startLine": 25,
-        "endLine": 25,
+        "startLine": 26,
+        "endLine": 26,
         "sha256": "a74e9c0eb4dc66e02cefcdb2c73a4061b28737c2f7f149dce83cdbabd5b285b9",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 25,
-            "endLine": 25
+            "startLine": 26,
+            "endLine": 26
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 285,
-            "endLine": 285
+            "startLine": 301,
+            "endLine": 301
           }
         ]
       },
@@ -4303,19 +4624,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "publicProductReviews",
-        "startLine": 30,
-        "endLine": 30,
+        "startLine": 31,
+        "endLine": 31,
         "sha256": "403482627de90045f19430259301d0d5dea0a864ee044448cc73766f7b775100",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 30,
-            "endLine": 30
+            "startLine": 31,
+            "endLine": 31
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 290,
-            "endLine": 290
+            "startLine": 306,
+            "endLine": 306
           }
         ]
       },
@@ -4379,8 +4700,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 268,
-            "endLine": 268
+            "startLine": 273,
+            "endLine": 273
           }
         ]
       },
@@ -4434,7 +4755,7 @@
         "symbol": "publicStoreCatalog",
         "startLine": 20,
         "endLine": 20,
-        "sha256": "e0e3f6a7d301795d290972f19bc7ad6531d90132434eb66e9d0756b2bbf315e0",
+        "sha256": "4279034605b920594a1d2043c92732807113c66ab01bb74cb8851f598969a3d1",
         "anchors": [
           {
             "path": "functions/src/index.ts",
@@ -4443,8 +4764,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 271,
-            "endLine": 271
+            "startLine": 279,
+            "endLine": 279
           }
         ]
       },
@@ -4496,19 +4817,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "publicSubmitReview",
-        "startLine": 29,
-        "endLine": 29,
+        "startLine": 30,
+        "endLine": 30,
         "sha256": "f5b92d43fe54899a47c811e0a0ba39e37fbddfd317065e7225e65e4ea6ff9dd2",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 29,
-            "endLine": 29
+            "startLine": 30,
+            "endLine": 30
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 289,
-            "endLine": 289
+            "startLine": 305,
+            "endLine": 305
           }
         ]
       },
@@ -4571,8 +4892,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 270,
-            "endLine": 270
+            "startLine": 275,
+            "endLine": 275
           }
         ]
       },
@@ -4624,19 +4945,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "publicTrackOrder",
-        "startLine": 28,
-        "endLine": 28,
+        "startLine": 29,
+        "endLine": 29,
         "sha256": "d8a5611b4283e1bcb76973bba3150e4af49478941d47c9a68dac0a01b246a401",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 28,
-            "endLine": 28
+            "startLine": 29,
+            "endLine": 29
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 288,
-            "endLine": 288
+            "startLine": 304,
+            "endLine": 304
           }
         ]
       },
@@ -4687,19 +5008,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "publishFeature",
-        "startLine": 70,
-        "endLine": 70,
+        "startLine": 75,
+        "endLine": 75,
         "sha256": "5361e6dd2c664956fddd243bdd103ba52c6afb165513ab23f29640bfa0be63a3",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 70,
-            "endLine": 70
+            "startLine": 75,
+            "endLine": 75
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 404,
-            "endLine": 404
+            "startLine": 420,
+            "endLine": 420
           }
         ]
       },
@@ -4751,19 +5072,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "recordFeaturePreview",
-        "startLine": 75,
-        "endLine": 75,
+        "startLine": 80,
+        "endLine": 80,
         "sha256": "650a53d618735a0e818e79c8e2a5eafee8aad39bf3739c6ab8862e909ff3cf9c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 75,
-            "endLine": 75
+            "startLine": 80,
+            "endLine": 80
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 409,
-            "endLine": 409
+            "startLine": 425,
+            "endLine": 425
           }
         ]
       },
@@ -4826,8 +5147,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 239,
-            "endLine": 239
+            "startLine": 244,
+            "endLine": 244
           }
         ]
       },
@@ -4879,19 +5200,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "releaseToEveryone",
-        "startLine": 48,
-        "endLine": 48,
+        "startLine": 53,
+        "endLine": 53,
         "sha256": "03bca8e0b6af04888da2d3d8317a65e30de2919341de00c6eac43fe0fb40d5a2",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 48,
-            "endLine": 48
+            "startLine": 53,
+            "endLine": 53
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 351,
-            "endLine": 351
+            "startLine": 367,
+            "endLine": 367
           }
         ]
       },
@@ -4943,19 +5264,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "revokeMarketingPartner",
-        "startLine": 59,
-        "endLine": 59,
+        "startLine": 64,
+        "endLine": 64,
         "sha256": "76de024ce6155e08d01794016d85b60e85a4dd493d88afa192122bb6bb9e0d79",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 59,
-            "endLine": 59
+            "startLine": 64,
+            "endLine": 64
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 419,
-            "endLine": 419
+            "startLine": 435,
+            "endLine": 435
           }
         ]
       },
@@ -5006,19 +5327,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "rollbackFeature",
-        "startLine": 72,
-        "endLine": 72,
+        "startLine": 77,
+        "endLine": 77,
         "sha256": "9352af591bdb3d61a1bedf42e8164107d54bdeaeea8d387f3d35100e127194bb",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 72,
-            "endLine": 72
+            "startLine": 77,
+            "endLine": 77
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 406,
-            "endLine": 406
+            "startLine": 422,
+            "endLine": 422
           }
         ]
       },
@@ -5069,19 +5390,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "rollbackRelease",
-        "startLine": 50,
-        "endLine": 50,
+        "startLine": 55,
+        "endLine": 55,
         "sha256": "c244f228d0ec2181f9626571c8953cdb6625e78f4188c82d5ed00b6abc0b76eb",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 50,
-            "endLine": 50
+            "startLine": 55,
+            "endLine": 55
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 353,
-            "endLine": 353
+            "startLine": 369,
+            "endLine": 369
           }
         ]
       },
@@ -5134,19 +5455,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "setFeatureKillSwitch",
-        "startLine": 74,
-        "endLine": 74,
+        "startLine": 79,
+        "endLine": 79,
         "sha256": "15eca3817fc4171ac86d1d0b5e76efc6d2e8fc6b8ee475199476801876e44811",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 74,
-            "endLine": 74
+            "startLine": 79,
+            "endLine": 79
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 408,
-            "endLine": 408
+            "startLine": 424,
+            "endLine": 424
           }
         ]
       },
@@ -5199,19 +5520,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "setMinSupportedVersion",
-        "startLine": 51,
-        "endLine": 51,
+        "startLine": 56,
+        "endLine": 56,
         "sha256": "a9f31dc8f7f6d964e7e716010b27f0be869e8c9e2ef5c1b187266138a4fd176c",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 51,
-            "endLine": 51
+            "startLine": 56,
+            "endLine": 56
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 354,
-            "endLine": 354
+            "startLine": 370,
+            "endLine": 370
           }
         ]
       },
@@ -5263,19 +5584,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "setReleaseStatus",
-        "startLine": 46,
-        "endLine": 46,
+        "startLine": 51,
+        "endLine": 51,
         "sha256": "581f1c2e5cb4a1fd4567e3688f6903228db94e99807953b28ac9ad4765dc501d",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 46,
-            "endLine": 46
+            "startLine": 51,
+            "endLine": 51
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 349,
-            "endLine": 349
+            "startLine": 365,
+            "endLine": 365
           }
         ]
       },
@@ -5326,19 +5647,19 @@
       "source": {
         "path": "functions/src/index.ts",
         "symbol": "testTelegram",
-        "startLine": 84,
-        "endLine": 84,
+        "startLine": 89,
+        "endLine": 89,
         "sha256": "15612a27da8e6cc9af89077242472b37631289ee1cdae8d8d704e8776d83ade4",
         "anchors": [
           {
             "path": "functions/src/index.ts",
-            "startLine": 84,
-            "endLine": 84
+            "startLine": 89,
+            "endLine": 89
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 249,
-            "endLine": 249
+            "startLine": 254,
+            "endLine": 254
           }
         ]
       },
@@ -5401,8 +5722,8 @@
           },
           {
             "path": "src/services/functionsClient.ts",
-            "startLine": 246,
-            "endLine": 246
+            "startLine": 251,
+            "endLine": 251
           }
         ]
       },

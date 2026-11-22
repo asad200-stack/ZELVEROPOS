@@ -8,6 +8,7 @@ import {
   ORDER_NOTE_MAX,
   orderProblem,
   type FulfillmentMethod,
+  type PaymentMethod,
   type PublicOrderReceipt,
 } from '@/domain/onlineOrders';
 import { deliveryQuote, discountPercent, freeDeliveryProgress, isRtl, mapLink, openState, shopClock, type PublicProduct, toHeroProductIds, toSections, type StoreLocale, type StoreSection } from '@/domain/onlineStore';
@@ -17,6 +18,7 @@ import { translate, type TranslationKey, type TParams } from '@/i18n/i18n';
 import { toUserMessage, type UserMessage } from '@/services/errors';
 import { api } from '@/services/functionsClient';
 import { forgetCachedCatalog, readCachedCatalog, writeCachedCatalog } from './storefrontCache';
+import { clearPendingPayment, readPendingPayment, savePendingPayment } from './pendingPayment';
 import { trackStoreEvent } from './storefrontTrack';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { fitKind, withSizes } from './sizeAdvisor';
@@ -312,7 +314,13 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const [fulfillment, setFulfillment] = useState<FulfillmentMethod>('delivery');
   const [zoneId, setZoneId] = useState('');
   const [showProblem, setShowProblem] = useState(false);
-  const [receipt, setReceipt] = useState<PublicOrderReceipt | null>(null);
+  // Back from Whish (?pay=REF): restore the receipt saved before leaving; its payment is re-checked below.
+  const [receipt, setReceipt] = useState<PublicOrderReceipt | null>(() =>
+    new URLSearchParams(window.location.search).get('pay') ? (readPendingPayment(slug)?.receipt ?? null) : null,
+  );
+  const [payMethod, setPayMethod] = useState<PaymentMethod>('cod');
+  const [payBusy, setPayBusy] = useState(false);
+  const [payError, setPayError] = useState<UserMessage | null>(null);
   const [serverError, setServerError] = useState<UserMessage | null>(null);
   // Deep link: /s/<slug>?p=<productId> opens that product (ignored if it is not in the catalog).
   const [quick, setQuick] = useState<string | null>(() => new URLSearchParams(window.location.search).get('p'));
@@ -352,6 +360,29 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   useEffect(() => {
     if (quick) trackStoreEvent(slug, 'view', quick);
   }, [quick, slug]);
+  // Returning from Whish: ask the server (which asks Whish) how the payment went.
+  const returnRef = useMemo(() => new URLSearchParams(window.location.search).get('pay'), []);
+  useEffect(() => {
+    const saved = readPendingPayment(slug);
+    if (!returnRef || !saved || saved.receipt.ref !== returnRef) return;
+    let stop = false;
+    void api
+      .publicCheckPayment({ slug, ref: saved.receipt.ref, phone: saved.phone })
+      .then((r) => {
+        if (stop) return;
+        setReceipt({ ...saved.receipt, paymentStatus: r.paymentStatus });
+        if (r.paymentStatus === 'paid') clearPendingPayment(slug);
+      })
+      .catch(() => undefined);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('pay');
+    url.searchParams.delete('fakeWhish');
+    window.history.replaceState(window.history.state, '', url);
+    return () => {
+      stop = true;
+    };
+  }, [returnRef, slug]);
+
   // The tab, bookmark and history entry carry the shop's name instead of the POS app's.
   const shopName = data.data?.store.storeName ?? '';
   useEffect(() => {
@@ -526,6 +557,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const contact = store.whatsapp || store.contactPhone;
   const waDigits = store.whatsapp.replace(/\D/g, '');
   const subtotal = estUsd > 0 ? formatUsd(estUsd) : '—';
+  const whishOn = !!data.data?.payments?.whish;
   const hasZones = store.deliveryZones.length > 0;
   const deliveryFee = delivery?.feeUsdCents ?? 0;
   const grandTotal = estUsd > 0 ? formatUsd(estUsd + deliveryFee) : '—';
@@ -570,6 +602,26 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const waFor = (r: PublicOrderReceipt) =>
     whatsAppLink(store.whatsapp, whatsAppOrderText(r, { storeName: store.storeName, name, phone, address, note: sizedNote }, waWords, lang));
 
+  /** Opens Whish again for an unpaid order (from the receipt). */
+  async function payNow(r: PublicOrderReceipt) {
+    const saved = readPendingPayment(slug);
+    const guestPhone = saved?.receipt.ref === r.ref ? saved.phone : phone;
+    setPayBusy(true);
+    setPayError(null);
+    try {
+      const res = await api.publicPayOrder({ slug, ref: r.ref, phone: guestPhone });
+      if (res.paymentStatus === 'paid') setReceipt({ ...r, paymentStatus: 'paid' });
+      else if (res.payUrl) {
+        savePendingPayment(slug, { receipt: r, phone: guestPhone });
+        window.location.assign(res.payUrl);
+      }
+    } catch (e) {
+      setPayError(toUserMessage(e));
+    } finally {
+      setPayBusy(false);
+    }
+  }
+
   async function submit(viaWhatsApp = false) {
     if (problem) {
       setShowProblem(true);
@@ -588,7 +640,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
           address,
           note: sizedNote,
           fulfillment,
-          payment: 'cod',
+          payment: whishOn && !viaWhatsApp ? payMethod : 'cod',
           ...(fulfillment === 'delivery' && hasZones ? { zoneId } : {}),
         });
       } catch (e) {
@@ -603,6 +655,13 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
       if (url && waWindow) waWindow.location.href = url;
       else if (url) window.location.assign(url);
       else waWindow?.close();
+    }
+    if (res?.payUrl) {
+      // Leave for Whish's payment page; the receipt comes back with us on return.
+      savePendingPayment(slug, { receipt: res, phone });
+      setCart({});
+      window.location.assign(res.payUrl);
+      return;
     }
     if (res) {
       setReceipt(res);
@@ -763,7 +822,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
         <span>
           {store.freeDeliveryOverUsdCents
             ? t('storefront.bar.freeOver', { amount: formatUsd(store.freeDeliveryOverUsdCents) })
-            : t('storefront.bar.cod')}
+            : t(whishOn ? 'storefront.bar.codOrWhish' : 'storefront.bar.cod')}
         </span>
         {contact && (
           <a href={`tel:${contact}`} dir="ltr">
@@ -1024,9 +1083,28 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
               <span>{t('storefront.total')}</span>
               <strong>{receipt.totalUsdCents > 0 ? formatUsd(receipt.totalUsdCents) : formatLbp(receipt.totalLbp, lang)}</strong>
             </div>
-            <p>{t(fulfillment === 'delivery' ? 'storefront.codDelivery' : 'storefront.codPickup')}</p>
+            {receipt.payment === 'whish' ? (
+              <div className={receipt.paymentStatus === 'paid' ? 'sf-paybox is-paid' : 'sf-paybox'} role="status">
+                <b>{t(receipt.paymentStatus === 'paid' ? 'storefront.pay.paid' : receipt.paymentStatus === 'failed' ? 'storefront.pay.failed' : 'storefront.pay.unpaid')}</b>
+                {receipt.paymentStatus !== 'paid' && (
+                  <>
+                    <span>{t('storefront.pay.unpaidHint')}</span>
+                    <button type="button" className="sf-primary" disabled={payBusy} onClick={() => void payNow(receipt)}>
+                      {t('storefront.pay.payNow')}
+                    </button>
+                    {payError && <span className="sf-msg">{t(payError.key, payError.params)}</span>}
+                  </>
+                )}
+              </div>
+            ) : (
+              <p>{t(receipt.fulfillment === 'delivery' ? 'storefront.codDelivery' : 'storefront.codPickup')}</p>
+            )}
             {contact && <p>{t('storefront.contact', { phone: contact })}</p>}
-            <button type="button" className="sf-primary" onClick={() => setReceipt(null)}>
+            <button
+              type="button"
+              className={receipt.payment === 'whish' && receipt.paymentStatus !== 'paid' ? 'sf-ghost' : 'sf-primary'}
+              onClick={() => setReceipt(null)}
+            >
               {t('storefront.backToShop')}
             </button>
             {waFor(receipt) && (
@@ -1566,6 +1644,20 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
                         </label>
                       ))}
                     </div>
+                    {whishOn && (
+                      <>
+                        <h3>{t('storefront.pay.title')}</h3>
+                        <div className="sf-seg" role="radiogroup" aria-label={t('storefront.pay.title')}>
+                          {(['cod', 'whish'] as const).map((m) => (
+                            <label key={m}>
+                              <input type="radio" name="sf-payment" value={m} checked={payMethod === m} onChange={() => setPayMethod(m)} />
+                              <span>{t(m === 'cod' ? (fulfillment === 'delivery' ? 'storefront.pay.cod' : 'storefront.pay.atPickup') : 'storefront.pay.whish')}</span>
+                            </label>
+                          ))}
+                        </div>
+                        {payMethod === 'whish' && <p className="sf-min-note">{t('storefront.pay.whishHint')}</p>}
+                      </>
+                    )}
                     {fulfillment === 'delivery' && hasZones && (
                       <label className="sf-field">
                         {t('storefront.zone.label')}
@@ -1630,7 +1722,8 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
                   >
                     {place.busy ? t('storefront.placing') : t('storefront.placeOrder')}
                   </button>
-                  {waDigits && (
+                  {/* Ordering over WhatsApp is a cash order; with Whish chosen the guest pays on Whish instead. */}
+                  {waDigits && !(whishOn && payMethod === 'whish') && (
                     <button
                       type="button"
                       className="sf-wa-order"

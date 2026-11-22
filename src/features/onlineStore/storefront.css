@@ -2013,3 +2013,9 @@ html:has(.sf), .sf { overflow-x: clip; }
   }
   .sf-theme-atelier[dir='rtl'] .at-tag { translate: none; }
 }
+
+/* Whish payment state on the receipt */
+.sf-paybox { display: grid; gap: 8px; padding: 14px; border-radius: 14px; border: 1px solid var(--sf-line); background: color-mix(in srgb, #f59e0b 10%, var(--sf-card)); }
+.sf-paybox.is-paid { background: color-mix(in srgb, #16a34a 12%, var(--sf-card)); }
+.sf-paybox b { font-size: 15px; }
+.sf-paybox span { color: var(--sf-ink-2); font-size: 14px; }

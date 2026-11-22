@@ -129,6 +129,10 @@
       "sourceHash": "04a6b9feb2b29f9324dc7be3d89e5ac87402ca26dd7832118a3280105428ba23"
     },
     {
+      "id": "callable:onlineOrdersCheckPayment",
+      "sourceHash": "cf9668d700771d0560e1eaf4a701af31060a7eacf1d16afa48f1b2c5bc8d3b0d"
+    },
+    {
       "id": "callable:onlineOrdersList",
       "sourceHash": "bf9b30367905c990f406a878972ebc85df8f8c56c987d1df9fdc5ca2f6f730c1"
     },
@@ -147,6 +151,10 @@
     {
       "id": "callable:onlineStoreGetConfig",
       "sourceHash": "7825b1651bfcadba5381ddd41c7e05401ae5c72670edadeef1fe28f299f5918b"
+    },
+    {
+      "id": "callable:onlineStoreGetPayments",
+      "sourceHash": "2b4213aaea0ef45d56b6ca4c2b90d951a17db499df736be56697bc4f4e6b26ad"
     },
     {
       "id": "callable:onlineStorePublish",
@@ -171,6 +179,10 @@
     {
       "id": "callable:onlineStoreSetSlug",
       "sourceHash": "6cdf84c2f6d768efba725db82407959cdd0dc5dd2f2f8d8c2d1c8bc7b6be3722"
+    },
+    {
+      "id": "callable:onlineStoreSetWhish",
+      "sourceHash": "ec583fc3f598a418310927ad36f3b8621d77e5bb9f3b2e0f93d40f5ceb6ddc6a"
     },
     {
       "id": "callable:onlineStoreStats",
@@ -257,6 +269,14 @@
       "sourceHash": "3169c51ed9967fac8080204301081a1a4e8fa394dac2728e67034b7d356440d7"
     },
     {
+      "id": "callable:publicCheckPayment",
+      "sourceHash": "28cd8e7aca611d77ff779e8db0edb9962a75511ec4736db32e895a48e029eb40"
+    },
+    {
+      "id": "callable:publicPayOrder",
+      "sourceHash": "3b04e23e9d832dcf572192bcd7a1afbf4f45250bc43d4019c69924374d60736a"
+    },
+    {
       "id": "callable:publicPlaceOrder",
       "sourceHash": "a74e9c0eb4dc66e02cefcdb2c73a4061b28737c2f7f149dce83cdbabd5b285b9"
     },
@@ -270,7 +290,7 @@
     },
     {
       "id": "callable:publicStoreCatalog",
-      "sourceHash": "e0e3f6a7d301795d290972f19bc7ad6531d90132434eb66e9d0756b2bbf315e0"
+      "sourceHash": "4279034605b920594a1d2043c92732807113c66ab01bb74cb8851f598969a3d1"
     },
     {
       "id": "callable:publicSubmitReview",

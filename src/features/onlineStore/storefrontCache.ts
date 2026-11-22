@@ -4,6 +4,7 @@ export interface CatalogSnapshot {
   store: PublicStore;
   products: PublicProduct[];
   bestSellerIds?: string[];
+  payments?: { whish: boolean };
 }
 
 // Bumped whenever the catalogue shape changes, so older snapshots are never rendered.

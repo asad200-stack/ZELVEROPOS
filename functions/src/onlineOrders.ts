@@ -18,10 +18,10 @@
  */
 import type { DocumentData, DocumentSnapshot } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
-import { onCall } from 'firebase-functions/v2/https';
+import { onCall, onRequest } from 'firebase-functions/v2/https';
 import { z } from 'zod';
 import { db } from './admin.js';
-import { REGION } from './config.js';
+import { REGION, STORE_SITE_ORIGIN } from './config.js';
 import { fail, rethrowClientSafe } from './errors.js';
 import { clientIp, ownerCall, publicFn, publicSlug, rateLimit, resolvePublishedStore, statsRef, storeRef, stripTransport } from './onlineStore.js';
 import { businessDate, exchangeRateOf, idField, tenantPaths, toProduct } from './pos/common.js';
@@ -42,6 +42,10 @@ import {
   restoresStock,
   toOnlineOrder,
   toReceipt,
+  paymentStatusFromWhish,
+  whishAmount,
+  whishExternalId,
+  type PaymentStatus,
   REVIEW_STATUSES,
   REVIEW_TEXT_MAX,
   canReviewOrder,
@@ -61,6 +65,7 @@ import {
 import { deliveryQuote } from './shared/onlineStore.js';
 import { tierLbp, tierUsdCents } from './shared/pricing.js';
 import { parse } from './validate.js';
+import { createWhishPayment, loadWhish, whishStatus, type WhishCreds } from './whish.js';
 
 const PLACE_ORDER_PER_HOUR = 20;
 const LIST_DEFAULT = 50;
@@ -143,6 +148,10 @@ export const publicPlaceOrder = onCall(publicFn, async (request): Promise<Public
     const lines = mergeOrderLines(input.lines);
     if (lines.some((l) => !visible.has(l.productId))) fail('failed-precondition', 'error.onlineOrders.unavailable');
 
+    // Whish only when the shop has connected its own Whish account; never silently downgraded.
+    const whish = input.payment === 'whish' ? await loadWhish(tenantId) : null;
+    if (input.payment === 'whish' && !whish) fail('failed-precondition', 'error.onlineOrders.paymentUnavailable');
+
     const paths = tenantPaths(tenantId);
     const rate = exchangeRateOf((await paths.settings.get()).data());
     const orderRef = ordersCol(tenantId).doc();
@@ -212,7 +221,9 @@ export const publicPlaceOrder = onCall(publicFn, async (request): Promise<Public
         ref,
         status: 'pending',
         fulfillment: input.fulfillment,
-        payment: 'cod',
+        payment: input.payment,
+        paymentStatus: input.payment === 'whish' ? 'unpaid' : 'none',
+        payerPhone: '',
         customerName: input.name.trim(),
         customerPhone: normalizeOrderPhone(input.phone),
         address: input.address.trim(),
@@ -236,6 +247,15 @@ export const publicPlaceOrder = onCall(publicFn, async (request): Promise<Public
       return doc;
     });
 
+    if (whish) {
+      // The order is already saved (stock reserved). If Whish can't start now, the guest gets
+      // the receipt with a "pay now" button that retries through publicPayOrder.
+      const payUrl = await startWhish(tenantId, slug, orderRef.id, order, whish).catch((err: unknown) => {
+        console.warn('[whish] start failed', tenantId, orderRef.id, err instanceof Error ? err.message : err);
+        return undefined;
+      });
+      return { ...toReceipt(order), ...(payUrl ? { payUrl } : {}) };
+    }
     return toReceipt(order);
   } catch (err) {
     rethrowClientSafe(err);
@@ -460,3 +480,147 @@ export const onlineReviewsSetStatus = onCall({ region: REGION }, (request) =>
     });
   }),
 );
+
+/* ------------------------------------------------------------------ Whish Money */
+
+const PAY_PER_HOUR = 30;
+
+function siteOrigin(): string {
+  const raw = (STORE_SITE_ORIGIN.value() || '').trim().replace(/\/+$/, '');
+  return /^https?:\/\/[A-Za-z0-9.-]+(:\d+)?$/.test(raw) ? raw : 'https://zelvoropos.web.app';
+}
+
+/** Public URL of whishCallback (emulator URL when running locally). */
+function callbackBase(): string {
+  const project = process.env.GCLOUD_PROJECT ?? '';
+  return process.env.FUNCTIONS_EMULATOR === 'true'
+    ? `http://127.0.0.1:5001/${project}/${REGION}/whishCallback`
+    : `https://${REGION}-${project}.cloudfunctions.net/whishCallback`;
+}
+
+/** Opens a new Whish payment attempt for an order and returns the page the guest pays on. */
+async function startWhish(
+  tenantId: string,
+  slug: string,
+  orderId: string,
+  order: Pick<OnlineOrder, 'ref' | 'totalUsdCents' | 'totalLbp'>,
+  creds: WhishCreds,
+): Promise<string> {
+  const currency = order.totalUsdCents >= 100 ? 'USD' : 'LBP';
+  const amount = whishAmount(currency, order.totalUsdCents, order.totalLbp);
+  if (!amount) fail('failed-precondition', 'error.onlineOrders.paymentAmount');
+  const externalId = whishExternalId(Date.now());
+  await ordersCol(tenantId).doc(orderId).update({
+    whishCurrency: currency,
+    whishExternalId: externalId,
+    whishAttempts: FieldValue.arrayUnion(externalId),
+    updatedAtMs: Date.now(),
+  });
+  return createWhishPayment(creds, {
+    amount,
+    currency,
+    invoice: `Order ${order.ref}`,
+    externalId,
+    callbackUrl: `${callbackBase()}?t=${encodeURIComponent(tenantId)}&o=${encodeURIComponent(orderId)}`,
+    redirectUrl: `${siteOrigin()}/s/${encodeURIComponent(slug)}?pay=${encodeURIComponent(order.ref)}`,
+  });
+}
+
+/**
+ * Asks Whish how the order's latest payment attempt went and records it. Callbacks, the guest's
+ * return page and the owner's inbox all go through here, so a forged callback can only make us
+ * ask Whish again; it can never mark an order paid by itself.
+ */
+async function refreshPayment(tenantId: string, orderId: string): Promise<PaymentStatus> {
+  const ref = ordersCol(tenantId).doc(orderId);
+  const snap = await ref.get();
+  const data = snap.data();
+  if (!data) fail('not-found', 'error.onlineOrders.notFound');
+  const order = toOnlineOrder(snap.id, data);
+  if (order.payment !== 'whish' || order.paymentStatus === 'paid') return order.paymentStatus;
+  const externalId = typeof data.whishExternalId === 'string' ? data.whishExternalId : '';
+  const currency = data.whishCurrency === 'LBP' ? 'LBP' : 'USD';
+  const creds = await loadWhish(tenantId);
+  if (!externalId || !creds) return order.paymentStatus;
+  const result = await whishStatus(creds, currency, externalId);
+  const next = paymentStatusFromWhish(result.status);
+  if (next !== order.paymentStatus) {
+    const now = Date.now();
+    await ref.update({
+      paymentStatus: next,
+      ...(next === 'paid' ? { payerPhone: result.payerPhone.slice(0, 20), paidAtMs: now } : {}),
+      updatedAtMs: now,
+      history: FieldValue.arrayUnion({ status: order.status, atMs: now, by: `whish:${next}` }),
+    });
+  }
+  return next;
+}
+
+export interface PublicPayResponse {
+  ref: string;
+  paymentStatus: PaymentStatus;
+  /** Present when a new Whish attempt was opened. */
+  payUrl?: string;
+}
+
+/** Guest: pay (again) for a Whish order, from the receipt or the tracking page. */
+export const publicPayOrder = onCall(publicFn, async (request): Promise<PublicPayResponse> => {
+  try {
+    const input = parse(trackSchema, stripTransport(request.data));
+    const slug = publicSlug(input.slug);
+    await rateLimit('payOrder', clientIp(request), Date.now(), PAY_PER_HOUR);
+    const { tenantId } = await resolvePublishedStore(slug);
+    const { id, order } = await findGuestOrder(tenantId, input.ref, input.phone);
+    if (order.payment !== 'whish') fail('failed-precondition', 'error.onlineOrders.paymentUnavailable');
+    const current = await refreshPayment(tenantId, id);
+    if (current === 'paid') return { ref: order.ref, paymentStatus: 'paid' };
+    if (order.status === 'cancelled' || order.status === 'rejected') fail('failed-precondition', 'error.onlineOrders.closed');
+    const creds = await loadWhish(tenantId);
+    if (!creds) fail('failed-precondition', 'error.onlineOrders.paymentUnavailable');
+    const payUrl = await startWhish(tenantId, slug, id, order, creds);
+    return { ref: order.ref, paymentStatus: current, payUrl };
+  } catch (err) {
+    rethrowClientSafe(err);
+  }
+});
+
+/** Guest: where the payment stands (used when Whish sends the guest back to the shop). */
+export const publicCheckPayment = onCall(publicFn, async (request): Promise<PublicPayResponse> => {
+  try {
+    const input = parse(trackSchema, stripTransport(request.data));
+    const slug = publicSlug(input.slug);
+    await rateLimit('payCheck', clientIp(request), Date.now(), PAY_PER_HOUR * 2);
+    const { tenantId } = await resolvePublishedStore(slug);
+    const { id, order } = await findGuestOrder(tenantId, input.ref, input.phone);
+    return { ref: order.ref, paymentStatus: await refreshPayment(tenantId, id) };
+  } catch (err) {
+    rethrowClientSafe(err);
+  }
+});
+
+/** Owner: re-check a Whish order's payment from the inbox. */
+export const onlineOrdersCheckPayment = onCall({ region: REGION }, (request) =>
+  ownerCall(request, async ({ tenantId }, data): Promise<{ paymentStatus: PaymentStatus }> => {
+    const input = parse(z.strictObject({ orderId: idField }), data);
+    return { paymentStatus: await refreshPayment(tenantId, input.orderId) };
+  }),
+);
+
+/**
+ * Whish calls this (GET) after each payment attempt. The request is not signed, so it only
+ * triggers a status check with the shop's own credentials; it never changes anything by itself.
+ */
+export const whishCallback = onRequest({ region: REGION, memory: '256MiB', maxInstances: 10 }, async (req, res) => {
+  const t = String(req.query.t ?? '');
+  const o = String(req.query.o ?? '');
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(t) || !/^[A-Za-z0-9_-]{1,64}$/.test(o)) {
+    res.status(400).send('bad request');
+    return;
+  }
+  try {
+    await refreshPayment(t, o);
+  } catch (err) {
+    console.warn('[whish] callback check failed', t, o, err instanceof Error ? err.message : err);
+  }
+  res.status(200).send('ok');
+});

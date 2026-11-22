@@ -434,6 +434,14 @@ export interface PublicCatalogResponse {
   products: PublicProduct[];
   /** Visible products that sold most in the last 30 days, best first (may be empty). */
   bestSellerIds: string[];
+  /** Online payment options the shop has switched on (cash is always available). */
+  payments: { whish: boolean };
+}
+
+/** Whether the shop has a complete, switched-on Whish connection (see whish.ts). */
+async function whishReady(tenantId: string): Promise<boolean> {
+  const w = (await db.doc(`onlinePaymentConfigs/${tenantId}`).get()).get('whish') as Record<string, unknown> | undefined;
+  return !!w && w.enabled === true && !!w.channel && !!w.secret && !!w.websiteUrl;
 }
 
 const BEST_TTL_MS = 6 * 3_600_000;
@@ -520,8 +528,9 @@ export const publicStoreCatalog = onCall(publicFn, async (request): Promise<Publ
       .map((p) => projectPublicProduct(p, config.listings[p.id], config.ratings[p.id], Date.now()))
       .filter((p) => p.priceUsdCents > 0 || (p.priceLbp ?? 0) > 0);
     const shown = new Set(products.filter((p) => p.inStock).map((p) => p.id));
-    const best = (await bestSellerIds(tenantId)).filter((id) => shown.has(id)).slice(0, BEST_SHOW);
-    return { store: projectPublicStore(slug, published), products, bestSellerIds: best };
+    const [bestAll, whish] = await Promise.all([bestSellerIds(tenantId), whishReady(tenantId)]);
+    const best = bestAll.filter((id) => shown.has(id)).slice(0, BEST_SHOW);
+    return { store: projectPublicStore(slug, published), products, bestSellerIds: best, payments: { whish } };
   } catch (err) {
     rethrowClientSafe(err);
   }

@@ -128,7 +128,7 @@ export function onlineOrderMessage(d: Data, timeZone: string): string {
   if (items.length > 30) lines.push(`  … +${items.length - 30}`);
   if (num(d.deliveryFeeUsdCents) > 0) lines.push(`🚚 Delivery fee: ${usd(num(d.deliveryFeeUsdCents))}`);
   lines.push(`💰 Total: ${moneyPair(num(d.totalUsdCents), num(d.totalLbp), false)}`);
-  lines.push('💵 Cash on delivery / at pickup');
+  lines.push(d.payment === 'whish' ? '💳 Whish Money (waiting for payment)' : '💵 Cash on delivery / at pickup');
   if (str(d.note)) lines.push(`📝 ${str(d.note)}`);
   return lines.join('\n');
 }

@@ -18,6 +18,9 @@ import {
   toOnlineOrder,
   toProductReview,
   toReceipt,
+  whishAmount,
+  whishExternalId,
+  paymentStatusFromWhish,
 } from './onlineOrders';
 
 const okCustomer = { name: 'Rami', phone: '+961 70 123 456', address: 'Hamra street, Beirut' };
@@ -111,6 +114,8 @@ describe('toOnlineOrder / toReceipt', () => {
       ref: 'ZV-000007',
       status: 'pending',
       fulfillment: 'delivery',
+      payment: 'cod',
+      paymentStatus: 'none',
       lines: [
         { name: 'Case', qty: 2, lineUsdCents: 1000, lineLbp: 0 },
         { name: '', qty: 0, lineUsdCents: 0, lineLbp: 0 },
@@ -164,5 +169,30 @@ describe('reviews', () => {
   it('reads stored reviews defensively', () => {
     const r = toProductReview('r1', { rating: 7, status: 'weird', text: 3 });
     expect(r).toMatchObject({ id: 'r1', rating: 0, status: 'pending', text: '' });
+  });
+});
+
+describe('Whish Money helpers', () => {
+  it('formats amounts the way Whish expects', () => {
+    expect(whishAmount('USD', 1250, 0)).toBe('12.50');
+    expect(whishAmount('USD', 99, 0)).toBeNull();
+    expect(whishAmount('LBP', 0, 895000)).toBe('895000');
+    expect(whishAmount('LBP', 0, 500)).toBeNull();
+  });
+
+  it('makes digit-only payment ids and maps statuses', () => {
+    const id = whishExternalId(1_795_000_000_000, 0.42);
+    expect(id).toMatch(/^\d+$/);
+    expect(Number(id)).toBeLessThan(Number.MAX_SAFE_INTEGER);
+    expect(paymentStatusFromWhish('success')).toBe('paid');
+    expect(paymentStatusFromWhish('FAILED')).toBe('failed');
+    expect(paymentStatusFromWhish('pending')).toBe('unpaid');
+    expect(paymentStatusFromWhish(undefined)).toBe('unpaid');
+  });
+
+  it('reads the payment fields of a stored order', () => {
+    const o = toOnlineOrder('o2', { payment: 'whish', paymentStatus: 'paid', payerPhone: '96170123456' });
+    expect([o.payment, o.paymentStatus, o.payerPhone]).toEqual(['whish', 'paid', '96170123456']);
+    expect(toOnlineOrder('o3', { payment: 'bitcoin' }).payment).toBe('cod');
   });
 });

@@ -13,6 +13,8 @@ const words: WaWords = {
 };
 
 const receipt = {
+  payment: 'cod' as const,
+  paymentStatus: 'none' as const,
   ref: 'ZV-000007',
   status: 'pending' as const,
   fulfillment: 'delivery' as const,

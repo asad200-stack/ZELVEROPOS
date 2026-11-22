@@ -3,7 +3,8 @@
  *
  * Pure rules shared by the POS screen and the Cloud Functions (copied by copy-shared.mjs):
  * order limits, the status machine, which transitions give stock back, and the reference format.
- * Guest checkout only; payment is cash on delivery or pay at pickup — never a card.
+ * Guest checkout only; payment is cash on delivery / at pickup, or Whish Money when the shop has
+ * connected its own Whish Business account (money goes straight to the shop, never through us).
  */
 import { STORE_PHONE_RE } from './onlineStore';
 
@@ -21,9 +22,13 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export const FULFILLMENT_METHODS = ['delivery', 'pickup'] as const;
 export type FulfillmentMethod = (typeof FULFILLMENT_METHODS)[number];
 
-/** Cash on delivery / pay at pickup. Card payment is intentionally not offered. */
-export const PAYMENT_METHODS = ['cod'] as const;
+/** Cash on delivery / at pickup, or Whish Money (the shop's own Whish Business account). */
+export const PAYMENT_METHODS = ['cod', 'whish'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/** Online payment state. Cash orders stay 'none'; Whish orders go unpaid → paid (or failed, retryable). */
+export const PAYMENT_STATUSES = ['none', 'unpaid', 'paid', 'failed'] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export const ORDER_NAME_MAX = 80;
 export const ORDER_ADDRESS_MAX = 300;
@@ -126,6 +131,9 @@ export interface OnlineOrder {
   status: OrderStatus;
   fulfillment: FulfillmentMethod;
   payment: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  /** Whish number that paid, when Whish reported it ('' otherwise). */
+  payerPhone: string;
   customerName: string;
   customerPhone: string;
   address: string;
@@ -146,6 +154,10 @@ export interface PublicOrderReceipt {
   ref: string;
   status: OrderStatus;
   fulfillment: FulfillmentMethod;
+  payment: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  /** Whish checkout page to send the guest to (only right after placing a Whish order). */
+  payUrl?: string;
   lines: { name: string; qty: number; lineUsdCents: number; lineLbp: number }[];
   deliveryZone: string;
   deliveryFeeUsdCents: number;
@@ -155,12 +167,14 @@ export interface PublicOrderReceipt {
 
 export function toReceipt(
   o: Pick<OnlineOrder, 'ref' | 'status' | 'fulfillment' | 'lines' | 'totalUsdCents' | 'totalLbp'> &
-    Partial<Pick<OnlineOrder, 'deliveryZone' | 'deliveryFeeUsdCents'>>,
+    Partial<Pick<OnlineOrder, 'deliveryZone' | 'deliveryFeeUsdCents' | 'payment' | 'paymentStatus'>>,
 ): PublicOrderReceipt {
   return {
     ref: o.ref,
     status: o.status,
     fulfillment: o.fulfillment,
+    payment: o.payment ?? 'cod',
+    paymentStatus: o.paymentStatus ?? 'none',
     lines: o.lines.map((l) => ({ name: l.name, qty: l.qty, lineUsdCents: l.lineUsdCents, lineLbp: l.lineLbp })),
     deliveryZone: o.deliveryZone ?? '',
     deliveryFeeUsdCents: o.deliveryFeeUsdCents ?? 0,
@@ -287,7 +301,9 @@ export function toOnlineOrder(id: string, d: Record<string, unknown> | undefined
     ref: str(data.ref),
     status: isOneOf(ORDER_STATUSES, data.status) ? data.status : 'pending',
     fulfillment: isOneOf(FULFILLMENT_METHODS, data.fulfillment) ? data.fulfillment : 'pickup',
-    payment: 'cod',
+    payment: isOneOf(PAYMENT_METHODS, data.payment) ? data.payment : 'cod',
+    paymentStatus: isOneOf(PAYMENT_STATUSES, data.paymentStatus) ? data.paymentStatus : 'none',
+    payerPhone: str(data.payerPhone),
     customerName: str(data.customerName),
     customerPhone: str(data.customerPhone),
     address: str(data.address),
@@ -311,4 +327,28 @@ export function toOnlineOrder(id: string, d: Record<string, unknown> | undefined
     createdAtMs: num(data.createdAtMs),
     updatedAtMs: num(data.updatedAtMs),
   };
+}
+
+/* ------------------------------------------------------------------ Whish Money */
+
+/** Whish wants the amount as a string: USD with 2 decimals (min 1.00), LBP whole (min 1000). */
+export function whishAmount(currency: 'USD' | 'LBP', usdCents: number, lbp: number): string | null {
+  if (currency === 'USD') return usdCents >= 100 ? (usdCents / 100).toFixed(2) : null;
+  return lbp >= 1000 ? String(Math.round(lbp)) : null;
+}
+
+/**
+ * A fresh numeric id for each payment attempt (Whish ties callbacks and status checks to it).
+ * Digits only, below 2^53, unique enough per shop: time in ms plus a random tail.
+ */
+export function whishExternalId(nowMs: number, random = Math.random()): string {
+  return String(Math.floor(nowMs) * 100 + Math.floor(random * 100));
+}
+
+/** Maps Whish's collect status onto ours. Anything unknown stays unpaid (we check again later). */
+export function paymentStatusFromWhish(collectStatus: unknown): PaymentStatus {
+  const s = typeof collectStatus === 'string' ? collectStatus.toLowerCase() : '';
+  if (s === 'success') return 'paid';
+  if (s === 'failed') return 'failed';
+  return 'unpaid';
 }

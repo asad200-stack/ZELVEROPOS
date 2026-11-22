@@ -21,6 +21,7 @@ export {
   publicTrackEvent,
 } from './onlineStore.js';
 export { publicStorePage } from './storePage.js';
+export { onlineStoreGetPayments, onlineStoreSetWhish } from './whish.js';
 export {
   publicPlaceOrder,
   onlineOrdersList,
@@ -30,6 +31,10 @@ export {
   publicProductReviews,
   onlineReviewsList,
   onlineReviewsSetStatus,
+  publicPayOrder,
+  publicCheckPayment,
+  onlineOrdersCheckPayment,
+  whishCallback,
 } from './onlineOrders.js';
 export {
   submitWebsiteLead,

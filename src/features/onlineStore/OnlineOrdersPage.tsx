@@ -175,6 +175,14 @@ function OrderCard({ order, onChanged }: { order: OnlineOrder; onChanged: () => 
   const { notify } = useFeedback();
   const action = useAsyncAction('onlineOrders');
   const [pending, setPending] = useState<OrderStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  const checkPay = async () => {
+    setChecking(true);
+    const res = await action.run(() => api.onlineOrdersCheckPayment({ orderId: order.id }));
+    setChecking(false);
+    if (res && res.paymentStatus !== order.paymentStatus) onChanged();
+  };
 
   const move = async (status: OrderStatus) => {
     if ((status === 'cancelled' || status === 'rejected') && !window.confirm(t('onlineOrders.confirmStop', { ref: order.ref }))) return;
@@ -218,11 +226,27 @@ function OrderCard({ order, onChanged }: { order: OnlineOrder; onChanged: () => 
             </>
           )}
           <div className="muted">
-            {order.fulfillment === 'delivery' ? t('onlineOrders.delivery') : t('onlineOrders.pickup')} · {t('onlineOrders.cod')}
+            {order.fulfillment === 'delivery' ? t('onlineOrders.delivery') : t('onlineOrders.pickup')}
+            {order.payment === 'cod' ? ` · ${t('onlineOrders.cod')}` : ''}
           </div>
           {order.address && <div>{order.address}</div>}
           {order.note && <div className="muted">“{order.note}”</div>}
         </div>
+        {order.payment === 'whish' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+            <Badge tone={order.paymentStatus === 'paid' ? 'success' : order.paymentStatus === 'failed' ? 'danger' : 'warning'}>
+              {t(order.paymentStatus === 'paid' ? 'onlineOrders.pay.whishPaid' : order.paymentStatus === 'failed' ? 'onlineOrders.pay.whishFailed' : 'onlineOrders.pay.whishUnpaid')}
+            </Badge>
+            {order.paymentStatus === 'paid' && order.payerPhone && (
+              <span className="muted">{t('onlineOrders.pay.payer', { phone: order.payerPhone })}</span>
+            )}
+            {order.paymentStatus !== 'paid' && (
+              <Button size="sm" variant="secondary" loading={checking} onClick={() => void checkPay()}>
+                {t('onlineOrders.pay.check')}
+              </Button>
+            )}
+          </div>
+        )}
         <ul style={{ margin: 0, paddingInlineStart: 18 }}>
           {order.lines.map((l) => (
             <li key={l.productId}>

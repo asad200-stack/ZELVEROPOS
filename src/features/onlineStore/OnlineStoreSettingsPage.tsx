@@ -39,6 +39,7 @@ import {
 } from '@/domain/onlineStore';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { StoreDesignEditor } from './StoreDesignEditor';
+import { WhishSettingsCard } from './WhishSettingsCard';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { useI18n } from '@/i18n/i18n';
 import { api } from '@/services/functionsClient';
@@ -494,6 +495,8 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
           </div>
         </div>
       </Card>
+
+      <WhishSettingsCard />
 
       <Card title={t('onlineStore.domain.title')}>
         <div className="stack">

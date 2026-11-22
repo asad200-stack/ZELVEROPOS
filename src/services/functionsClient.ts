@@ -5,11 +5,16 @@ import { customerReleaseCutoverAllowed } from '@/domain/previewAccess';
 import { firebase } from '@/firebase/app';
 import type { PermissionMap } from '@/constants/permissions';
 import type { OnlineStoreConfig, PublicProduct, PublicStore, StatsRange, StoreBranding, StoreEvent, StoreStatsSummary } from '@/domain/onlineStore';
-import type { FulfillmentMethod, OnlineOrder, OrderStatus, PaymentMethod, ProductReview, PublicOrderReceipt, PublicOrderTracking, PublicReview, ReviewStatus, ReviewSummary } from '@/domain/onlineOrders';
+import type { FulfillmentMethod, OnlineOrder, OrderStatus, PaymentMethod, PaymentStatus, ProductReview, PublicOrderReceipt, PublicOrderTracking, PublicReview, ReviewStatus, ReviewSummary } from '@/domain/onlineOrders';
 import { withoutUndefined } from './callableData';
 import { requirePreviewCredential } from './previewCredential';
 
 /** Typed wrappers for the callable Cloud Functions (see functions/src). */
+/** What the owner sees of the Whish connection (the secret never comes back). */
+export interface WhishPaymentsView {
+  whish: { enabled: boolean; sandbox: boolean; channel: string; websiteUrl: string; hasSecret: boolean };
+}
+
 function callable<Req, Res>(name: string) {
   return async (data: Req): Promise<Res> => {
     const fn = httpsCallable<Req & { clientApiVersion: number; clientReleaseVersion: string }, Res>(firebase.functions, name, { timeout: 60_000 });
@@ -268,7 +273,18 @@ export const api = {
   publicStoreByDomain: callable<{ domain: string }, { slug: string }>('publicStoreByDomain'),
   onlineStoreStats: callable<{ days: StatsRange }, StoreStatsSummary & { names: Record<string, string> }>('onlineStoreStats'),
   publicTrackEvent: callable<{ slug: string; type: StoreEvent; productId?: string }, { ok: true }>('publicTrackEvent'),
-  publicStoreCatalog: callable<{ slug: string }, { store: PublicStore; products: PublicProduct[]; bestSellerIds?: string[] }>('publicStoreCatalog'),
+  publicStoreCatalog: callable<
+    { slug: string },
+    { store: PublicStore; products: PublicProduct[]; bestSellerIds?: string[]; payments?: { whish: boolean } }
+  >('publicStoreCatalog'),
+  publicPayOrder: callable<{ slug: string; ref: string; phone: string }, { ref: string; paymentStatus: PaymentStatus; payUrl?: string }>('publicPayOrder'),
+  publicCheckPayment: callable<{ slug: string; ref: string; phone: string }, { ref: string; paymentStatus: PaymentStatus }>('publicCheckPayment'),
+  onlineOrdersCheckPayment: callable<{ orderId: string }, { paymentStatus: PaymentStatus }>('onlineOrdersCheckPayment'),
+  onlineStoreGetPayments: callable<Record<string, never>, WhishPaymentsView>('onlineStoreGetPayments'),
+  onlineStoreSetWhish: callable<
+    { enabled: boolean; sandbox: boolean; channel: string; secret: string; websiteUrl: string },
+    WhishPaymentsView
+  >('onlineStoreSetWhish'),
   publicPlaceOrder: callable<
     {
       slug: string;
