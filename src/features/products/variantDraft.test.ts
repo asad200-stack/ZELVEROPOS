@@ -40,4 +40,20 @@ describe('variant builder', () => {
     expect(readDraft({ ...base, rows: { [comboKey(['S'])]: { stock: '-1', barcode: '', price: '' } } })).toMatchObject({ ok: false, error: 'products.variants.errQty' });
     expect(readDraft({ ...base, axes: [{ ...base.axes[0]!, name: ' ' }] })).toMatchObject({ ok: false, error: 'products.variants.errName' });
   });
+
+  it('when adding to an item, keeps only the new combinations', () => {
+    const draft: VariantDraft = {
+      axes: [
+        { ...newAxis('Size', 'clothes'), on: ['M', 'XL'] },
+        { name: 'Color', preset: 'custom', values: ['Black', 'White'], on: ['Black', 'White'] },
+      ],
+      rows: { [comboKey(['XL', 'Black'])]: { stock: '2', barcode: '', price: '' } },
+    };
+    const existing = new Set([comboKey(['M', 'Black']).toLowerCase(), comboKey(['M', 'White']).toLowerCase()]);
+    const out = readDraft(draft, existing);
+    expect(out.ok && out.rows.map((r) => r.values.join('/'))).toEqual(['XL/Black', 'XL/White']);
+    expect(totalStock(draft, existing)).toBe(2);
+    const none = { ...draft, axes: [{ ...draft.axes[0]!, on: ['M'] }, draft.axes[1]!] };
+    expect(readDraft(none, existing)).toMatchObject({ ok: false, error: 'products.variants.errNothingNew' });
+  });
 });

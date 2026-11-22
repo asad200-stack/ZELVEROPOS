@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, storage } from '../admin.js';
 import { fail } from '../errors.js';
 import { weightedAverageCost } from '../shared/inventory.js';
+import { MAX_VISIBLE_PRODUCTS } from '../shared/onlineStore.js';
 import { nameNormalized } from '../shared/searchKey.js';
 import { parse } from '../validate.js';
 import { auditFields, bumpDailyStats, cents, idField, lbpField, posActor, runClientOp, tenantPaths, toCashbox, toProduct } from './common.js';
@@ -219,6 +220,117 @@ export const posCreateProductGroup = onCall(async (request) => {
     }
     if (f.category) tx.set(p.categories, { names: FieldValue.arrayUnion(f.category) }, { merge: true });
     return { groupId, ids };
+  });
+});
+
+const addOptionsSchema = z.object({
+  clientOperationId: idField,
+  groupId: idField,
+  rows: groupSchema.shape.rows,
+});
+
+/**
+ * Adds new sizes/colours to an existing item (e.g. XL after S/M/L). The new options copy the
+ * item's shared fields from an existing option; a combination that already exists is refused.
+ */
+export const posAddProductOptions = onCall(async (request) => {
+  const input = parse(addOptionsSchema, request.data);
+  const codes = new Set<string>();
+  for (const row of input.rows) {
+    if (!row.barcode) continue;
+    if (codes.has(row.barcode)) fail('already-exists', 'error.barcodeInUse', { name: row.barcode });
+    codes.add(row.barcode);
+  }
+  return runClientOp(request, input.clientOperationId, 'posAddProductOptions', ['canAddProducts'], async (tx, actor) => {
+    const p = tenantPaths(actor.tenantId);
+    const siblings = await tx.get(p.col('products').where('groupId', '==', input.groupId).limit(200));
+    const template = siblings.docs.find((d) => d.data().status !== 'archived') ?? siblings.docs[0];
+    if (!template) fail('not-found', 'error.notFound');
+    const t = template.data();
+    const axisNames = (Array.isArray(t.options) ? (t.options as { name?: unknown }[]) : []).map((o) => String(o.name ?? ''));
+    if (axisNames.length === 0) fail('failed-precondition', 'error.invalidInput');
+    if (siblings.size + input.rows.length > 200) fail('invalid-argument', 'error.invalidInput');
+    const have = new Set(
+      siblings.docs.map((d) =>
+        (Array.isArray(d.data().options) ? (d.data().options as { value?: unknown }[]) : []).map((o) => String(o.value ?? '').toLowerCase()).join('\u0001'),
+      ),
+    );
+    for (const row of input.rows) {
+      if (row.values.length !== axisNames.length) fail('invalid-argument', 'error.invalidInput');
+      const key = row.values.map((v) => v.toLowerCase()).join('\u0001');
+      if (have.has(key)) fail('already-exists', 'error.alreadyExists');
+      have.add(key);
+    }
+    for (const code of codes) {
+      const taken = await tx.get(p.col('products').where('barcode', '==', code).limit(1));
+      const hit = taken.docs[0];
+      if (hit) fail('already-exists', 'error.barcodeInUse', { name: String(hit.data().name ?? '') });
+    }
+    // When the item is already on the online store, its new sizes go online with it.
+    const storeDoc = db.doc(`onlineStores/${actor.tenantId}`);
+    const store = await tx.get(storeDoc);
+    const shown: unknown[] = Array.isArray(store.get('visibleProductIds')) ? (store.get('visibleProductIds') as unknown[]) : [];
+    const itemOnline = siblings.docs.some((d) => shown.includes(d.id));
+    const atMs = Date.now();
+    const audit = auditFields(actor, atMs);
+    const base = String(t.groupName ?? '') || String(t.name ?? '');
+    const ids: string[] = [];
+    for (const row of input.rows) {
+      const ref = p.newRef('products');
+      ids.push(ref.id);
+      const name = `${base} - ${row.values.join(' / ')}`.slice(0, 200);
+      let lastMovementId: string | null = null;
+      if (row.stock > 0) {
+        const movementRef = p.newRef('stockMovements');
+        lastMovementId = movementRef.id;
+        tx.set(movementRef, {
+          productId: ref.id,
+          productName: name,
+          type: 'initial',
+          quantity: row.stock,
+          stockAfter: row.stock,
+          refId: null,
+          refNumber: null,
+          note: '',
+          ...audit,
+        });
+      }
+      const prices = t.prices as DocumentData;
+      tx.set(ref, {
+        name,
+        nameNormalized: nameNormalized(name),
+        category: String(t.category ?? ''),
+        barcode: row.barcode,
+        prices: row.retailUsdCents === null ? prices : { ...prices, retail: { usdCents: row.retailUsdCents, lbp: null } },
+        costUsdCents: typeof t.costUsdCents === 'number' ? t.costUsdCents : 0,
+        costKnown: t.costKnown !== false,
+        minStock: typeof t.minStock === 'number' ? t.minStock : null,
+        supplierId: typeof t.supplierId === 'string' ? t.supplierId : null,
+        supplierName: String(t.supplierName ?? ''),
+        expiryDate: typeof t.expiryDate === 'string' ? t.expiryDate : null,
+        imeiTracking: false,
+        groupId: input.groupId,
+        groupName: base,
+        options: row.values.map((value, i) => ({ name: axisNames[i]!, value })),
+        stock: row.stock,
+        imeis: [],
+        // No shared photo file: replacing another option's photo deletes its file. The store
+        // shows a sibling's photo for an option without one.
+        imageUrl: null,
+        imagePath: null,
+        lastMovementId,
+        status: 'active',
+        archivedAt: null,
+        createdAt: audit.createdAt,
+        createdAtMs: atMs,
+        createdBy: actor.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    if (itemOnline && shown.length + ids.length <= MAX_VISIBLE_PRODUCTS) {
+      tx.update(storeDoc, { visibleProductIds: FieldValue.arrayUnion(...ids), updatedAt: atMs });
+    }
+    return { ids, online: itemOnline };
   });
 });
 

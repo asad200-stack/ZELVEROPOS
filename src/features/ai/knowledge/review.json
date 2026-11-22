@@ -205,6 +205,10 @@
       "sourceHash": "0b4a020a10dfe22eef46de3cdba5e6ed06ec4384a5afb483a71a9ea32933f051"
     },
     {
+      "id": "callable:posAddProductOptions",
+      "sourceHash": "8dd076119a545f6e5364517368fd72ae210ba659a2f0491c8cdd1360e3bed444"
+    },
+    {
       "id": "callable:posAdjustDebt",
       "sourceHash": "33d7930ba8494f43c7b4d065eda773c99ce0b2e0aa542edae18707ec97f55f3f"
     },
@@ -214,7 +218,7 @@
     },
     {
       "id": "callable:posAdjustStock",
-      "sourceHash": "f7d8bc4525c0897d1dd2011da3b251b33be1f793143600784634e6b5426b532f"
+      "sourceHash": "2a2c2664e7d04259a0e59d23614bc1811e5db5ef1762213c3407ff95fba0909e"
     },
     {
       "id": "callable:posCashMove",
@@ -230,11 +234,11 @@
     },
     {
       "id": "callable:posCreateProduct",
-      "sourceHash": "a0e9810576de35dfaec9b92de3675a8f8c690de4372de617c92f75c91846b019"
+      "sourceHash": "c0159cf86772313880950c96fbabf24bd49f1583bf112b4a1bacbb02a27bad7e"
     },
     {
       "id": "callable:posCreateProductGroup",
-      "sourceHash": "f8275392a5708156d23b733dd499020a84df304b64c4317522c2372d1835a7f2"
+      "sourceHash": "8d0285b89cb65c1800a0b69544506ef541f3f22ed6bde4846167d4f72121cbab"
     },
     {
       "id": "callable:posCreatePurchase",
@@ -242,11 +246,11 @@
     },
     {
       "id": "callable:posDeleteProduct",
-      "sourceHash": "d3769725746b6f1fa0560040520466e277ee6b887c67d21a168cc32869fe349e"
+      "sourceHash": "95765a233113d8d9bb2f036e8b7e3c36ba5f03568b9877358ee70724541f2229"
     },
     {
       "id": "callable:posImportProducts",
-      "sourceHash": "25522d03e712358815c902cbcf223dabfbcf04c117ebc54f08d50023f1ce34da"
+      "sourceHash": "34ba5298516f0a92598589a8c47ce836482c85be62622a40397b9b8ba50c986c"
     },
     {
       "id": "callable:posPayDebt",
@@ -266,7 +270,7 @@
     },
     {
       "id": "callable:posSetProductStatus",
-      "sourceHash": "67f402edd294ee297c89133b10a01be4621cdbaa8b037fec2fb4253421827088"
+      "sourceHash": "da78522643e5720568da0292db4027c0cb54a66a1ad76f33d806ccea93e59c88"
     },
     {
       "id": "callable:previewPos",

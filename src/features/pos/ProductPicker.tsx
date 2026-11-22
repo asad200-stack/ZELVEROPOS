@@ -15,6 +15,7 @@ import type { PriceTier, Product } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { categoryEdges, detectRtlScrollType, scrollFromStart } from './categoryScroll';
 import { ProductTile } from './ProductTile';
+import { OptionPickModal } from './OptionPickModal';
 
 interface Props {
   tenantId: string;
@@ -53,6 +54,30 @@ export const ProductPicker = memo(function ProductPicker({
   );
   const page = usePagedQuery(`${tenantId}|${spec.category}|${spec.search}|${catalogRevision}`, fetchPage, { keepPrevious: true });
   const scrollerRef = useRef<HTMLDivElement>(null);
+  // Sizes/colours of one item show as one tile; tapping it asks which option.
+  const [choosing, setChoosing] = useState<Product | null>(null);
+  const tiles = useMemo(() => {
+    const seen = new Map<string, { lead: Product; count: number; stock: number }>();
+    const out: { lead: Product; group: boolean }[] = [];
+    for (const p of page.items) {
+      if (!p.groupId) {
+        out.push({ lead: p, group: false });
+        continue;
+      }
+      const g = seen.get(p.groupId);
+      if (g) {
+        g.count += 1;
+        g.stock += Math.max(0, p.stock);
+        continue;
+      }
+      seen.set(p.groupId, { lead: p, count: 1, stock: Math.max(0, p.stock) });
+      out.push({ lead: p, group: true });
+    }
+    return out.map(({ lead, group }) => {
+      const g = group && lead.groupId ? seen.get(lead.groupId) : undefined;
+      return { product: lead, options: g && g.count > 1 ? g : null };
+    });
+  }, [page.items]);
   const [edges, setEdges] = useState({ overflow: false, atStart: true, atEnd: true });
 
   useEffect(() => {
@@ -171,7 +196,23 @@ export const ProductPicker = memo(function ProductPicker({
           <EmptyState icon="search" title={t('pos.noProducts')} />
         ) : (
           <div className={page.refreshing || pendingInput ? 'picker__grid picker__grid--refresh' : 'picker__grid'}>
-            {page.items.map((p) => {
+            {tiles.map(({ product: p, options }) => {
+              if (options) {
+                const none = options.stock <= 0;
+                return (
+                  <ProductTile
+                    key={p.id}
+                    name={p.groupName || p.name}
+                    imageUrl={p.imageUrl}
+                    usd={formatUsd(tierUsdCents(p, tier, rate))}
+                    lbp={formatLbp(tierLbp(p, tier, rate), lang)}
+                    stockLabel={t('pos.optionsCount', { count: options.count, stock: options.stock })}
+                    tone={none ? 'out' : 'ok'}
+                    disabled={false}
+                    onPick={() => setChoosing(p)}
+                  />
+                );
+              }
               const out = p.stock <= 0;
               const low = !out && p.stock <= (p.minStock ?? lowStockThreshold);
               return (
@@ -231,6 +272,9 @@ export const ProductPicker = memo(function ProductPicker({
             <Icon name="chevronRight" size={16} />
           </button>
         </nav>
+      )}
+      {choosing && (
+        <OptionPickModal tenantId={tenantId} item={choosing} tier={tier} rate={rate} onPick={onPick} onClose={() => setChoosing(null)} />
       )}
     </div>
   );

@@ -18,7 +18,7 @@ import { requireOnline } from '@/services/ops';
 import { findByNormalizedName, pageSuppliers } from '@/services/catalogQuery';
 import { newClientOperationId } from '@/services/clientOperation';
 import { addCategory, assertUniqueBarcode, createProduct, createProductGroup, setProductImage, updateProduct } from '@/services/productService';
-import { uploadTenantImage } from '@/services/storageService';
+import { deleteStorageFile, prepareImage, uploadPreparedImage } from '@/services/storageService';
 import { createSupplier } from '@/services/supplierService';
 import type { ProductDraftFields } from '@/features/ai/actions/productDraft';
 import type { Product } from '@/types/models';
@@ -377,6 +377,14 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
   const rate = useSettings().exchangeRate;
   const { busy, run } = useAsyncAction('product-save');
   const [image, setImage] = useState<File | null>(null);
+  // The photo is shrunk while the owner fills the rest of the form, not after they press Save.
+  const preparedImage = useRef<{ file: File; blob: Promise<Blob> } | null>(null);
+  const pickImage = (file: File | null) => {
+    setImage(file);
+    preparedImage.current = file ? { file, blob: prepareImage(file) } : null;
+    preparedImage.current?.blob.catch(() => undefined);
+  };
+  const imageBlob = (file: File) => (preparedImage.current?.file === file ? preparedImage.current.blob : prepareImage(file));
   const [serials, setSerials] = useState<string[]>([]);
   const [serialError, setSerialError] = useState<string | null>(null);
   const createOpRef = useRef<string | null>(null);
@@ -595,33 +603,53 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
         createOpRef.current ??= newClientOperationId();
         const saved = await createProductGroup({ ...input, barcode: '', imeiTracking: false, initialImeis: [] }, options.axes, options.rows, createOpRef.current);
         // Each option keeps its own copy of the photo, so replacing one later never breaks the others.
-        if (image) {
-          for (const optionId of saved.ids) {
-            const uploaded = await uploadTenantImage(tenantId, 'products', optionId, image);
-            await setProductImage(actor, optionId, uploaded, null);
-          }
-        }
         createOpRef.current = null;
         notify('success', t('products.variants.created', { count: saved.ids.length }));
         onClose();
+        if (image) {
+          const blob = imageBlob(image);
+          inBackground(async () => {
+            const b = await blob;
+            await Promise.all(
+              saved.ids.map(async (optionId) => setProductImage(actor, optionId, await uploadPreparedImage(tenantId, 'products', optionId, b), null)),
+            );
+          });
+        }
         return;
       }
+      // The photo uploads while the product itself is being saved.
+      const opId = (createOpRef.current ??= newClientOperationId());
+      const upload = image
+        ? imageBlob(image).then((b) => uploadPreparedImage(tenantId, 'products', product?.id ?? `new-${opId}`, b))
+        : null;
+      upload?.catch(() => undefined);
       let id = product?.id ?? '';
-      if (product) {
-        await updateProduct(actor, product.id, input, product);
-      } else {
-        createOpRef.current ??= newClientOperationId();
-        const saved = await createProduct(input, createOpRef.current);
-        id = saved.id;
-      }
-      if (image) {
-        const uploaded = await uploadTenantImage(tenantId, 'products', id, image);
-        await setProductImage(actor, id, uploaded, product?.imagePath ?? null);
+      try {
+        if (product) {
+          await updateProduct(actor, product.id, input, product);
+        } else {
+          const saved = await createProduct(input, opId);
+          id = saved.id;
+        }
+      } catch (e) {
+        // Nothing was saved: don't leave the photo behind.
+        void upload?.then((u) => deleteStorageFile(u.path)).catch(() => undefined);
+        throw e;
       }
       createOpRef.current = null;
       notify('success', t(product ? 'common.saved' : 'products.created'));
       onClose();
+      if (upload) inBackground(async () => setProductImage(actor, id, await upload, product?.imagePath ?? null));
     });
+
+  /** Finishes the photo after the form has closed; the product itself is already saved. */
+  const inBackground = (job: () => Promise<void>) => {
+    void job().catch((e: unknown) => {
+      logError('product-image', e);
+      const m = toUserMessage(e);
+      notify('error', t('products.imageNotSaved', { reason: t(m.key, m.params) }));
+    });
+  };
 
   const onFormKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
     if (e.key !== 'Enter') return;
@@ -848,7 +876,7 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
             className="input input--file"
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+            onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
           />
           {product?.imageUrl && !image && <img className="image-preview" src={product.imageUrl} alt="" />}
         </div>

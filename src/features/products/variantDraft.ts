@@ -69,8 +69,9 @@ export function chosenAxes(draft: VariantDraft): OptionAxis[] {
     .filter((a) => a.values.length > 0);
 }
 
-export function draftCombos(draft: VariantDraft): string[][] {
-  return optionCombos(chosenAxes(draft));
+export function draftCombos(draft: VariantDraft, existing?: ReadonlySet<string>): string[][] {
+  const all = optionCombos(chosenAxes(draft));
+  return existing ? all.filter((values) => !existing.has(comboKey(values).toLowerCase())) : all;
 }
 
 function wholeNumber(raw: string): number | null {
@@ -90,12 +91,13 @@ export type DraftResult =
   | { ok: true; axes: OptionAxis[]; rows: { values: string[]; stock: number; barcode: string; retailUsdCents: number | null }[] }
   | { ok: false; error: TranslationKey; params?: Record<string, string | number> };
 
-/** Checks the builder and turns it into what the server creates. */
-export function readDraft(draft: VariantDraft): DraftResult {
+/** Checks the builder and turns it into what the server creates; `existing` combinations are left out. */
+export function readDraft(draft: VariantDraft, existing?: ReadonlySet<string>): DraftResult {
   const axes = chosenAxes(draft);
   if (draft.axes.some((a) => a.on.length > 0 && !a.name.trim())) return { ok: false, error: 'products.variants.errName' };
   if (axes.length === 0) return { ok: false, error: 'products.variants.errNone' };
-  const combos = optionCombos(axes);
+  const combos = optionCombos(axes).filter((values) => !existing?.has(comboKey(values).toLowerCase()));
+  if (existing && combos.length === 0) return { ok: false, error: 'products.variants.errNothingNew' };
   if (combos.length > MAX_VARIANTS) return { ok: false, error: 'products.variants.errTooMany', params: { max: MAX_VARIANTS } };
   const rows = [];
   const codes = new Set<string>();
@@ -115,6 +117,6 @@ export function readDraft(draft: VariantDraft): DraftResult {
 }
 
 /** Total pieces typed across all options. */
-export function totalStock(draft: VariantDraft): number {
-  return draftCombos(draft).reduce((s, values) => s + (wholeNumber(draft.rows[comboKey(values)]?.stock ?? '') ?? 0), 0);
+export function totalStock(draft: VariantDraft, existing?: ReadonlySet<string>): number {
+  return draftCombos(draft, existing).reduce((s, values) => s + (wholeNumber(draft.rows[comboKey(values)]?.stock ?? '') ?? 0), 0);
 }

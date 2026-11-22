@@ -23,11 +23,13 @@ import { registerPageUiHost, unregisterPageUiHost } from '@/features/ai/actions/
 import { ProductFormModal } from './ProductFormModal';
 import { CategoriesModal, ImportProductsModal, LabelsModal, MovementsModal } from './ProductTools';
 import { StockAdjustModal } from './StockAdjustModal';
+import { VariantGroupModal } from './VariantGroupModal';
 
 type Filter = 'all' | 'low' | 'out' | 'archived';
 type Dialog =
   | { type: 'form'; product: Product | null; seed?: ProductDraftFields | null }
   | { type: 'adjust'; product: Product }
+  | { type: 'options'; product: Product }
   | { type: 'movements'; product: Product }
   | { type: 'labels'; products: Product[] }
   | { type: 'categories' }
@@ -258,6 +260,9 @@ export default function ProductsPage() {
                           <>
                             <Button variant="ghost" size="sm" icon="edit" onClick={() => setDialog({ type: 'form', product: p })} aria-label={t('common.edit')} />
                             <Button variant="ghost" size="sm" icon="package" onClick={() => setDialog({ type: 'adjust', product: p })} aria-label={t('products.adjustStock')} title={t('products.adjustStock')} />
+                            {p.groupId && (
+                              <Button variant="ghost" size="sm" icon="grid" onClick={() => setDialog({ type: 'options', product: p })} aria-label={t('products.variants.manage')} title={t('products.variants.manage')} />
+                            )}
                           </>
                         )}
                         <Button variant="ghost" size="sm" icon="history" onClick={() => setDialog({ type: 'movements', product: p })} aria-label={t('products.movements')} title={t('products.movements')} />
@@ -296,6 +301,7 @@ export default function ProductsPage() {
         />
       )}
       {dialog?.type === 'adjust' && <StockAdjustModal product={dialog.product} onClose={() => setDialog(null)} />}
+      {dialog?.type === 'options' && <VariantGroupModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'movements' && <MovementsModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'labels' && <LabelsModal products={dialog.products} onClose={() => setDialog(null)} />}
       {dialog?.type === 'categories' && <CategoriesModal onClose={() => setDialog(null)} />}

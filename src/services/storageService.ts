@@ -49,6 +49,17 @@ function extensionOf(type: string): string {
   return type === 'image/webp' ? 'webp' : type === 'image/png' ? 'png' : 'jpg';
 }
 
+/**
+ * Checks and shrinks a photo ready for upload. Started as soon as the photo is picked, so saving
+ * a form does not wait for it.
+ */
+export async function prepareImage(file: File, opts: { keepAlpha?: boolean; maxSize?: number } = {}): Promise<Blob> {
+  if (!ALLOWED_TYPES.includes(file.type)) throw new AppError('error.imageType');
+  const blob = await compressImage(file, opts.maxSize ?? 800, opts.keepAlpha ?? false);
+  if (blob.size > MAX_IMAGE_BYTES) throw new AppError('error.imageTooLarge');
+  return blob;
+}
+
 export async function uploadTenantImage(
   tenantId: string,
   folder: 'products' | 'logo',
@@ -56,13 +67,31 @@ export async function uploadTenantImage(
   file: File,
   opts: { keepAlpha?: boolean; maxSize?: number } = {},
 ): Promise<{ url: string; path: string }> {
-  if (!ALLOWED_TYPES.includes(file.type)) throw new AppError('error.imageType');
-  const blob = await compressImage(file, opts.maxSize ?? 800, opts.keepAlpha ?? false);
-  if (blob.size > MAX_IMAGE_BYTES) throw new AppError('error.imageTooLarge');
-  const type = blob.type || file.type || 'image/jpeg';
+  return uploadPreparedImage(tenantId, folder, name, await prepareImage(file, opts));
+}
+
+/** Uploads a photo already shrunk by prepareImage. */
+export async function uploadPreparedImage(
+  tenantId: string,
+  folder: 'products' | 'logo',
+  name: string,
+  blob: Blob,
+): Promise<{ url: string; path: string }> {
+  const type = blob.type || 'image/jpeg';
   const path = `tenants/${tenantId}/${folder}/${name}-${Date.now()}.${extensionOf(type)}`;
   const storageRef = ref(firebase.storage, path);
-  await uploadBytes(storageRef, blob, { contentType: type, cacheControl: 'public,max-age=31536000' });
+  const meta = { contentType: type, cacheControl: 'public,max-age=31536000' };
+  try {
+    await uploadBytes(storageRef, blob, meta);
+  } catch (e) {
+    // Storage checks the sign-in token's store, role and subscription. A token issued before the
+    // store was set up (or before a renewal) lacks them: repair the claims once and retry.
+    if ((e as { code?: string }).code !== 'storage/unauthorized') throw e;
+    const { api } = await import('./functionsClient');
+    await api.refreshMyClaims({}).catch(() => undefined);
+    await firebase.auth.currentUser?.getIdToken(true);
+    await uploadBytes(storageRef, blob, meta);
+  }
   return { url: await getDownloadURL(storageRef), path };
 }
 

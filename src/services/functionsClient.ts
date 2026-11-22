@@ -173,6 +173,14 @@ export const posApi = {
     },
     { groupId: string; ids: string[]; duplicate: boolean }
   >('posCreateProductGroup'),
+  addProductOptions: posOperation<
+    {
+      clientOperationId: string;
+      groupId: string;
+      rows: { values: string[]; stock: number; barcode: string; retailUsdCents: number | null }[];
+    },
+    { ids: string[]; duplicate: boolean }
+  >('posAddProductOptions'),
   importProducts: posOperation<{ rows: ImportRowCall[] }, { imported: number }>('posImportProducts'),
   setProductStatus: posOperation<{ productId: string; status: 'active' | 'archived' }, Ok>('posSetProductStatus'),
   deleteProduct: posOperation<{ productId: string }, Ok>('posDeleteProduct'),

@@ -18,7 +18,7 @@ import {
 import { nameNormalized } from '@/domain/searchKey';
 import { firebase } from '@/firebase/app';
 import type { Product, ProductStatus, StockMovement, TierPrices } from '@/types/models';
-import { paths, toStockMovement, type Actor } from './db';
+import { paths, toProduct, toStockMovement, type Actor } from './db';
 import { newClientOperationId, retryOnTransport } from './clientOperation';
 import { AppError } from './errors';
 import { posApi, type ProductFieldsCall } from './functionsClient';
@@ -114,6 +114,24 @@ export async function createProductGroup(
       clientOperationId,
       product,
       axes,
+      rows: rows.map((r) => ({ ...r, stock: Math.max(0, Math.floor(r.stock)), barcode: r.barcode.trim() })),
+    }),
+  );
+}
+
+/** Every option (size/colour) of an item, archived ones included. */
+export async function listGroupOptions(tenantId: string, groupId: string): Promise<Product[]> {
+  const snap = await getDocs(query(paths.col(tenantId, 'products'), where('groupId', '==', groupId), limit(200)));
+  return snap.docs.map((d) => toProduct(d.id, d.data()));
+}
+
+/** Adds new sizes/colours to an item that already has some. */
+export async function addProductOptions(groupId: string, rows: VariantRowInput[], clientOperationId = newClientOperationId()): Promise<{ ids: string[] }> {
+  requireOnline();
+  return retryOnTransport(() =>
+    posApi.addProductOptions({
+      clientOperationId,
+      groupId,
       rows: rows.map((r) => ({ ...r, stock: Math.max(0, Math.floor(r.stock)), barcode: r.barcode.trim() })),
     }),
   );

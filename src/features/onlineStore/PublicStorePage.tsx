@@ -590,7 +590,12 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
     </div>
   );
   const toggleWish = (id: string) => setWish((w) => (w.includes(id) ? w.filter((x) => x !== id) : [...w, id]));
-  const quickProduct = quick ? allProducts.find((p) => p.id === quick) : undefined;
+  const quickFound = quick ? allProducts.find((p) => p.id === quick) : undefined;
+  // An option without its own photo shows the item's photo from another option.
+  const quickProduct =
+    quickFound && !quickFound.imageUrl && quickFound.groupId
+      ? { ...quickFound, imageUrl: collapsed.siblings.get(quickFound.groupId)?.find((v) => v.imageUrl)?.imageUrl ?? null }
+      : quickFound;
   const quickLead = quickProduct ? (collapsed.leadOf.get(quickProduct.id) ?? quickProduct.id) : null;
   const related = quickProduct
     ? [

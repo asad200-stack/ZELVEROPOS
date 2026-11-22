@@ -6,7 +6,7 @@ import { REGION } from './config.js';
 import { fail } from './errors.js';
 import { posAdjustDrawer, posCashMove } from './pos/cash.js';
 import { posAdjustDebt, posCreateCustomer, posPayDebt } from './pos/customers.js';
-import { posAdjustStock, posCreateProduct, posCreateProductGroup, posDeleteProduct, posImportProducts, posSetProductStatus } from './pos/inventory.js';
+import { posAdjustStock, posCreateProduct, posAddProductOptions, posCreateProductGroup, posDeleteProduct, posImportProducts, posSetProductStatus } from './pos/inventory.js';
 import { posCheckout, posReturn } from './pos/sales.js';
 import { posCreatePurchase, posPaySupplier, posReturnToSupplier } from './pos/suppliers.js';
 import { runWithPreviewBinding } from './previewContext.js';
@@ -23,6 +23,7 @@ const PREVIEW_OPERATIONS = {
   posReturn,
   posCreateProduct,
   posCreateProductGroup,
+  posAddProductOptions,
   posImportProducts,
   posSetProductStatus,
   posDeleteProduct,

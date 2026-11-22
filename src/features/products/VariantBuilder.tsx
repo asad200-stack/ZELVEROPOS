@@ -21,10 +21,24 @@ interface Props {
   /** Receives an update of the latest draft, so quick taps in a row never undo each other. */
   onChange: (update: (current: VariantDraft) => VariantDraft) => void;
   error: string | null;
+  /** Combinations the item already has (lower-case combo keys): hidden from the grid. */
+  existing?: ReadonlySet<string>;
+  /** Adding to an existing item: the option kinds and their names stay as they are. */
+  fixedAxes?: boolean;
 }
 
 /** One kind of option: its name, a ready-made list, value chips to tick, and a box to type more. */
-function AxisEditor({ axis, onAxis, onRemove }: { axis: AxisDraft; onAxis: (update: (a: AxisDraft) => AxisDraft) => void; onRemove?: () => void }) {
+function AxisEditor({
+  axis,
+  onAxis,
+  onRemove,
+  fixed = false,
+}: {
+  axis: AxisDraft;
+  onAxis: (update: (a: AxisDraft) => AxisDraft) => void;
+  onRemove?: () => void;
+  fixed?: boolean;
+}) {
   const { t } = useI18n();
   const [typed, setTyped] = useState('');
   const all = axis.values.length > 0 && axis.on.length === axis.values.length;
@@ -38,6 +52,7 @@ function AxisEditor({ axis, onAxis, onRemove }: { axis: AxisDraft; onAxis: (upda
     <fieldset className="vb-axis">
       <div className="vb-axis-head">
         <input
+          readOnly={fixed}
           className="input vb-axis-name"
           value={axis.name}
           maxLength={30}
@@ -100,10 +115,10 @@ function AxisEditor({ axis, onAxis, onRemove }: { axis: AxisDraft; onAxis: (upda
  * Builds an item sold in sizes/colours: the owner ticks the sizes (or taps "All") and types the
  * quantity of each one, so medium can have 10 and small 1.
  */
-export function VariantBuilder({ draft, onChange, error }: Props) {
+export function VariantBuilder({ draft, onChange, error, existing, fixedAxes = false }: Props) {
   const { t } = useI18n();
   const [same, setSame] = useState('');
-  const combos = draftCombos(draft);
+  const combos = draftCombos(draft, existing);
   const setAxis = (i: number, update: (a: AxisDraft) => AxisDraft) =>
     onChange((d) => ({ ...d, axes: d.axes.map((x, k) => (k === i ? update(x) : x)) }));
   const setRow = (key: string, patch: Partial<RowDraft>) =>
@@ -113,7 +128,7 @@ export function VariantBuilder({ draft, onChange, error }: Props) {
     if (!/^\d{1,7}$/.test(qty)) return;
     onChange((d) => {
       const rows = { ...d.rows };
-      for (const values of draftCombos(d)) {
+      for (const values of draftCombos(d, existing)) {
         const key = comboKey(values);
         rows[key] = { ...(rows[key] ?? EMPTY_ROW), stock: qty };
       }
@@ -127,11 +142,12 @@ export function VariantBuilder({ draft, onChange, error }: Props) {
         <AxisEditor
           key={i}
           axis={axis}
+          fixed={fixedAxes}
           onAxis={(update) => setAxis(i, update)}
-          onRemove={i > 0 ? () => onChange((d) => ({ ...d, axes: d.axes.filter((_, k) => k !== i) })) : undefined}
+          onRemove={i > 0 && !fixedAxes ? () => onChange((d) => ({ ...d, axes: d.axes.filter((_, k) => k !== i) })) : undefined}
         />
       ))}
-      {draft.axes.length < MAX_OPTION_AXES && (
+      {draft.axes.length < MAX_OPTION_AXES && !fixedAxes && (
         <Button
           variant="secondary"
           size="sm"
@@ -210,7 +226,7 @@ export function VariantBuilder({ draft, onChange, error }: Props) {
           <p className={combos.length > MAX_VARIANTS ? 'field__error' : 'field__hint'}>
             {combos.length > MAX_VARIANTS
               ? t('products.variants.errTooMany', { max: MAX_VARIANTS })
-              : t('products.variants.summary', { options: combos.length, pieces: totalStock(draft) })}
+              : t('products.variants.summary', { options: combos.length, pieces: totalStock(draft, existing) })}
           </p>
         </>
       )}
