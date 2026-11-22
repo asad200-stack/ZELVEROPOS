@@ -118,7 +118,16 @@ describe('public projections', () => {
       rating: null,
       isNew: false,
       cutoutUrl: null,
+      groupId: null,
+      groupName: '',
+      options: [],
     });
+  });
+
+  it('passes on which size or colour a product is, and nothing for a stand-alone one', () => {
+    const base = { id: 'v1', name: 'Tee - M', category: '', prices: { retail: { usdCents: 900, lbp: null } }, imageUrl: null, stock: 2 };
+    const out = projectPublicProduct({ ...base, groupId: 'g1', groupName: 'Tee', options: [{ name: 'Size', value: 'M' }] } as unknown as Parameters<typeof projectPublicProduct>[0]);
+    expect(out).toMatchObject({ groupId: 'g1', groupName: 'Tee', options: [{ name: 'Size', value: 'M' }] });
   });
 
   it('builds the public store header from the published snapshot only', () => {

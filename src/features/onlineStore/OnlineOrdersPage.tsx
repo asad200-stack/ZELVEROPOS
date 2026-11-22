@@ -250,7 +250,7 @@ function OrderCard({ order, onChanged }: { order: OnlineOrder; onChanged: () => 
         <ul style={{ margin: 0, paddingInlineStart: 18 }}>
           {order.lines.map((l) => (
             <li key={l.productId}>
-              {l.qty} × {l.name} — {l.lineUsdCents > 0 ? formatUsd(l.lineUsdCents) : formatLbp(l.lineLbp, lang)}
+              {l.qty} × <bdi>{l.name}</bdi> — {l.lineUsdCents > 0 ? formatUsd(l.lineUsdCents) : formatLbp(l.lineLbp, lang)}
             </li>
           ))}
           {(order.deliveryZone || order.deliveryFeeUsdCents > 0) && (

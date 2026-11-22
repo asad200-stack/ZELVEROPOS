@@ -17,7 +17,7 @@ import { AppError, logError, toUserMessage } from '@/services/errors';
 import { requireOnline } from '@/services/ops';
 import { findByNormalizedName, pageSuppliers } from '@/services/catalogQuery';
 import { newClientOperationId } from '@/services/clientOperation';
-import { addCategory, assertUniqueBarcode, createProduct, setProductImage, updateProduct } from '@/services/productService';
+import { addCategory, assertUniqueBarcode, createProduct, createProductGroup, setProductImage, updateProduct } from '@/services/productService';
 import { uploadTenantImage } from '@/services/storageService';
 import { createSupplier } from '@/services/supplierService';
 import type { ProductDraftFields } from '@/features/ai/actions/productDraft';
@@ -25,6 +25,8 @@ import type { Product } from '@/types/models';
 import { productSchema, supplierSchema, toFieldErrors, type FieldErrors } from '@/validation/schemas';
 import { ImeiEntryList } from './ImeiEntryList';
 import { InlineCreatePanel } from './InlineCreatePanel';
+import { VariantBuilder } from './VariantBuilder';
+import { newAxis, readDraft, type VariantDraft } from './variantDraft';
 import {
   NEW_OPTION,
   categoryOptions,
@@ -453,8 +455,13 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
     createdSuppliers,
   );
   const canCreateSupplier = can('canViewSuppliers');
-  const showInitialStock = !product;
-  const showImeiEntry = !product && form.values.imeiTracking;
+  // New items can be made in sizes/colours, one product per option with its own stock.
+  const [variantsOn, setVariantsOn] = useState(false);
+  const [variantDraft, setVariantDraft] = useState<VariantDraft>(() => ({ axes: [newAxis(t('products.variants.sizeName'), 'clothes')], rows: {} }));
+  const [variantError, setVariantError] = useState<string | null>(null);
+  const withVariants = !product && variantsOn;
+  const showInitialStock = !product && !withVariants;
+  const showImeiEntry = !product && !withVariants && form.values.imeiTracking;
   const fieldOrder = productFieldOrder({ showCost: canSeeCost, showInitialStock, showImeiEntry });
 
   const onUsd = (tier: PriceTierName, usd: string) => {
@@ -531,13 +538,23 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
       if (categoryPanel.saving || supplierPanel.saving) return;
       const data = form.validate(productSchema);
       if (!data) return;
+      const options = withVariants ? readDraft(variantDraft) : null;
+      if (options && !options.ok) {
+        setVariantError(t(options.error, options.params));
+        return;
+      }
+      setVariantError(null);
       const inventory = resolveCreateInventory(data.imeiTracking, product ? null : data.initialStock, product ? [] : serials);
       if (!inventory.ok) {
         setSerialError(t('error.initialImeiCount', { stock: inventory.stock }));
         return;
       }
       setSerialError(null);
-      await assertUniqueBarcode(tenantId, data.barcode, product?.id);
+      if (options?.ok) {
+        for (const row of options.rows) await assertUniqueBarcode(tenantId, row.barcode);
+      } else {
+        await assertUniqueBarcode(tenantId, data.barcode, product?.id);
+      }
       const retail = data.retail ?? 0;
       const supplier = allSuppliers.find((s) => s.id === data.supplierId) ?? null;
       const tier = (name: PriceTierName, usd: number | null) => ({
@@ -573,6 +590,21 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
       };
       if (product?.imeiTracking && !data.imeiTracking && product.imeis.some((e) => e.status === 'available')) {
         throw new AppError('error.imeiTrackingLocked');
+      }
+      if (options?.ok) {
+        createOpRef.current ??= newClientOperationId();
+        const saved = await createProductGroup({ ...input, barcode: '', imeiTracking: false, initialImeis: [] }, options.axes, options.rows, createOpRef.current);
+        // Each option keeps its own copy of the photo, so replacing one later never breaks the others.
+        if (image) {
+          for (const optionId of saved.ids) {
+            const uploaded = await uploadTenantImage(tenantId, 'products', optionId, image);
+            await setProductImage(actor, optionId, uploaded, null);
+          }
+        }
+        createOpRef.current = null;
+        notify('success', t('products.variants.created', { count: saved.ids.length }));
+        onClose();
+        return;
       }
       let id = product?.id ?? '';
       if (product) {
@@ -646,12 +678,14 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
         <FormGrid>
           <div className="stack">
             <TextInput label={t('products.name')} required autoFocus {...form.bind('name')} />
-            <div className="field-with-action">
-              <TextInput {...form.bind('barcode')} label={t('products.barcode')} dir="ltr" />
-              <Button variant="secondary" size="sm" icon="barcode" onClick={() => form.set('barcode', generateBarcode())}>
-                {t('products.generate')}
-              </Button>
-            </div>
+            {!withVariants && (
+              <div className="field-with-action">
+                <TextInput {...form.bind('barcode')} label={t('products.barcode')} dir="ltr" />
+                <Button variant="secondary" size="sm" icon="barcode" onClick={() => form.set('barcode', generateBarcode())}>
+                  {t('products.generate')}
+                </Button>
+              </div>
+            )}
           </div>
           <div className="stack">
             <FilterableSelect
@@ -772,7 +806,26 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
           </FormGrid>
         )}
 
-        <Checkbox label={t('products.imeiTracking')} {...form.bindCheckbox('imeiTracking')} />
+        {!product && (
+          <div className="vb-toggle">
+            <Checkbox
+              label={t('products.variants.toggle')}
+              checked={variantsOn}
+              onChange={(e) => {
+                setVariantsOn(e.target.checked);
+                setVariantError(null);
+                if (e.target.checked) form.set('imeiTracking', false);
+              }}
+            />
+            <p className="field__hint">{t('products.variants.toggleHint')}</p>
+          </div>
+        )}
+        {withVariants && <VariantBuilder draft={variantDraft} onChange={(update) => {
+              setVariantDraft(update);
+              setVariantError(null);
+            }} error={variantError} />}
+
+        {!withVariants && <Checkbox label={t('products.imeiTracking')} {...form.bindCheckbox('imeiTracking')} />}
         {product && form.values.imeiTracking && <p className="field__hint">{t('products.imeiEditHint')}</p>}
         {showImeiEntry && (
           <ImeiEntryList

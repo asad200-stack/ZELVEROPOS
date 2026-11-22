@@ -115,6 +115,113 @@ export const posCreateProduct = onCall(async (request) => {
   });
 });
 
+const optionText = z.string().trim().min(1).max(30);
+const groupSchema = z.object({
+  clientOperationId: idField,
+  /** Shared fields; `name` is the item's own name, the barcode is per option. */
+  product: productFields.omit({ barcode: true, imeiTracking: true }),
+  axes: z.array(z.object({ name: optionText, values: z.array(optionText).min(1).max(60) })).min(1).max(2),
+  rows: z
+    .array(
+      z.object({
+        /** One value per axis, in axis order. */
+        values: z.array(optionText).min(1).max(2),
+        stock: z.number().int().min(0).max(1_000_000),
+        barcode: z.string().trim().max(100),
+        /** Retail price for this option when it differs from the item's (e.g. XXL costs more). */
+        retailUsdCents: cents.nullable(),
+      }),
+    )
+    .min(1)
+    .max(60),
+});
+
+/**
+ * Creates an item sold in sizes/colours: one product per option, each with its own stock, all
+ * sharing a groupId. Once per clientOperationId, like posCreateProduct.
+ */
+export const posCreateProductGroup = onCall(async (request) => {
+  const input = parse(groupSchema, request.data);
+  const f = input.product;
+  const axes = input.axes;
+  const seen = new Set<string>();
+  const codes = new Set<string>();
+  for (const row of input.rows) {
+    if (row.values.length !== axes.length) fail('invalid-argument', 'error.invalidInput');
+    row.values.forEach((v, i) => {
+      if (!axes[i]!.values.includes(v)) fail('invalid-argument', 'error.invalidInput');
+    });
+    const key = row.values.join('\u0001').toLowerCase();
+    if (seen.has(key)) fail('invalid-argument', 'error.invalidInput');
+    seen.add(key);
+    if (row.barcode) {
+      if (codes.has(row.barcode)) fail('already-exists', 'error.barcodeInUse', { name: row.barcode });
+      codes.add(row.barcode);
+    }
+  }
+  return runClientOp(request, input.clientOperationId, 'posCreateProductGroup', ['canAddProducts'], async (tx, actor) => {
+    const p = tenantPaths(actor.tenantId);
+    for (const code of codes) {
+      const taken = await tx.get(p.col('products').where('barcode', '==', code).limit(1));
+      const hit = taken.docs[0];
+      if (hit) fail('already-exists', 'error.barcodeInUse', { name: String(hit.data().name ?? '') });
+    }
+    const atMs = Date.now();
+    const audit = auditFields(actor, atMs);
+    const groupId = p.newRef('products').id;
+    const { costKnown, ...fields } = f;
+    const ids: string[] = [];
+    for (const row of input.rows) {
+      const ref = p.newRef('products');
+      ids.push(ref.id);
+      const name = `${f.name} - ${row.values.join(' / ')}`.slice(0, 200);
+      let lastMovementId: string | null = null;
+      if (row.stock > 0) {
+        const movementRef = p.newRef('stockMovements');
+        lastMovementId = movementRef.id;
+        tx.set(movementRef, {
+          productId: ref.id,
+          productName: name,
+          type: 'initial',
+          quantity: row.stock,
+          stockAfter: row.stock,
+          refId: null,
+          refNumber: null,
+          note: '',
+          ...audit,
+        });
+      }
+      const prices =
+        row.retailUsdCents === null ? f.prices : { ...f.prices, retail: { usdCents: row.retailUsdCents, lbp: null } };
+      tx.set(ref, {
+        ...fields,
+        prices,
+        name,
+        barcode: row.barcode,
+        imeiTracking: false,
+        costKnown: costKnown !== false,
+        nameNormalized: nameNormalized(name),
+        groupId,
+        groupName: f.name,
+        options: row.values.map((value, i) => ({ name: axes[i]!.name, value })),
+        stock: row.stock,
+        imeis: [],
+        imageUrl: null,
+        imagePath: null,
+        lastMovementId,
+        status: 'active',
+        archivedAt: null,
+        createdAt: audit.createdAt,
+        createdAtMs: atMs,
+        createdBy: actor.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    if (f.category) tx.set(p.categories, { names: FieldValue.arrayUnion(f.category) }, { merge: true });
+    return { groupId, ids };
+  });
+});
+
 const importSchema = z.object({
   rows: z
     .array(

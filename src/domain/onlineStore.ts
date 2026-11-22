@@ -14,7 +14,7 @@ export const STORE_FONTS = ['system', 'cairo', 'tajawal', 'inter'] as const;
 export type StoreFont = (typeof STORE_FONTS)[number];
 
 /** Whole-site looks the owner picks from. Each one has its own layout, type and motion. */
-export const STORE_THEMES = ['classic', 'perfume', 'atelier', 'studio', 'bistro'] as const;
+export const STORE_THEMES = ['classic', 'perfume', 'atelier', 'studio', 'bistro', 'tech', 'jewel', 'bloom'] as const;
 export type StoreTheme = (typeof STORE_THEMES)[number];
 
 /** Home page blocks between the hero and the footer, in the owner's order. The catalogue always stays. */
@@ -375,6 +375,12 @@ export interface PublicProduct {
   isNew: boolean;
   /** Same product on a transparent background, when the owner made one; else null. */
   cutoutUrl: string | null;
+  /** Size/colour set this product is one option of (see domain/variants), else null. */
+  groupId: string | null;
+  /** The set's own name ('' for a stand-alone product). */
+  groupName: string;
+  /** This option's values ([] for a stand-alone product). */
+  options: { name: string; value: string }[];
 }
 
 export const NEW_PRODUCT_DAYS = 21;
@@ -447,7 +453,7 @@ export function toListings(v: unknown): Record<string, ProductListing> {
 }
 
 export function projectPublicProduct(
-  p: Pick<Product, 'id' | 'name' | 'category' | 'prices' | 'imageUrl' | 'stock'> & { createdAt?: number | null },
+  p: Pick<Product, 'id' | 'name' | 'category' | 'prices' | 'imageUrl' | 'stock' | 'groupId' | 'groupName' | 'options'> & { createdAt?: number | null },
   listing?: ProductListing,
   totals?: RatingTotals,
   nowMs?: number,
@@ -468,6 +474,9 @@ export function projectPublicProduct(
     rating: ratingOf(totals),
     isNew: nowMs !== undefined && created > 0 && nowMs - created < NEW_PRODUCT_DAYS * DAY_MS,
     cutoutUrl: listing?.cutoutUrl || null,
+    groupId: p.groupId || null,
+    groupName: p.groupId ? (p.groupName ?? '') : '',
+    options: p.groupId ? (p.options ?? []).map((o) => ({ name: o.name, value: o.value })) : [],
   };
 }
 

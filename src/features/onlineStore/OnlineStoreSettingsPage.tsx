@@ -45,6 +45,9 @@ import { useI18n } from '@/i18n/i18n';
 import { api } from '@/services/functionsClient';
 import { formatDateTime, formatUsd, normalizeSearch } from '@/utils/format';
 
+const PRODUCT_FILTERS = ['all', 'shown', 'hidden', 'out'] as const;
+type ProductFilter = (typeof PRODUCT_FILTERS)[number];
+
 interface LoadedStore {
   config: OnlineStoreConfig;
   products: PublicProduct[];
@@ -171,11 +174,51 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
   const toggleProduct = (id: string, on: boolean) =>
     setSelected((cur) => (on ? (cur.includes(id) || cur.length >= MAX_VISIBLE_PRODUCTS ? cur : [...cur, id]) : cur.filter((x) => x !== id)));
 
+  const [show, setShow] = useState<ProductFilter>('all');
+  const [category, setCategory] = useState('');
+  const categories = useMemo(
+    () => [...new Set(initial.products.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [initial.products],
+  );
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const counts = useMemo(
+    () => ({
+      all: initial.products.length,
+      shown: initial.products.filter((p) => selectedSet.has(p.id)).length,
+      hidden: initial.products.filter((p) => !selectedSet.has(p.id)).length,
+      out: initial.products.filter((p) => !p.inStock).length,
+    }),
+    [initial.products, selectedSet],
+  );
   const filtered = useMemo(() => {
     const q = normalizeSearch(search);
-    if (!q) return initial.products;
-    return initial.products.filter((p) => normalizeSearch(`${p.name} ${p.category}`).includes(q));
-  }, [initial.products, search]);
+    return initial.products.filter(
+      (p) =>
+        (!q || normalizeSearch(`${p.name} ${p.category}`).includes(q)) &&
+        (!category || p.category === category) &&
+        (show === 'all' || (show === 'shown' ? selectedSet.has(p.id) : show === 'hidden' ? !selectedSet.has(p.id) : !p.inStock)),
+    );
+  }, [initial.products, search, category, show, selectedSet]);
+  // Out-of-stock products that are currently shown online: one tap takes them all off the site.
+  const shownOut = useMemo(() => initial.products.filter((p) => !p.inStock && selectedSet.has(p.id)).map((p) => p.id), [initial.products, selectedSet]);
+  const allFilteredOn = filtered.length > 0 && filtered.every((p) => selectedSet.has(p.id));
+
+  /** Puts every product in the current list online (up to the limit), keeping the earlier picks first. */
+  const selectFiltered = () =>
+    setSelected((cur) => {
+      const have = new Set(cur);
+      const add = filtered.map((p) => p.id).filter((id) => !have.has(id));
+      return [...cur, ...add].slice(0, MAX_VISIBLE_PRODUCTS);
+    });
+  /** Takes every product in the current list off the site. */
+  const clearFiltered = () => {
+    const drop = new Set(filtered.map((p) => p.id));
+    setSelected((cur) => cur.filter((id) => !drop.has(id)));
+  };
+  const dropOutOfStock = () => {
+    const drop = new Set(shownOut);
+    setSelected((cur) => cur.filter((id) => !drop.has(id)));
+  };
 
   const apply = (next: OnlineStoreConfig) => {
     setConfig(next);
@@ -539,8 +582,44 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
             <EmptyState icon="box" title={t('onlineStore.productsEmpty')} message={t('onlineStore.productsEmptyHint')} />
           ) : (
             <>
-              <SearchBox value={search} onChange={setSearch} placeholder={t('common.search')} />
-              <p className="muted">{t('onlineStore.productsSelected', { count: selected.length, max: MAX_VISIBLE_PRODUCTS })}</p>
+              <div className="os-prod-tools">
+                <SearchBox value={search} onChange={setSearch} placeholder={t('common.search')} />
+                {categories.length > 1 && (
+                  <select
+                    className="input os-prod-cat"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    aria-label={t('onlineStore.pick.category')}
+                  >
+                    <option value="">{t('onlineStore.pick.allCategories')}</option>
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="os-prod-filters" role="radiogroup" aria-label={t('onlineStore.pick.show')}>
+                {PRODUCT_FILTERS.map((f) => (
+                  <button key={f} type="button" role="radio" aria-checked={show === f} className="os-prod-filter" onClick={() => setShow(f)}>
+                    {t(`onlineStore.pick.${f}`)} <small>{counts[f]}</small>
+                  </button>
+                ))}
+              </div>
+              <div className="os-prod-bulk">
+                <Checkbox
+                  label={t(allFilteredOn ? 'onlineStore.pick.clearAll' : 'onlineStore.pick.selectAll', { count: filtered.length })}
+                  checked={allFilteredOn}
+                  disabled={filtered.length === 0}
+                  onChange={(e) => (e.target.checked ? selectFiltered() : clearFiltered())}
+                />
+                {shownOut.length > 0 && (
+                  <Button variant="secondary" size="sm" onClick={dropOutOfStock}>
+                    {t('onlineStore.pick.dropOut', { count: shownOut.length })}
+                  </Button>
+                )}
+              </div>
               {initial.productsTruncated && <Alert tone="info">{t('onlineStore.productsTruncated')}</Alert>}
               {filtered.length === 0 ? (
                 <p className="muted">{t('onlineStore.productsNoMatch')}</p>
@@ -552,12 +631,21 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
                     return (
                       <div key={p.id} className="os-product">
                         <div className="os-product__row">
-                          <Checkbox
-                            label={`${p.name} · ${formatUsd(p.priceUsdCents)}${p.category ? ` · ${p.category}` : ''}`}
-                            checked={selected.includes(p.id)}
-                            onChange={(e) => toggleProduct(p.id, e.target.checked)}
-                          />
+                          <label className="os-product__pick">
+                            <input type="checkbox" checked={selectedSet.has(p.id)} onChange={(e) => toggleProduct(p.id, e.target.checked)} />
+                            <span className="os-product__thumb" aria-hidden="true">
+                              {p.imageUrl ? <img src={p.imageUrl} alt="" loading="lazy" decoding="async" /> : null}
+                            </span>
+                            <span className="os-product__text">
+                              <b>{p.name}</b>
+                              <small>
+                                {formatUsd(p.priceUsdCents)}
+                                {p.category ? ` · ${p.category}` : ''}
+                              </small>
+                            </span>
+                          </label>
                           <div className="os-product__tags">
+                            {!p.inStock && <Badge tone="warning">{t('onlineStore.pick.outBadge')}</Badge>}
                             {pct !== null && <Badge tone="success">−{pct}%</Badge>}
                             {listing?.description && <Badge tone="info">{t('onlineStore.listing.hasDesc')}</Badge>}
                             <Button variant="ghost" size="sm" onClick={() => setEditing(editing === p.id ? null : p.id)}>
@@ -583,7 +671,8 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
                   })}
                 </div>
               )}
-              <div className="modal-actions">
+              <div className="os-prod-save">
+                <span className="muted">{t('onlineStore.productsSelected', { count: selected.length, max: MAX_VISIBLE_PRODUCTS })}</span>
                 <Button variant="primary" loading={action.busy} disabled={!productsDirty} onClick={() => void saveProducts()}>
                   {t('onlineStore.productsSave')}
                 </Button>

@@ -5,6 +5,7 @@ import type { TranslationKey, TParams } from '@/i18n/i18n';
 import { APPAREL_SIZES, SHOE_SIZES, apparelSize, fitKind, shoeSize, type FitPref } from './sizeAdvisor';
 import StorefrontTryOn from './StorefrontTryOn';
 import StorefrontReviews from './StorefrontReviews';
+import { axesOf, pickVariant, valueInStock } from '@/domain/variants';
 
 type T = (key: TranslationKey, params?: TParams) => string;
 
@@ -27,6 +28,10 @@ interface Props {
   lang: StoreLocale;
   /** Direct link to this product on the store page. */
   shareUrl: string;
+  /** Every option of the item when the product comes in sizes/colours, else []. */
+  variants?: PublicProduct[];
+  /** Switches to another option of the same item. */
+  onVariant?: (id: string) => void;
 }
 
 const FITS: { id: FitPref; key: TranslationKey }[] = [
@@ -90,7 +95,17 @@ function ShareRow({ t, name, url }: { t: T; name: string; url: string }) {
 
 export default function StorefrontQuickView(props: Props) {
   const { product: p, related, t, priceOf, qty, maxQty, size, wished } = props;
-  const kind = fitKind(p);
+  const variants = props.variants ?? [];
+  const grouped = variants.length > 1;
+  // Real sizes replace the guessed size list (which only went into the order note).
+  const kind = grouped ? null : fitKind(p);
+  const axes = grouped ? axesOf(variants) : [];
+  const current = p.options.map((o) => o.value);
+  // The visitor must tap every option kind once; landing on the first option is not a choice.
+  const [touched, setTouched] = useState<number[]>([]);
+  const chosen = !grouped || axes.every((_, i) => touched.includes(i));
+  const nextAxis = axes.find((_, i) => !touched.includes(i));
+  const title = grouped ? p.groupName || p.name : p.name;
   const [angle, setAngle] = useState(0);
   const [zoom, setZoom] = useState(false);
   const [origin, setOrigin] = useState('50% 50%');
@@ -106,7 +121,7 @@ export default function StorefrontQuickView(props: Props) {
 
   const sizes: readonly string[] = kind === 'shoes' ? SHOE_SIZES : APPAREL_SIZES;
   const needsSize = kind !== null;
-  const canAdd = p.inStock && (!needsSize || size !== '');
+  const canAdd = p.inStock && chosen && (!needsSize || size !== '');
 
   function down(e: PointerEvent<HTMLDivElement>) {
     if (zoom) return;
@@ -195,7 +210,7 @@ export default function StorefrontQuickView(props: Props) {
 
         <div className="sf-qv-info">
           {p.category.trim() && <p className="sf-eyebrow">{p.category}</p>}
-          <h2 id="sf-qv-title">{p.name}</h2>
+          <h2 id="sf-qv-title">{title}</h2>
           <div className="sf-price sf-qv-price">
             {priceOf(p)}
             {p.compareAtUsdCents !== null && <s className="sf-was">{formatUsd(p.compareAtUsdCents)}</s>}
@@ -203,7 +218,41 @@ export default function StorefrontQuickView(props: Props) {
           </div>
           {p.description && <p className="sf-qv-desc">{p.description}</p>}
           <ShareRow t={t} name={p.name} url={props.shareUrl} />
-          {!p.inStock && <p className="sf-msg sf-msg-warn">{t('storefront.outOfStock')}</p>}
+          {!p.inStock && (!grouped || chosen) && <p className="sf-msg sf-msg-warn">{t('storefront.outOfStock')}</p>}
+
+          {axes.map((axis, i) => (
+            <section key={axis.name} className="sf-qv-size" aria-label={axis.name}>
+              <div className="sf-qv-size-head">
+                <h3>
+                  {axis.name}
+                  {touched.includes(i) && current[i] ? <span className="sf-qv-picked">: {current[i]}</span> : null}
+                </h3>
+              </div>
+              <div className="sf-sizes" role="radiogroup" aria-label={axis.name}>
+                {axis.values.map((v) => {
+                  const ok = valueInStock(variants, current, i, v);
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      role="radio"
+                      className={ok ? undefined : 'is-out'}
+                      aria-checked={touched.includes(i) && current[i] === v}
+                      aria-label={ok ? v : `${v}, ${t('storefront.optionSoldOut')}`}
+                      onClick={() => {
+                        const next = pickVariant(variants, current, i, v);
+                        if (!next) return;
+                        setTouched((list) => (list.includes(i) ? list : [...list, i]));
+                        if (next.id !== p.id) props.onVariant?.(next.id);
+                      }}
+                    >
+                      {v}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
 
           {needsSize && p.inStock && (
             <section className="sf-qv-size" aria-label={t('storefront.size')}>
@@ -273,10 +322,10 @@ export default function StorefrontQuickView(props: Props) {
           )}
 
           <div className="sf-qv-buy">
-            {p.inStock &&
-              (qty === 0 ? (
+            {(p.inStock || !chosen) &&
+              (qty === 0 || !chosen ? (
                 <button type="button" className="sf-primary" onClick={props.onAdd} disabled={!canAdd}>
-                  {needsSize && !size ? t('storefront.chooseSize') : t('storefront.add')}
+                  {nextAxis ? t('storefront.chooseOption', { name: nextAxis.name }) : needsSize && !size ? t('storefront.chooseSize') : t('storefront.add')}
                 </button>
               ) : (
                 <div className="sf-step">

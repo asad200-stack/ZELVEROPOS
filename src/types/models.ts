@@ -44,6 +44,12 @@ export interface Product {
   imeiTracking: boolean;
   imeis: ImeiEntry[];
   lastMovementId: string | null;
+  /** Size/colour set this product belongs to (see domain/variants); missing or null when stand-alone. */
+  groupId?: string | null;
+  /** The item's own name shared by every option of the set, e.g. "T-shirt". */
+  groupName?: string;
+  /** This option's values, e.g. [{ name: 'Size', value: 'M' }]. */
+  options?: { name: string; value: string }[];
   /** Archived products keep their stock and history but cannot be sold or purchased. */
   status: ProductStatus;
   archivedAt: Millis;

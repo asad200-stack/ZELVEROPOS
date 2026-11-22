@@ -214,7 +214,7 @@
     },
     {
       "id": "callable:posAdjustStock",
-      "sourceHash": "1c0b145f75bf6f8361a84f0ac5ae405941a28cc63b3967b8d12d78998ddf7da8"
+      "sourceHash": "f7d8bc4525c0897d1dd2011da3b251b33be1f793143600784634e6b5426b532f"
     },
     {
       "id": "callable:posCashMove",
@@ -230,7 +230,11 @@
     },
     {
       "id": "callable:posCreateProduct",
-      "sourceHash": "267954beca62e377530a467d3355414af986f9d7d47ade4e9dc9b6ac11990bdf"
+      "sourceHash": "a0e9810576de35dfaec9b92de3675a8f8c690de4372de617c92f75c91846b019"
+    },
+    {
+      "id": "callable:posCreateProductGroup",
+      "sourceHash": "f8275392a5708156d23b733dd499020a84df304b64c4317522c2372d1835a7f2"
     },
     {
       "id": "callable:posCreatePurchase",
@@ -238,11 +242,11 @@
     },
     {
       "id": "callable:posDeleteProduct",
-      "sourceHash": "7796b4359ce0ca75c9f279ead0a1f9cf3af7a4a3965bcd7168e2df07ec7d405c"
+      "sourceHash": "d3769725746b6f1fa0560040520466e277ee6b887c67d21a168cc32869fe349e"
     },
     {
       "id": "callable:posImportProducts",
-      "sourceHash": "9e6695f187af74f7ac28687bc42dccc7678bbade617b30a4b8fd16ef446a437e"
+      "sourceHash": "25522d03e712358815c902cbcf223dabfbcf04c117ebc54f08d50023f1ce34da"
     },
     {
       "id": "callable:posPayDebt",
@@ -262,7 +266,7 @@
     },
     {
       "id": "callable:posSetProductStatus",
-      "sourceHash": "bd94068373d8cbe489b7535dd7385c731e3b6f294cd0534128dfab2a20b3b645"
+      "sourceHash": "67f402edd294ee297c89133b10a01be4621cdbaa8b037fec2fb4253421827088"
     },
     {
       "id": "callable:previewPos",

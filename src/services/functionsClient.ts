@@ -164,6 +164,15 @@ export const posApi = {
     { clientOperationId: string; product: ProductFieldsCall; initialStock: number; initialImeis: string[] },
     { id: string; duplicate: boolean }
   >('posCreateProduct'),
+  createProductGroup: posOperation<
+    {
+      clientOperationId: string;
+      product: Omit<ProductFieldsCall, 'barcode' | 'imeiTracking'>;
+      axes: { name: string; values: string[] }[];
+      rows: { values: string[]; stock: number; barcode: string; retailUsdCents: number | null }[];
+    },
+    { groupId: string; ids: string[]; duplicate: boolean }
+  >('posCreateProductGroup'),
   importProducts: posOperation<{ rows: ImportRowCall[] }, { imported: number }>('posImportProducts'),
   setProductStatus: posOperation<{ productId: string; status: 'active' | 'archived' }, Ok>('posSetProductStatus'),
   deleteProduct: posOperation<{ productId: string }, Ok>('posDeleteProduct'),

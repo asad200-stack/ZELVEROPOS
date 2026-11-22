@@ -1,7 +1,7 @@
 import type { StoreBranding, StoreLocale, StoreSection, StoreTemplate, StoreTheme } from '@/domain/onlineStore';
 
 /** Kinds of shop the owner can start from; each sets a matching look in one tap. */
-export const STORE_KINDS = ['perfume', 'clothing', 'shoes', 'food', 'electronics', 'grocery', 'general'] as const;
+export const STORE_KINDS = ['perfume', 'clothing', 'shoes', 'food', 'electronics', 'jewelry', 'flowers', 'grocery', 'general'] as const;
 export type StoreKind = (typeof STORE_KINDS)[number];
 
 interface Preset {
@@ -59,14 +59,36 @@ export const STORE_PRESETS: Record<StoreKind, Preset> = {
     },
   },
   electronics: {
-    theme: 'studio',
+    theme: 'tech',
     template: 'retail',
-    primaryColor: '#2563EB',
-    accentColor: '#111111',
+    primaryColor: '#4C7DFF',
+    accentColor: '#0E1217',
     sections: ['newArrivals', 'bestSellers', 'catalog', 'categories'],
     copy: {
       ar: { title: 'أحدث الأجهزة بإيدك', subtitle: 'موبايلات وإكسسوارات أصلية، بكفالة وتوصيل سريع.', cta: 'تسوّق الأجهزة' },
       en: { title: 'The latest tech in your hands', subtitle: 'Original phones and accessories, with warranty and fast delivery.', cta: 'Shop devices' },
+    },
+  },
+  jewelry: {
+    theme: 'jewel',
+    template: 'retail',
+    primaryColor: '#E2C3B4',
+    accentColor: '#0F1630',
+    sections: ['bestSellers', 'newArrivals', 'catalog', 'categories'],
+    copy: {
+      ar: { title: 'قطعة بتضلّ معك العمر', subtitle: 'ذهب وفضّة وساعات مختارة، بتوصل لباب بيتك.', cta: 'شوف القطع' },
+      en: { title: 'A piece to keep for life', subtitle: 'Chosen gold, silver and watches, delivered to your door.', cta: 'See the pieces' },
+    },
+  },
+  flowers: {
+    theme: 'bloom',
+    template: 'retail',
+    primaryColor: '#4F6B4A',
+    accentColor: '#E8A49C',
+    sections: ['bestSellers', 'catalog', 'categories', 'newArrivals'],
+    copy: {
+      ar: { title: 'ورد طازة لكل مناسبة', subtitle: 'باقات بتتحضّر عالطلب وبتوصل لباب البيت.', cta: 'اختار باقتك' },
+      en: { title: 'Fresh flowers for every occasion', subtitle: 'Bouquets made to order and delivered to the door.', cta: 'Choose a bouquet' },
     },
   },
   grocery: {

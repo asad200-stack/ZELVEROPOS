@@ -23,4 +23,11 @@ describe('store presets', () => {
     expect(matchingKind(applyPreset(defaultBranding('S'), 'shoes'))).toBe('shoes');
     for (const k of STORE_KINDS) expect(STORE_PRESETS[k].sections).toContain('catalog');
   });
+
+  it('gives phones, jewellery and flowers their own showcase', () => {
+    expect(applyPreset(defaultBranding('S'), 'electronics').theme).toBe('tech');
+    expect(applyPreset(defaultBranding('S'), 'jewelry').theme).toBe('jewel');
+    expect(applyPreset(defaultBranding('S'), 'flowers').theme).toBe('bloom');
+    expect(matchingKind(applyPreset(defaultBranding('S'), 'flowers'))).toBe('flowers');
+  });
 });

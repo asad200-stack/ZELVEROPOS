@@ -92,6 +92,33 @@ export async function createProduct(
   );
 }
 
+export interface VariantRowInput {
+  values: string[];
+  stock: number;
+  barcode: string;
+  /** Retail price for this option only; null = the item's price. */
+  retailUsdCents: number | null;
+}
+
+/** Creates an item sold in sizes/colours: one product per option, each with its own stock. */
+export async function createProductGroup(
+  input: ProductInput,
+  axes: { name: string; values: string[] }[],
+  rows: VariantRowInput[],
+  clientOperationId = newClientOperationId(),
+): Promise<{ groupId: string; ids: string[] }> {
+  requireOnline();
+  const { barcode: _barcode, imeiTracking: _imei, ...product } = productFields(input);
+  return retryOnTransport(() =>
+    posApi.createProductGroup({
+      clientOperationId,
+      product,
+      axes,
+      rows: rows.map((r) => ({ ...r, stock: Math.max(0, Math.floor(r.stock)), barcode: r.barcode.trim() })),
+    }),
+  );
+}
+
 /** Edits master data only; stock and IMEIs change exclusively through server-side operations. */
 export async function updateProduct(actor: Actor, id: string, input: ProductInput, current: Product): Promise<void> {
   if (input.imeiTracking !== current.imeiTracking && (current.stock !== 0 || current.imeis.length > 0)) {

@@ -27,6 +27,9 @@ const THEME_COLORS: Record<StoreTheme, { primaryColor: string; accentColor: stri
   atelier: { primaryColor: '#1C1A17', accentColor: '#B9A88F' },
   studio: { primaryColor: '#FF4A1C', accentColor: '#111111' },
   bistro: { primaryColor: '#2F4A33', accentColor: '#E0A82E' },
+  tech: { primaryColor: '#4C7DFF', accentColor: '#0E1217' },
+  jewel: { primaryColor: '#E2C3B4', accentColor: '#0F1630' },
+  bloom: { primaryColor: '#4F6B4A', accentColor: '#E8A49C' },
 };
 
 interface Props {

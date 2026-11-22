@@ -85,6 +85,17 @@ const tierPrice = (v: unknown): TierPrice => {
 
 /* ------------------------------------------------------------ converters */
 
+/** Size/colour set fields, only on products that belong to one (see domain/variants). */
+function variantFields(d: DocumentData): Pick<Product, 'groupId' | 'groupName' | 'options'> {
+  if (typeof d.groupId !== 'string' || !d.groupId) return {};
+  const options = Array.isArray(d.options)
+    ? (d.options as unknown[])
+        .filter((o): o is { name: string; value: string } => !!o && typeof (o as { name?: unknown }).name === 'string' && typeof (o as { value?: unknown }).value === 'string')
+        .map((o) => ({ name: o.name, value: o.value }))
+    : [];
+  return { groupId: d.groupId, groupName: typeof d.groupName === 'string' ? d.groupName : '', options };
+}
+
 export function toProduct(id: string, d: DocumentData): Product {
   const prices = (d.prices ?? {}) as DocumentData;
   return {
@@ -105,6 +116,7 @@ export function toProduct(id: string, d: DocumentData): Product {
     imeiTracking: bool(d.imeiTracking),
     imeis: arr<ImeiEntry>(d.imeis).filter((e) => e && typeof e.imei === 'string'),
     lastMovementId: strOrNull(d.lastMovementId),
+    ...variantFields(d),
     status: d.status === 'archived' ? 'archived' : 'active',
     archivedAt: millis(d.archivedAt),
     createdAt: millis(d.createdAt, d.createdAtMs),

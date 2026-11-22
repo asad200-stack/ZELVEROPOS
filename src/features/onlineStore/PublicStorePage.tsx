@@ -22,9 +22,13 @@ import { clearPendingPayment, readPendingPayment, savePendingPayment } from './p
 import { trackStoreEvent } from './storefrontTrack';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { fitKind, withSizes } from './sizeAdvisor';
+import { collapseVariants } from '@/domain/variants';
 import AtelierRail from './AtelierRail';
 import BistroHero from './BistroHero';
 import StudioHero from './StudioHero';
+import TechHero from './TechHero';
+import JewelHero from './JewelHero';
+import BloomHero from './BloomHero';
 import PerfumeHero from './PerfumeHero';
 import StorefrontQuickView, { HeartIcon } from './StorefrontQuickView';
 import StorefrontTrackOrder from './StorefrontTrackOrder';
@@ -186,6 +190,11 @@ function readWish(slug: string): string[] {
   } catch {
     return [];
   }
+}
+
+function uniqueById<P extends { id: string }>(list: P[]): P[] {
+  const seen = new Set<string>();
+  return list.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
 }
 
 function priceLabel(p: PublicProduct, lang: StoreLocale): string {
@@ -403,7 +412,12 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   }, [quick]);
 
   const store = data.data?.store;
-  const products = useMemo(() => catalog?.products ?? [], [catalog]);
+  const allProducts = useMemo(() => catalog?.products ?? [], [catalog]);
+  // Sizes/colours of one item show as one card; the cart and orders keep the exact option.
+  const collapsed = useMemo(() => collapseVariants(allProducts), [allProducts]);
+  const products = collapsed.listed;
+  /** The card listed for any product id (an option leads to its item's card). */
+  const listedFor = (id: string) => products.find((p) => p.id === (collapsed.leadOf.get(id) ?? id));
   const lang: StoreLocale = chosenLang ?? store?.defaultLocale ?? 'ar';
   const t = (key: TranslationKey, params?: TParams) => translate(lang, key, params);
 
@@ -452,14 +466,14 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
     [cart],
   );
   const cartItems = lines
-    .map((l) => ({ ...l, product: products.find((p) => p.id === l.productId) }))
+    .map((l) => ({ ...l, product: allProducts.find((p) => p.id === l.productId) }))
     .filter((x): x is typeof x & { product: PublicProduct } => !!x.product);
   const estUsd = cartItems.reduce((s, x) => s + x.product.priceUsdCents * x.qty, 0);
   const itemCount = lines.reduce((s, l) => s + l.qty, 0);
   const delivery = data.data?.store ? deliveryQuote(data.data.store, estUsd, fulfillment, zoneId) : null;
   const problem = orderProblem(lines, { name, phone, address }, fulfillment) ?? delivery?.problem ?? null;
 
-  const quickOpen = quick !== null && products.some((p) => p.id === quick);
+  const quickOpen = quick !== null && allProducts.some((p) => p.id === quick);
   const overlay = cartOpen || quickOpen || trackOpen;
   useEffect(() => {
     if (!overlay) return;
@@ -576,11 +590,12 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
     </div>
   );
   const toggleWish = (id: string) => setWish((w) => (w.includes(id) ? w.filter((x) => x !== id) : [...w, id]));
-  const quickProduct = quick ? products.find((p) => p.id === quick) : undefined;
+  const quickProduct = quick ? allProducts.find((p) => p.id === quick) : undefined;
+  const quickLead = quickProduct ? (collapsed.leadOf.get(quickProduct.id) ?? quickProduct.id) : null;
   const related = quickProduct
     ? [
-        ...products.filter((p) => p.id !== quickProduct.id && p.category.trim() && p.category.trim() === quickProduct.category.trim()),
-        ...products.filter((p) => p.id !== quickProduct.id && p.category.trim() !== quickProduct.category.trim()),
+        ...products.filter((p) => p.id !== quickLead && p.category.trim() && p.category.trim() === quickProduct.category.trim()),
+        ...products.filter((p) => p.id !== quickLead && p.category.trim() !== quickProduct.category.trim()),
       ].slice(0, RELATED_MAX)
     : [];
   const sizedNote = withSizes(
@@ -1067,7 +1082,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
               {receipt.lines.map((l, i) => (
                 <li key={i}>
                   <span>
-                    {l.qty} × {l.name}
+                    {l.qty} × <bdi>{l.name}</bdi>
                   </span>
                   <span>{l.lineUsdCents > 0 ? formatUsd(l.lineUsdCents) : formatLbp(l.lineLbp, lang)}</span>
                 </li>
@@ -1144,7 +1159,8 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const card = (p: PublicProduct, k: number) => {
       const qty = cart[p.id] ?? 0;
       const wished = wish.includes(p.id);
-      const needsPick = fitKind(p) !== null && !sizes[p.id];
+      const grouped = !!p.groupId && (collapsed.siblings.get(p.groupId)?.length ?? 0) > 1;
+      const needsPick = grouped || (fitKind(p) !== null && !sizes[p.id]);
       return (
         <article
           key={p.id}
@@ -1186,20 +1202,24 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
             )}
             <div className="sf-price">
               <span className="sf-price-now">
-                {priceLabel(p, lang)}
+                {collapsed.priceVaries.has(p.id) ? t('storefront.fromPrice', { price: priceLabel(p, lang) }) : priceLabel(p, lang)}
                 {p.compareAtUsdCents !== null && <s className="sf-was">{formatUsd(p.compareAtUsdCents)}</s>}
               </span>
               {p.priceUsdCents > 0 && p.priceLbp ? <small>{formatLbp(p.priceLbp, lang)}</small> : null}
             </div>
             <div className="sf-buy">
-              {!p.inStock ? null : qty === 0 ? (
+              {!p.inStock ? null : qty === 0 || grouped ? (
                 <button
                   type="button"
                   className="sf-add"
                   onClick={(e) => (needsPick ? setQuick(p.id) : addFrom(p, e.currentTarget.closest('.sf-card')?.querySelector('.sf-media')))}
                 >
                   <IconBag />
-                  {needsPick ? t('storefront.chooseSize') : t('storefront.add')}
+                  {grouped
+                    ? t('storefront.chooseOption', { name: p.options[0]?.name ?? t('storefront.size') })
+                    : needsPick
+                      ? t('storefront.chooseSize')
+                      : t('storefront.add')}
                 </button>
               ) : (
                 stepper(p, qty)
@@ -1210,9 +1230,9 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
       );
   };
 
-  const bestSellers = (data.data?.bestSellerIds ?? [])
-    .map((id) => products.find((p) => p.id === id))
-    .filter((p): p is PublicProduct => !!p);
+  const bestSellers = uniqueById(
+    (data.data?.bestSellerIds ?? []).map(listedFor).filter((p): p is PublicProduct => !!p),
+  );
   const newArrivals = products.filter((p) => p.isNew && p.inStock).slice(0, 8);
   const shelf = (id: string, title: string, list: PublicProduct[]) =>
     list.length >= 2 && category === 'all' && !wishOnly && !query.trim() ? (
@@ -1231,9 +1251,11 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const heroSubtitle = store.heroSubtitle || store.tagline || t('storefront.heroFallback');
   const heroCtaText = store.heroCta || t('storefront.shopNow');
   // Pieces on the 3D rail: the owner's picks in their order, else the first products with photos.
-  const pickedHero = toHeroProductIds(store.heroProductIds)
-    .map((id) => products.find((p) => p.id === id))
-    .filter((p): p is PublicProduct => !!p && !!(p.cutoutUrl || p.imageUrl));
+  const pickedHero = uniqueById(
+    toHeroProductIds(store.heroProductIds)
+      .map(listedFor)
+      .filter((p): p is PublicProduct => !!p && !!(p.cutoutUrl || p.imageUrl)),
+  );
   const heroItems = pickedHero.length > 0 ? pickedHero : products.filter((p) => p.imageUrl).slice(0, 8);
   // Perfume window: the owner's photo, else the first showcase piece (cut-out first), else any photo.
   const heroImage = store.heroImageUrl || pickedHero[0]?.cutoutUrl || pickedHero[0]?.imageUrl || heroPics[0]?.imageUrl || null;
@@ -1428,6 +1450,45 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
           eyebrow={heroEyebrow}
           secondary={heroWhatsApp('st-cta-2')}
         />
+      ) : store.theme === 'tech' ? (
+        <TechHero
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          cta={heroCtaText}
+          items={heroItems}
+          price={(p) => priceLabel(p, lang)}
+          onOpen={(id) => setQuick(id)}
+          onCta={toCatalog}
+          pickLabel={(name) => t('storefront.studio.show', { name })}
+          eyebrow={heroEyebrow}
+          secondary={heroWhatsApp('tc-cta-2')}
+        />
+      ) : store.theme === 'jewel' ? (
+        <JewelHero
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          cta={heroCtaText}
+          items={heroItems}
+          price={(p) => priceLabel(p, lang)}
+          onOpen={(id) => setQuick(id)}
+          onCta={toCatalog}
+          hint={t('storefront.jewel.hint')}
+          touchHint={t('storefront.jewel.touchHint')}
+          eyebrow={heroEyebrow}
+          secondary={heroWhatsApp('jw-cta-2')}
+        />
+      ) : store.theme === 'bloom' ? (
+        <BloomHero
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          cta={heroCtaText}
+          items={heroItems}
+          price={(p) => priceLabel(p, lang)}
+          onOpen={(id) => setQuick(id)}
+          onCta={toCatalog}
+          eyebrow={heroEyebrow}
+          secondary={heroWhatsApp('bl-cta-2')}
+        />
       ) : store.theme === 'bistro' ? (
         <BistroHero
           title={heroTitle}
@@ -1524,7 +1585,9 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
 
       {quickProduct && (
         <StorefrontQuickView
-          key={quickProduct.id}
+          key={quickProduct.groupId ?? quickProduct.id}
+          variants={quickProduct.groupId ? (collapsed.siblings.get(quickProduct.groupId) ?? []) : []}
+          onVariant={(id) => setQuick(id)}
           slug={slug}
           lang={lang}
           product={quickProduct}
