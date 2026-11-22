@@ -36,6 +36,10 @@ for (const f of live.files) {
   if (sha(join(OUT, f.path)) !== f.sha256) fail(`customer file changed while assembling: ${f.path}`);
   same++;
 }
+// The only two root changes: boot.js follows a store that already updated to a listed tree, and
+// release.json lists the trees it may follow.
+cpSync('scripts/release-root-boot.js', join(OUT, 'boot.js'));
+writeFileSync(join(OUT, 'release.json'), JSON.stringify({ trees: [VERSION] }) + '\n');
 
 const fb = JSON.parse(readFileSync('firebase.json', 'utf8'));
 const prod = (Array.isArray(fb.hosting) ? fb.hosting : [fb.hosting]).find((h) => h.target === 'production');
@@ -44,7 +48,8 @@ const { target: _target, ...base } = prod;
 const isOldTree = (src) => /^\/app\/0\.9\.(1-admin|2-ai)\./.test(src);
 const headers = prod.headers.filter((h) => !isOldTree(h.source));
 const at = headers.findIndex((h) => h.source === '/@(index.html|sw.js|boot.js|manifest.webmanifest)');
-headers.splice(at + 1, 0, {
+headers.splice(at, 0, { source: '/release.json', headers: [{ key: 'Cache-Control', value: 'no-cache' }] });
+headers.splice(at + 2, 0, {
   source: `${TREE}/@(index.html|sw.js|boot.js|manifest.webmanifest)`,
   headers: [{ key: 'Cache-Control', value: 'no-cache' }],
 });
@@ -68,4 +73,4 @@ const config = {
   },
 };
 writeFileSync('firebase.store-release.json', JSON.stringify(config, null, 2) + '\n');
-console.log(`Assembled ${OUT}/: ${same} live customer files unchanged + ${TREE}/. Wrote firebase.store-release.json.`);
+console.log(`Assembled ${OUT}/: ${same - 1} live customer files unchanged, boot.js now follows updated stores, release.json lists ${VERSION}, + ${TREE}/. Wrote firebase.store-release.json.`);
