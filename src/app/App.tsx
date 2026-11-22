@@ -17,6 +17,17 @@ import { AppRoutes } from './AppRoutes';
 
 const CustomDomainStore = lazy(() => import('@/features/onlineStore/CustomDomainStore'));
 
+/**
+ * A versioned tree (/app/{version}/) also serves the public store pages at the site root
+ * (/s/{slug}, rewritten to this tree's index.html during a pilot), so those paths are routed
+ * from the root instead of under the tree's base.
+ */
+function routerBasename(base: string, pathname: string): string | undefined {
+  const root = base === '/' ? '' : base.replace(/\/$/, '');
+  if (!root) return undefined;
+  return pathname === root || pathname.startsWith(`${root}/`) ? root : undefined;
+}
+
 function CrashScreen({ error, reset }: { error: Error; reset: () => void }) {
   const { t } = useI18n();
   return (
@@ -92,7 +103,7 @@ export function App() {
             <FirebaseGate>
               <SessionProvider>
                 <AiConversationLifecycle />
-                <BrowserRouter basename={import.meta.env.BASE_URL === '/' ? undefined : String(import.meta.env.BASE_URL).replace(/\/$/, '')}>
+                <BrowserRouter basename={routerBasename(import.meta.env.BASE_URL, window.location.pathname)}>
                   {storeHost ? (
                     <Suspense fallback={null}>
                       <CustomDomainStore host={storeHost} />

@@ -75,3 +75,10 @@ tmp/
 releases/
 hosting-delivery-report.json
 hosting-recovered-manifest.json
+
+# Online store release 0.9.3 (generated)
+hosting-live/
+hosting-live-manifest.json
+hosting-release/
+release-tree/
+firebase.store-release.json
