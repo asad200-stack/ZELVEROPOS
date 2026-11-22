@@ -28,6 +28,9 @@ import {
   storeShareMeta,
   summarizeStats,
   toDayStats,
+  toSections,
+  toHeroProductIds,
+  heroImageOk,
   toStoreConfig,
 } from './onlineStore';
 
@@ -114,6 +117,7 @@ describe('public projections', () => {
       compareAtUsdCents: null,
       rating: null,
       isNew: false,
+      cutoutUrl: null,
     });
   });
 
@@ -121,7 +125,8 @@ describe('public projections', () => {
     const out = projectPublicStore('shop-one', defaultBranding('Shop'));
     expect(Object.keys(out).sort()).toEqual([
       'accentColor', 'contactPhone', 'defaultLocale', 'deliveryZones', 'enabledLocales', 'font', 'freeDeliveryOverUsdCents',
-      'hours', 'minOrderUsdCents', 'primaryColor', 'slug', 'storeAddress', 'storeName', 'tagline', 'template', 'whatsapp',
+      'heroCta', 'heroImageUrl', 'heroProductIds', 'heroSubtitle', 'heroTitle', 'hours', 'minOrderUsdCents', 'primaryColor', 'sections', 'slug',
+      'storeAddress', 'storeName', 'tagline', 'template', 'theme', 'whatsapp',
     ]);
   });
 });
@@ -202,8 +207,8 @@ describe('delivery zones', () => {
 
 describe('product listings', () => {
   const product = { id: 'p1', name: 'Tea', category: 'Drinks', prices: { retail: { usdCents: 800, lbp: 0 } }, imageUrl: null, stock: 3 };
-  const project = (listing?: { description: string; compareAtUsdCents: number | null }) =>
-    projectPublicProduct(product as unknown as Parameters<typeof projectPublicProduct>[0], listing);
+  const project = (listing?: { description: string; compareAtUsdCents: number | null; cutoutUrl?: string }) =>
+    projectPublicProduct(product as unknown as Parameters<typeof projectPublicProduct>[0], listing && { cutoutUrl: '', ...listing });
 
   it('adds the description and a real price-before-discount', () => {
     const out = project({ description: 'Ceylon tea', compareAtUsdCents: 1000 });
@@ -225,8 +230,14 @@ describe('product listings', () => {
         'bad id': { description: 'x', compareAtUsdCents: null },
         p2: { description: '', compareAtUsdCents: null },
         p3: { description: 'y'.repeat(700), compareAtUsdCents: -1 },
+        p4: { description: '', compareAtUsdCents: null, cutoutUrl: 'https://img.example/p4.webp' },
+        p5: { description: '', compareAtUsdCents: null, cutoutUrl: 'http://evil.example/x.png' },
       }),
-    ).toEqual({ p1: { description: 'Nice', compareAtUsdCents: 1200 }, p3: { description: 'y'.repeat(600), compareAtUsdCents: null } });
+    ).toEqual({
+      p1: { description: 'Nice', compareAtUsdCents: 1200, cutoutUrl: '' },
+      p3: { description: 'y'.repeat(600), compareAtUsdCents: null, cutoutUrl: '' },
+      p4: { description: '', compareAtUsdCents: null, cutoutUrl: 'https://img.example/p4.webp' },
+    });
     expect(toListings(null)).toEqual({});
   });
 });
@@ -354,5 +365,31 @@ describe('share previews', () => {
     const man = storeManifest(m);
     expect(man.start_url).toBe('/s/abu-ali');
     expect(man.dir).toBe('rtl');
+  });
+});
+
+describe('themes and hero', () => {
+  it('reads theme, hero text and sections defensively', () => {
+    const b = toStoreBranding({ theme: 'perfume', heroTitle: 'Oud nights', heroCta: 'x'.repeat(50), heroImageUrl: 'javascript:alert(1)', sections: ['catalog', 'bogus', 'categories', 'catalog'] }, 'S');
+    expect(b.theme).toBe('perfume');
+    expect(b.heroTitle).toBe('Oud nights');
+    expect(b.heroCta).toHaveLength(30);
+    expect(b.heroImageUrl).toBe('');
+    expect(b.sections).toEqual(['catalog', 'categories']);
+    expect(toStoreBranding({ theme: 'disco' }, 'S').theme).toBe('classic');
+  });
+
+  it('keeps hero products unique, well-formed and capped', () => {
+    expect(toHeroProductIds(['a', 'a', 'bad id', 7, 'b'])).toEqual(['a', 'b']);
+    expect(toHeroProductIds(Array.from({ length: 14 }, (_, i) => `p${i}`))).toHaveLength(10);
+    expect(toHeroProductIds('x')).toEqual([]);
+  });
+
+  it('always keeps the catalogue and accepts only safe hero images', () => {
+    expect(toSections(['bestSellers'])).toEqual(['bestSellers', 'catalog']);
+    expect(toSections(undefined)).toEqual(['categories', 'bestSellers', 'newArrivals', 'catalog']);
+    expect(heroImageOk('https://firebasestorage.googleapis.com/v0/b/x/o/y')).toBe(true);
+    expect(heroImageOk('http://127.0.0.1:9199/v0/b/x')).toBe(true);
+    expect(heroImageOk('http://evil.example/x.jpg')).toBe(false);
   });
 });

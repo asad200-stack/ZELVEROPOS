@@ -13,6 +13,21 @@ export type StoreLocale = (typeof STORE_LOCALES)[number];
 export const STORE_FONTS = ['system', 'cairo', 'tajawal', 'inter'] as const;
 export type StoreFont = (typeof STORE_FONTS)[number];
 
+/** Whole-site looks the owner picks from. Each one has its own layout, type and motion. */
+export const STORE_THEMES = ['classic', 'perfume', 'atelier', 'studio', 'bistro'] as const;
+export type StoreTheme = (typeof STORE_THEMES)[number];
+
+/** Home page blocks between the hero and the footer, in the owner's order. The catalogue always stays. */
+export const STORE_SECTIONS = ['categories', 'bestSellers', 'newArrivals', 'catalog'] as const;
+export type StoreSection = (typeof STORE_SECTIONS)[number];
+
+export const HERO_TITLE_MAX = 80;
+export const HERO_SUBTITLE_MAX = 200;
+export const HERO_CTA_MAX = 30;
+export const HERO_IMAGE_URL_MAX = 1000;
+/** Products the owner pins to the 3D showcase at the top of the page. */
+export const HERO_PRODUCTS_MAX = 10;
+
 /** Max products the owner can show online in Milestone A (one Firestore doc holds the list). */
 export const MAX_VISIBLE_PRODUCTS = 500;
 export const STORE_NAME_MAX = 80;
@@ -67,6 +82,16 @@ export interface StoreBranding {
   storeAddress: string;
   /** Opening hours, Sunday first (7 entries), or empty when the owner has not set them. */
   hours: DayHours[];
+  theme: StoreTheme;
+  /** Owner's own hero text; empty strings fall back to the store name / tagline / "Shop now". */
+  heroTitle: string;
+  heroSubtitle: string;
+  heroCta: string;
+  /** Uploaded hero photo (https download URL), or '' to use product photos. */
+  heroImageUrl: string;
+  /** Products shown in the 3D showcase (clothes rail, perfume shelf...), in order. */
+  heroProductIds: string[];
+  sections: StoreSection[];
 }
 
 export interface DayHours {
@@ -272,6 +297,13 @@ export function defaultBranding(storeName = ''): StoreBranding {
     minOrderUsdCents: null,
     storeAddress: '',
     hours: [],
+    theme: 'classic',
+    heroTitle: '',
+    heroSubtitle: '',
+    heroCta: '',
+    heroImageUrl: '',
+    heroProductIds: [],
+    sections: [...STORE_SECTIONS],
   };
 }
 
@@ -341,6 +373,8 @@ export interface PublicProduct {
   rating: { average: number; count: number } | null;
   /** Added to the catalogue recently (see NEW_PRODUCT_DAYS). */
   isNew: boolean;
+  /** Same product on a transparent background, when the owner made one; else null. */
+  cutoutUrl: string | null;
 }
 
 export const NEW_PRODUCT_DAYS = 21;
@@ -390,6 +424,8 @@ export const LISTING_DESC_MAX = 600;
 export interface ProductListing {
   description: string;
   compareAtUsdCents: number | null;
+  /** Product photo with the background removed (for the 3D showcase), or '' when none. */
+  cutoutUrl: string;
 }
 
 const LISTING_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -403,8 +439,9 @@ export function toListings(v: unknown): Record<string, ProductListing> {
     const o = raw as Record<string, unknown>;
     const description = typeof o.description === 'string' ? o.description.trim().slice(0, LISTING_DESC_MAX) : '';
     const compareAtUsdCents = toFreeDeliveryThreshold(o.compareAtUsdCents);
-    if (!description && compareAtUsdCents === null) continue;
-    out[id] = { description, compareAtUsdCents };
+    const cutoutUrl = heroImageOk(o.cutoutUrl) ? o.cutoutUrl : '';
+    if (!description && compareAtUsdCents === null && !cutoutUrl) continue;
+    out[id] = { description, compareAtUsdCents, cutoutUrl };
   }
   return out;
 }
@@ -430,6 +467,7 @@ export function projectPublicProduct(
     compareAtUsdCents: compareAt !== null && price > 0 && compareAt > price ? compareAt : null,
     rating: ratingOf(totals),
     isNew: nowMs !== undefined && created > 0 && nowMs - created < NEW_PRODUCT_DAYS * DAY_MS,
+    cutoutUrl: listing?.cutoutUrl || null,
   };
 }
 
@@ -465,6 +503,13 @@ export function toStoreBranding(v: unknown, storeName = ''): StoreBranding {
     storeName: typeof o.storeName === 'string' ? text(o.storeName, STORE_NAME_MAX) : base.storeName,
     tagline: text(o.tagline, STORE_TAGLINE_MAX),
     template: pick(STORE_TEMPLATES, o.template, base.template),
+    theme: pick(STORE_THEMES, o.theme, base.theme),
+    heroTitle: text(o.heroTitle, HERO_TITLE_MAX),
+    heroSubtitle: text(o.heroSubtitle, HERO_SUBTITLE_MAX),
+    heroCta: text(o.heroCta, HERO_CTA_MAX),
+    heroImageUrl: heroImageOk(o.heroImageUrl) ? o.heroImageUrl : '',
+    heroProductIds: toHeroProductIds(o.heroProductIds),
+    sections: toSections(o.sections),
     primaryColor: color(o.primaryColor, base.primaryColor),
     accentColor: color(o.accentColor, base.accentColor),
     font: pick(STORE_FONTS, o.font, base.font),
@@ -519,6 +564,13 @@ export interface PublicStore {
   minOrderUsdCents: number | null;
   storeAddress: string;
   hours: DayHours[];
+  theme: StoreTheme;
+  heroTitle: string;
+  heroSubtitle: string;
+  heroCta: string;
+  heroImageUrl: string;
+  heroProductIds: string[];
+  sections: StoreSection[];
 }
 
 export function projectPublicStore(slug: string, b: StoreBranding): PublicStore {
@@ -539,7 +591,49 @@ export function projectPublicStore(slug: string, b: StoreBranding): PublicStore 
     minOrderUsdCents: b.minOrderUsdCents,
     storeAddress: b.storeAddress,
     hours: b.hours.map((h) => ({ ...h })),
+    theme: b.theme,
+    heroTitle: b.heroTitle,
+    heroSubtitle: b.heroSubtitle,
+    heroCta: b.heroCta,
+    heroImageUrl: b.heroImageUrl,
+    heroProductIds: [...b.heroProductIds],
+    sections: [...b.sections],
   };
+}
+
+/* ------------------------------------------------------------------ themes & hero */
+
+/** Hero photos must be https (any host the page's CSP allows); plain http only for local emulators. */
+export function heroImageOk(v: unknown): v is string {
+  if (typeof v !== 'string' || !v || v.length > HERO_IMAGE_URL_MAX) return false;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' || (u.protocol === 'http:' && (u.hostname === '127.0.0.1' || u.hostname === 'localhost'));
+  } catch {
+    return false;
+  }
+}
+
+/** Unique, well-formed product ids, capped at HERO_PRODUCTS_MAX. */
+export function toHeroProductIds(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const x of v) {
+    if (typeof x === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(x) && !out.includes(x)) out.push(x);
+    if (out.length >= HERO_PRODUCTS_MAX) break;
+  }
+  return out;
+}
+
+/** Known, unique sections in the given order; the catalogue is always kept (added last if missing). */
+export function toSections(v: unknown): StoreSection[] {
+  if (!Array.isArray(v)) return [...STORE_SECTIONS];
+  const out: StoreSection[] = [];
+  for (const x of v) {
+    if ((STORE_SECTIONS as readonly unknown[]).includes(x) && !out.includes(x as StoreSection)) out.push(x as StoreSection);
+  }
+  if (!out.includes('catalog')) out.push('catalog');
+  return out;
 }
 
 /* ------------------------------------------------------------------ store analytics */

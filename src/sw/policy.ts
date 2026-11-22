@@ -57,5 +57,8 @@ export function precacheList(files: readonly string[], base = ''): string[] {
   return files
     .map((f) => `${prefix}/${f.replace(/\\/g, '/').replace(/^\/+/, '')}`.replace(/\/{2,}/g, '/'))
     .filter((f) => !f.endsWith('/sw.js') && !f.endsWith('.map') && !f.split('/').some((part) => part.startsWith('.')))
+    // The on-device AI runtime (~40 MB) is downloaded only by the screens that use it, never
+    // pushed to every till by the offline shell.
+    .filter((f) => !f.endsWith('.wasm') && !/\/ort-wasm[^/]*\.mjs$/.test(f))
     .sort();
 }

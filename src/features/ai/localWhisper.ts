@@ -3,6 +3,8 @@
  * Audio never leaves the browser for a paid transcription API — weights run locally after one model download.
  */
 
+import { useLocalOrt } from './ortAssets';
+
 export type LocalWhisperProgress = {
   phase: 'loading-model' | 'transcribing';
   /** 0–1 when the library reports download progress; otherwise null. */
@@ -34,6 +36,7 @@ async function loadPipeline(onProgress?: (progress: LocalWhisperProgress) => voi
       const { pipeline, env } = await import('@huggingface/transformers');
       // Prefer CDN/cache; never phone home with audio — only model weights.
       env.allowLocalModels = false;
+      useLocalOrt(env);
       const asr = await pipeline('automatic-speech-recognition', MODEL_ID, {
         dtype: 'q8',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

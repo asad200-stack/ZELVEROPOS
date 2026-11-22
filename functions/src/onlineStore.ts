@@ -47,6 +47,16 @@ import {
   STATS_TOP,
   STORE_EVENTS,
   DOMAIN_MAX,
+  HERO_CTA_MAX,
+  HERO_PRODUCTS_MAX,
+  toHeroProductIds,
+  HERO_IMAGE_URL_MAX,
+  HERO_SUBTITLE_MAX,
+  HERO_TITLE_MAX,
+  STORE_SECTIONS,
+  STORE_THEMES,
+  heroImageOk,
+  toSections,
   domainProblem,
   normalizeDomain,
   cleanVisibleIds,
@@ -185,6 +195,18 @@ const brandingSchema = z.strictObject({
     .max(7)
     .default([])
     .refine((h) => h.length === 0 || h.length === 7),
+  // Theme and hero (optional for older clients).
+  theme: z.enum(STORE_THEMES).default('classic'),
+  heroTitle: z.string().trim().max(HERO_TITLE_MAX).default(''),
+  heroSubtitle: z.string().trim().max(HERO_SUBTITLE_MAX).default(''),
+  heroCta: z.string().trim().max(HERO_CTA_MAX).default(''),
+  heroImageUrl: z
+    .string()
+    .max(HERO_IMAGE_URL_MAX)
+    .default('')
+    .refine((u) => u === '' || heroImageOk(u)),
+  sections: z.array(z.enum(STORE_SECTIONS)).max(STORE_SECTIONS.length).default([...STORE_SECTIONS]).transform(toSections),
+  heroProductIds: z.array(idField).max(HERO_PRODUCTS_MAX).default([]).transform(toHeroProductIds),
 });
 const emptySchema = z.strictObject({});
 const saveDraftSchema = z.strictObject({ enabled: z.boolean(), draft: brandingSchema });
@@ -194,6 +216,12 @@ const listingSchema = z.strictObject({
   productId: idField,
   description: z.string().max(LISTING_DESC_MAX * 2),
   compareAtUsdCents: z.number().int().min(1).max(FREE_DELIVERY_MAX_USD_CENTS).nullable(),
+  // Optional: older clients don't send it, and then the stored cut-out is kept as is.
+  cutoutUrl: z
+    .string()
+    .max(HERO_IMAGE_URL_MAX)
+    .refine((u) => u === '' || heroImageOk(u))
+    .optional(),
 });
 
 /* ------------------------------------------------------------------ helpers */
@@ -364,10 +392,12 @@ export const onlineStoreSaveListing = onCall({ region: REGION }, (request) =>
     const found = await activeProducts(tenantId, [input.productId]);
     if (!found.has(input.productId)) fail('invalid-argument', 'error.onlineStore.unknownProduct');
     const ref = storeRef(tenantId);
-    if (!(await ref.get()).exists) await ref.set({ ...toStoreConfig(undefined), updatedAt: Date.now() });
-    const empty = !description && input.compareAtUsdCents === null;
+    const snap = await ref.get();
+    if (!snap.exists) await ref.set({ ...toStoreConfig(undefined), updatedAt: Date.now() });
+    const cutoutUrl = input.cutoutUrl ?? toStoreConfig(snap.data()).listings[input.productId]?.cutoutUrl ?? '';
+    const empty = !description && input.compareAtUsdCents === null && !cutoutUrl;
     await ref.update({
-      [`listings.${input.productId}`]: empty ? FieldValue.delete() : { description, compareAtUsdCents: input.compareAtUsdCents },
+      [`listings.${input.productId}`]: empty ? FieldValue.delete() : { description, compareAtUsdCents: input.compareAtUsdCents, cutoutUrl },
       updatedAt: Date.now(),
     });
     return { config: await loadConfig(tenantId) };

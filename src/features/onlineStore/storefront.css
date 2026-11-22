@@ -1225,3 +1225,791 @@ html:has(.sf), .sf { overflow-x: clip; }
 @media (max-width: 640px) {
   .sf-row { grid-auto-columns: 46%; gap: 10px; margin-inline: -16px; padding-inline: 16px; }
 }
+
+/* ---------- Phone tidy-up (2026-11-20 late) ---------- */
+.sf-wa-top { display: none; }
+@media (max-width: 640px) {
+  /* WhatsApp moves into the header; no floating bubble covering photos and prices. */
+  .sf-wa, .sf-wa.is-raised { display: none; }
+  .sf-wa-top {
+    display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 50%;
+    background: #25d366; color: #fff;
+  }
+  .sf-wa-top svg { width: 20px; height: 20px; }
+  .sf-wa-top:focus-visible { outline: 3px solid var(--sf-ink); outline-offset: 2px; }
+  /* Categories: the chip row above the products is enough on a phone. */
+  .sf-shelf:has(.sf-tiles) { display: none; }
+  /* Shorter hero and footer so the products come sooner. */
+  .sf-hero-grid { padding-block: 20px 16px; gap: 18px; }
+  .sf-hero h1 { font-size: 28px; }
+  .sf-hero-sub { margin-bottom: 16px; }
+  .sf-perks { margin-top: 16px; padding-top: 12px; }
+  .sf-bento { height: 200px; }
+  .sf-catalog { padding-block: 20px 88px; }
+  .sf-foot .sf-trust { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; padding-block: 20px; }
+  .sf-foot .sf-trust li { gap: 10px; }
+  .sf-foot .sf-trust-ic { width: 36px; height: 36px; border-radius: 10px; }
+  .sf-foot .sf-trust b { font-size: 13.5px; }
+  .sf-foot .sf-trust span { font-size: 12px; }
+  .sf-foot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; padding-block: 20px 16px; }
+  .sf-foot-grid > :first-child { grid-column: 1 / -1; }
+}
+
+/* =====================================================================
+   Perfume theme (2026-11). Night boutique: smoked dark, parchment text,
+   the owner's main colour as the metal accent, arch-shaped windows.
+   Signature: a pinned hero where the bottle window turns in 3D with scroll.
+   ===================================================================== */
+@font-face {
+  font-family: 'ZV Cormorant';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/cormorant-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'ZV Cormorant';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/cormorant-latin-italic-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'ZV Amiri';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/amiri-arabic-400.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: 'ZV Amiri';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/amiri-arabic-700.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+.sf.sf-theme-perfume {
+  --pf-night: #15110f;
+  --pf-smoke: #1e1814;
+  --pf-ash: #2a221d;
+  --pf-parch: #f1e7d8;
+  --pf-mute: #b5a690;
+  --pf-metal: color-mix(in srgb, var(--sf-primary) 78%, #f1e7d8);
+  --pf-display: 'ZV Cormorant', 'ZV Amiri', 'Times New Roman', serif;
+  --sf-bg: var(--pf-night);
+  --sf-card: var(--pf-smoke);
+  --sf-ink: var(--pf-parch);
+  --sf-ink-2: var(--pf-mute);
+  --sf-line: rgb(241 231 216 / 0.12);
+  --sf-tint: color-mix(in srgb, var(--sf-primary) 16%, var(--pf-smoke));
+  --sf-shadow: none;
+  background: var(--pf-night);
+  color: var(--pf-parch);
+  color-scheme: dark;
+}
+.sf.sf-theme-perfume:lang(ar) { --pf-display: 'ZV Amiri', 'ZV Cormorant', serif; }
+
+/* Chrome around the content */
+.sf-theme-perfume .sf-bar { background: #0d0a09; color: var(--pf-metal); letter-spacing: 0.04em; font-weight: 500; }
+.sf-theme-perfume .sf-top { background: rgb(21 17 15 / 0.82); border-bottom: 1px solid var(--sf-line); }
+.sf-theme-perfume .sf-brand-name { font-family: var(--pf-display); font-weight: 600; font-size: 24px; letter-spacing: 0.02em; }
+.sf-theme-perfume .sf-mark { background: none; border: 1px solid var(--pf-metal); color: var(--pf-metal); font-family: var(--pf-display); border-radius: 50%; }
+.sf-theme-perfume .sf-search input { background: var(--pf-ash); color: var(--pf-parch); border: 1px solid transparent; }
+.sf-theme-perfume .sf-search input::placeholder { color: var(--pf-mute); }
+.sf-theme-perfume .sf-search input:focus { border-color: var(--pf-metal); }
+.sf-theme-perfume .sf-langs { background: var(--pf-ash); border-color: var(--sf-line); }
+.sf-theme-perfume .sf-langs button { color: var(--pf-mute); }
+.sf-theme-perfume .sf-langs button[aria-pressed='true'] { background: var(--pf-parch); color: var(--pf-night); }
+.sf-theme-perfume .sf-cart-btn,
+.sf-theme-perfume .sf-wish-btn,
+.sf-theme-perfume .sf-track-btn { background: var(--pf-ash); color: var(--pf-parch); border-color: var(--sf-line); }
+
+/* ---------- Hero: scroll story ---------- */
+.pf-hero { position: relative; height: 230vh; background: var(--pf-night); }
+.pf-stage {
+  position: sticky; top: var(--pf-head, 0px); height: calc(100vh - var(--pf-head, 0px)); height: calc(100svh - var(--pf-head, 0px)); overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center;
+  padding-inline: max(24px, calc((100vw - var(--sf-max)) / 2 + 24px)); gap: 48px;
+  perspective: 1500px;
+  background:
+    radial-gradient(60% 55% at 70% 45%, color-mix(in srgb, var(--sf-primary) 22%, transparent), transparent 70%),
+    radial-gradient(80% 60% at 20% 100%, rgb(241 231 216 / 0.05), transparent 70%),
+    var(--pf-night);
+}
+.pf-word {
+  position: absolute; inset-inline: 0; top: 50%; margin: 0; z-index: 0; pointer-events: none; text-align: center;
+  font-family: var(--pf-display); font-weight: 500; line-height: 0.9; white-space: nowrap;
+  font-size: clamp(90px, 19vw, 300px);
+  color: transparent; -webkit-text-stroke: 1px rgb(241 231 216 / 0.14);
+  letter-spacing: calc(0.18em - var(--p) * 0.2em);
+  transform: translateY(calc(-50% - var(--p) * 18vh));
+  opacity: calc(1 - var(--p) * 0.6);
+}
+.pf-copy { position: relative; z-index: 2; max-width: 34rem; grid-column: 1; grid-row: 1; }
+.pf-window-wrap {
+  position: relative; z-index: 1; grid-column: 2; grid-row: 1; justify-self: center;
+  width: min(30vw, 360px); aspect-ratio: 3 / 4.3;
+  transform-style: preserve-3d;
+  transform:
+    translateY(calc(var(--p) * -3vh))
+    rotateY(calc(-26deg + var(--p) * 52deg))
+    rotateX(calc(5deg - var(--p) * 5deg))
+    scale(calc(0.94 + var(--p) * 0.12));
+  will-change: transform;
+}
+.sf-theme-perfume[dir='rtl'] .pf-window-wrap {
+  transform:
+    translateY(calc(var(--p) * -3vh))
+    rotateY(calc(26deg - var(--p) * 52deg))
+    rotateX(calc(5deg - var(--p) * 5deg))
+    scale(calc(0.94 + var(--p) * 0.12));
+}
+.pf-window {
+  position: absolute; inset: 0; overflow: hidden;
+  border-radius: 999px 999px 14px 14px;
+  background: var(--pf-ash);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pf-metal) 55%, transparent),
+    0 0 0 9px var(--pf-night),
+    0 0 0 10px color-mix(in srgb, var(--pf-metal) 30%, transparent),
+    0 50px 90px -30px rgb(0 0 0 / 0.85);
+}
+.pf-window img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scale(calc(1.12 - var(--p) * 0.12)); }
+.pf-window-empty { display: block; width: 100%; height: 100%; background: linear-gradient(160deg, var(--pf-ash), var(--pf-night)); }
+.pf-glass {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.04) 9%, transparent 22%, transparent 80%, rgb(0 0 0 / 0.35)),
+    linear-gradient(180deg, transparent 55%, rgb(0 0 0 / 0.45));
+}
+.pf-sweep {
+  position: absolute; top: -20%; bottom: -20%; width: 38%; pointer-events: none; mix-blend-mode: screen;
+  background: linear-gradient(90deg, transparent, rgb(255 244 225 / 0.35), transparent);
+  transform: translateX(calc(-140% + var(--p) * 420%)) skewX(-14deg);
+}
+.pf-reflect {
+  position: absolute; inset-inline: 6%; top: calc(100% + 14px); height: 38%; overflow: hidden; pointer-events: none;
+  border-radius: 14px 14px 0 0; opacity: 0.22; transform: scaleY(-1);
+  -webkit-mask-image: linear-gradient(to top, #000, transparent 80%); mask-image: linear-gradient(to top, #000, transparent 80%);
+}
+.pf-reflect img { width: 100%; height: 260%; object-fit: cover; object-position: bottom; filter: blur(2px); }
+.pf-plinth {
+  position: absolute; inset-inline: -18%; top: calc(100% + 6px); height: 26px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--pf-metal) 45%, transparent), transparent);
+  filter: blur(6px); transform: translateZ(-40px);
+}
+.pf-mist { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.pf-mist span {
+  position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(60px); opacity: 0.35;
+  background: radial-gradient(closest-side, rgb(241 231 216 / 0.16), transparent);
+  animation: pf-drift 26s ease-in-out infinite alternate;
+}
+.pf-mist span:nth-child(1) { top: -20vmax; inset-inline-start: -10vmax; }
+.pf-mist span:nth-child(2) { bottom: -30vmax; inset-inline-end: -20vmax; animation-duration: 34s; background: radial-gradient(closest-side, color-mix(in srgb, var(--sf-primary) 30%, transparent), transparent); }
+.pf-mist span:nth-child(3) { top: 30%; inset-inline-start: 40%; width: 40vmax; height: 40vmax; animation-duration: 21s; }
+@keyframes pf-drift { to { transform: translate3d(6vmax, -4vmax, 0) scale(1.15); } }
+
+.pf-eyebrow { margin-bottom: 18px; }
+.pf-eyebrow .sf-open { background: rgb(241 231 216 / 0.08); color: var(--pf-parch); }
+.pf-title {
+  margin: 0; font-family: var(--pf-display); font-weight: 500; line-height: 1.02; letter-spacing: -0.01em;
+  font-size: clamp(44px, 6vw, 88px); color: var(--pf-parch); text-wrap: balance;
+}
+.sf-theme-perfume:lang(ar) .pf-title { line-height: 1.35; letter-spacing: 0; }
+.pf-sub {
+  margin: 22px 0 0; max-width: 30rem; font-size: 17px; line-height: 1.7; color: var(--pf-mute);
+  opacity: clamp(0.35, calc(0.35 + var(--p) * 3), 1);
+  transform: translateY(calc(10px - min(var(--p) * 40px, 10px)));
+}
+.pf-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.sf .pf-cta {
+  height: 52px; padding-inline: 30px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--pf-parch); color: var(--pf-night); font-weight: 700; letter-spacing: 0.02em;
+  transition: background 0.2s, transform 0.2s;
+}
+.sf .pf-cta:hover { background: #fff; transform: translateY(-1px); }
+.pf-cta-2 {
+  display: inline-flex; align-items: center; gap: 8px; height: 52px; padding-inline: 22px; border-radius: 999px;
+  border: 1px solid rgb(241 231 216 / 0.28); color: var(--pf-parch); text-decoration: none; font-weight: 600;
+}
+.pf-cta-2 svg { width: 18px; height: 18px; }
+.pf-cta-2:hover { border-color: var(--pf-parch); }
+.pf-scroll {
+  position: absolute; bottom: 22px; left: 50%; width: 1px; height: 46px; z-index: 2;
+  background: linear-gradient(to bottom, transparent, var(--pf-metal));
+  opacity: calc(1 - var(--p) * 4); animation: pf-hint 2.2s ease-in-out infinite;
+}
+@keyframes pf-hint { 0%, 100% { transform: translateY(-6px); } 50% { transform: translateY(4px); } }
+
+@media (max-width: 860px) {
+  .pf-hero { height: 200vh; }
+  .pf-stage {
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; align-content: center;
+    gap: 34px; padding-inline: 20px; text-align: center;
+  }
+  .pf-window-wrap { grid-column: 1; grid-row: 1; width: min(58vw, 280px); }
+  .pf-copy { grid-column: 1; grid-row: 2; margin-inline: auto; }
+  .pf-sub { margin-inline: auto; font-size: 15.5px; margin-top: 14px; }
+  .pf-actions { justify-content: center; margin-top: 22px; }
+  .pf-title { font-size: clamp(36px, 10vw, 56px); }
+  .pf-word { top: 30%; }
+  .pf-reflect, .pf-plinth { display: none; }
+}
+@media (max-width: 640px) {
+  .pf-stage { height: calc(100svh - var(--pf-head, 0px) - 68px); gap: 18px; padding-block: 22px 10px; }
+  .pf-window-wrap { width: min(36vw, 160px); }
+  .pf-title { font-size: clamp(30px, 9vw, 44px); }
+  .pf-sub { font-size: 14.5px; line-height: 1.6; margin-top: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pf-actions { margin-top: 16px; gap: 8px; }
+  .pf-cta, .pf-cta-2 { height: 46px; padding-inline: 20px; }
+  .pf-eyebrow { margin-bottom: 10px; }
+  .pf-scroll { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-hero { height: auto; }
+  .pf-stage { position: relative; min-height: 88vh; }
+  .pf-mist span, .pf-scroll { animation: none; }
+  .pf-sweep { display: none; }
+}
+
+/* ---------- Sections ---------- */
+.sf-theme-perfume .sf-sec-title,
+.sf-theme-perfume .sf-list-head h2 { font-family: var(--pf-display); font-weight: 500; font-size: clamp(30px, 3.4vw, 44px); letter-spacing: 0; }
+.sf-theme-perfume .sf-shelf,
+.sf-theme-perfume .sf-catalog { position: relative; }
+.sf-theme-perfume .sf-tile { background: none; border: 0; box-shadow: none; }
+.sf-theme-perfume .sf-tile-img { border-radius: 999px 999px 10px 10px; background: var(--pf-ash); border: 1px solid var(--sf-line); }
+.sf-theme-perfume .sf-tile-name { font-family: var(--pf-display); font-size: 21px; font-weight: 600; }
+.sf-theme-perfume .sf-tile[aria-pressed='true'] .sf-tile-img { border-color: var(--pf-metal); }
+
+.sf-theme-perfume .sf-card { background: transparent; border: 0; box-shadow: none; }
+.sf-theme-perfume .sf-media {
+  margin: 0; aspect-ratio: 4 / 5; border-radius: 999px 999px 10px 10px;
+  background: var(--pf-ash); border: 1px solid var(--sf-line);
+}
+.sf-theme-perfume .sf-card:hover .sf-media { border-color: color-mix(in srgb, var(--pf-metal) 60%, transparent); }
+.sf-theme-perfume .sf-body { padding: 14px 4px 6px; text-align: center; align-items: center; }
+.sf-theme-perfume .sf-cat { color: var(--pf-metal); font-size: 12px; letter-spacing: 0.08em; }
+.sf-theme-perfume .sf-name { font-family: var(--pf-display); font-weight: 600; font-size: 21px; line-height: 1.2; }
+.sf-theme-perfume:lang(ar) .sf-name { font-size: 19px; line-height: 1.5; }
+.sf-theme-perfume .sf-price { justify-content: center; }
+.sf-theme-perfume .sf-price-now { color: var(--pf-parch); }
+.sf-theme-perfume .sf-buy { width: 100%; }
+.sf-theme-perfume .sf-add {
+  background: transparent; color: var(--pf-parch); border: 1px solid rgb(241 231 216 / 0.3); border-radius: 999px;
+}
+.sf-theme-perfume .sf-add:hover { background: var(--pf-parch); color: var(--pf-night); border-color: var(--pf-parch); }
+.sf-theme-perfume .sf-step { background: var(--pf-ash); border-color: var(--sf-line); color: var(--pf-parch); border-radius: 999px; }
+.sf-theme-perfume .sf-heart { background: rgb(21 17 15 / 0.7); color: var(--pf-parch); }
+/* The arch top would clip a corner button, so the heart sits low on the photo. */
+.sf-theme-perfume .sf-heart-card { top: auto; bottom: 10px; }
+.sf-theme-perfume .sf-chip-off { background: var(--pf-metal); color: var(--pf-night); }
+.sf-theme-perfume .sf-chips button { background: transparent; border: 1px solid var(--sf-line); color: var(--pf-mute); }
+.sf-theme-perfume .sf-chips button[aria-pressed='true'] { background: var(--pf-parch); color: var(--pf-night); border-color: var(--pf-parch); }
+.sf-theme-perfume .sf-chips small { color: inherit; opacity: 0.7; }
+.sf-theme-perfume .sf-sort select { background: var(--pf-ash); color: var(--pf-parch); border-color: var(--sf-line); }
+.sf-theme-perfume .sf-empty { background: var(--pf-smoke); border-color: var(--sf-line); }
+
+/* Footer, bottom bar, overlays */
+.sf-theme-perfume .sf-foot { background: #100d0b; border-top-color: var(--sf-line); }
+.sf-theme-perfume .sf-trust-ic { background: var(--pf-ash); color: var(--pf-metal); }
+.sf-theme-perfume .sf-foot-brand,
+.sf-theme-perfume .sf-foot h3 { font-family: var(--pf-display); }
+.sf-theme-perfume .sf-bnav { background: rgb(16 13 11 / 0.92); border-top-color: var(--sf-line); }
+.sf-theme-perfume .sf-bnav button { color: var(--pf-mute); }
+.sf-theme-perfume .sf-bnav button[aria-current='page'] { color: var(--pf-parch); }
+.sf-theme-perfume .sf-bnav-cart { color: var(--pf-parch) !important; }
+.sf-theme-perfume .sf-drawer,
+.sf-theme-perfume .sf-qv { background: var(--pf-smoke); color: var(--pf-parch); }
+.sf-theme-perfume .sf-qv-info h2,
+.sf-theme-perfume .sf-drawer h2 { font-family: var(--pf-display); font-weight: 600; }
+.sf-theme-perfume .sf-field input,
+.sf-theme-perfume .sf-field textarea,
+.sf-theme-perfume .sf-select { background: var(--pf-ash); color: var(--pf-parch); border-color: var(--sf-line); }
+/* The base button forces white text with !important, so the theme has to as well. */
+.sf.sf-theme-perfume .sf-primary { background: var(--pf-parch); color: var(--pf-night) !important; }
+.sf.sf-theme-perfume .sf-primary:disabled { opacity: 0.55; }
+.sf.sf-theme-perfume .sf-share-btn { background: var(--pf-ash); color: var(--pf-parch); border-color: var(--sf-line); }
+.sf.sf-theme-perfume .sf-step button { background: transparent; color: var(--pf-parch); }
+.sf-theme-perfume .sf-ghost { color: var(--pf-parch); border-color: var(--sf-line); }
+.sf-theme-perfume .sf-toast { background: var(--pf-parch); color: var(--pf-night); }
+
+/* Base buttons that force their text colour with !important */
+.sf.sf-theme-perfume .sf-add { color: var(--pf-parch) !important; }
+.sf.sf-theme-perfume .sf-add:hover { color: var(--pf-night) !important; }
+.sf.sf-theme-perfume .sf-float { background: var(--pf-parch); color: var(--pf-night) !important; box-shadow: 0 18px 40px -16px rgb(0 0 0 / 0.8); }
+.sf.sf-theme-perfume .sf-cart-btn { color: var(--pf-parch) !important; }
+
+.sf.sf-theme-perfume .sf-chips button[aria-pressed='true'] small { color: var(--pf-night); opacity: 0.7; }
+.sf.sf-theme-perfume .sf-seg span { background: var(--pf-ash); color: var(--pf-mute); border-color: var(--sf-line); }
+.sf.sf-theme-perfume .sf-seg input:checked + span { background: var(--pf-parch); color: var(--pf-night); border-color: var(--pf-parch); }
+.sf.sf-theme-perfume .sf-ghost { background: transparent; color: var(--pf-parch); border: 1px solid var(--sf-line); }
+
+/* Classic theme: the owner's own hero photo instead of the product mosaic */
+.sf-hero-photo { margin: 0; border-radius: calc(var(--sf-radius) + 6px); overflow: hidden; aspect-ratio: 4 / 5; max-height: 560px; justify-self: end; width: 100%; background: var(--sf-card); }
+.sf-hero-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (max-width: 960px) {
+  .sf-hero-photo { order: 2; aspect-ratio: 16 / 10; max-height: 320px; justify-self: stretch; }
+}
+@media (max-width: 640px) {
+  .sf-hero-photo { aspect-ratio: 16 / 9; max-height: 220px; border-radius: 16px; }
+}
+
+/* =====================================================================
+   Atelier theme (2026-11): clothes & shoes. A clothes rail in the hero,
+   each product standing in its own lit niche. Warm stone walls, ink type,
+   small monospaced labels like price tags.
+   ===================================================================== */
+.sf.sf-theme-atelier {
+  --at-wall: #e4ddd2;
+  --at-wall-2: #d9d0c3;
+  --at-ink: #1c1a17;
+  --at-mute: #6e665b;
+  --at-light: #fbf8f2;
+  --at-metal: #8a8378;
+  --at-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
+  --sf-bg: var(--at-wall);
+  --sf-card: transparent;
+  --sf-ink: var(--at-ink);
+  --sf-ink-2: var(--at-mute);
+  --sf-line: rgb(28 26 23 / 0.12);
+  --sf-tint: rgb(28 26 23 / 0.06);
+  --sf-shadow: none;
+  background: var(--at-wall);
+  color: var(--at-ink);
+}
+.sf-theme-atelier .sf-bar { background: var(--at-ink); color: var(--at-wall); font-family: var(--at-mono); font-weight: 500; font-size: 12px; letter-spacing: 0.04em; }
+.sf-theme-atelier .sf-top { background: rgb(228 221 210 / 0.86); border-bottom: 1px solid var(--sf-line); }
+.sf-theme-atelier .sf-mark { background: var(--at-ink); border-radius: 50%; }
+.sf-theme-atelier .sf-brand-name { font-weight: 800; letter-spacing: -0.02em; }
+.sf-theme-atelier .sf-search input { background: rgb(251 248 242 / 0.7); }
+.sf.sf-theme-atelier .sf-cart-btn { background: var(--at-ink); color: var(--at-light) !important; }
+
+/* ---------- Hero: the rail ---------- */
+.at-hero {
+  position: relative; overflow: hidden; padding-block: 56px 28px;
+  background:
+    radial-gradient(70% 60% at 50% 0%, rgb(255 255 255 / 0.55), transparent 70%),
+    linear-gradient(180deg, var(--at-wall) 0%, var(--at-wall-2) 100%);
+}
+.at-hero-copy { position: relative; z-index: 2; max-width: var(--sf-max); }
+.at-eyebrow { margin-bottom: 14px; }
+.at-title {
+  margin: 0; max-width: 14ch; font-size: clamp(40px, 6.2vw, 96px); line-height: 0.95; font-weight: 800; letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+.sf-theme-atelier:lang(ar) .at-title { line-height: 1.2; letter-spacing: 0; max-width: 16ch; }
+.at-sub { margin: 18px 0 0; max-width: 36rem; font-size: 16.5px; line-height: 1.6; color: var(--at-mute); }
+.at-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.sf .at-cta {
+  height: 48px; padding-inline: 26px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--at-ink); color: var(--at-light); font-weight: 700;
+}
+.sf .at-cta:hover { background: #000; }
+.at-cta-2 {
+  display: inline-flex; align-items: center; gap: 8px; height: 48px; padding-inline: 20px; border-radius: 999px;
+  border: 1px solid rgb(28 26 23 / 0.25); color: var(--at-ink); text-decoration: none; font-weight: 600;
+}
+.at-cta-2 svg { width: 18px; height: 18px; }
+
+.at-rail-wrap { position: relative; margin-top: 30px; }
+.at-rail {
+  position: relative; display: flex; justify-content: center; align-items: flex-start;
+  padding: 18px max(16px, calc((100vw - var(--sf-max)) / 2 + 16px)) 40px;
+  perspective: 1100px;
+}
+.at-rod {
+  position: absolute; inset-inline: max(16px, calc((100vw - var(--sf-max)) / 2 + 16px)); top: 18px; height: 6px; border-radius: 3px;
+  background: linear-gradient(180deg, #c9c3b8, #8a8378 60%, #6d665c);
+  box-shadow: 0 6px 10px -4px rgb(0 0 0 / 0.35);
+}
+.at-hang {
+  --w: clamp(96px, 11.5vw, 176px);
+  position: relative; flex: 0 0 var(--w); margin-inline: calc(var(--w) * -0.12);
+  display: flex; flex-direction: column; align-items: center;
+  border: 0; padding: 0; background: none; cursor: pointer;
+  transform-origin: 50% 0; transform-style: preserve-3d;
+  animation: at-sway 7s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * -0.9s);
+}
+.at-hang:nth-child(odd) { z-index: 1; }
+.at-hanger { width: 62%; height: auto; margin-top: -8px; overflow: visible; }
+.at-hanger path { stroke: var(--at-metal); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+.at-piece {
+  position: relative; display: block; width: 100%; margin-top: -6px;
+  transform-origin: 50% 0; transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.7s;
+  filter: drop-shadow(0 18px 16px rgb(40 30 20 / 0.28));
+}
+.at-piece img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: contain; object-position: top center; }
+/* Ordinary photos hang as small framed prints */
+.at-hang:not(.is-cutout) .at-piece img { object-fit: cover; border-radius: 6px; border: 5px solid var(--at-light); }
+.at-hang:hover .at-piece,
+.at-hang:focus-visible .at-piece { transform: rotateY(-34deg) translateZ(30px); filter: drop-shadow(-14px 22px 18px rgb(40 30 20 / 0.32)) brightness(1.04); }
+.sf-theme-atelier[dir='rtl'] .at-hang:hover .at-piece,
+.sf-theme-atelier[dir='rtl'] .at-hang:focus-visible .at-piece { transform: rotateY(34deg) translateZ(30px); }
+.at-hang:hover, .at-hang:focus-within { z-index: 5; animation-play-state: paused; }
+.at-hang:focus-visible { outline: none; }
+.at-hang:focus-visible .at-tag { outline: 2px solid var(--at-ink); outline-offset: 2px; }
+.at-tag {
+  position: absolute; top: calc(100% - 22px); inset-inline-start: 50%; translate: -50% 0; white-space: nowrap;
+  padding: 5px 9px; border-radius: 4px; background: var(--at-ink); color: var(--at-light);
+  font-family: var(--at-mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+  opacity: 0; transform: translateY(6px); transition: opacity 0.25s, transform 0.25s; pointer-events: none;
+}
+.sf-theme-atelier[dir='rtl'] .at-tag { translate: 50% 0; }
+.at-hang:hover .at-tag, .at-hang:focus-visible .at-tag { opacity: 1; transform: none; }
+@keyframes at-sway { from { transform: rotate(-1.6deg); } to { transform: rotate(1.6deg); } }
+.at-hint {
+  margin: 0; display: flex; justify-content: space-between; gap: 16px;
+  padding-inline: max(16px, calc((100vw - var(--sf-max)) / 2 + 16px));
+  font-family: var(--at-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--at-mute);
+}
+.at-hint-touch { display: none; }
+@media (hover: none) {
+  .at-hint-mouse { display: none; }
+  .at-hint-touch { display: inline; }
+}
+@media (max-width: 760px) {
+  .at-hero { padding-block: 32px 18px; }
+  .at-rail {
+    justify-content: flex-start; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity;
+    scrollbar-width: none; padding-inline: 20px; padding-bottom: 32px;
+  }
+  .at-rail::-webkit-scrollbar { display: none; }
+  .at-rod { inset-inline: 0; width: calc(var(--n) * 112px + 40px); }
+  .at-hang { --w: 128px; margin-inline: -8px; scroll-snap-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .at-hang { animation: none; }
+  .at-piece { transition: none; }
+}
+
+/* ---------- Niches: each product in its own light ---------- */
+.sf-theme-atelier .sf-sec-title,
+.sf-theme-atelier .sf-list-head h2 { font-weight: 800; letter-spacing: -0.03em; font-size: clamp(28px, 3.2vw, 44px); }
+.sf-theme-atelier .sf-card { background: transparent; border: 0; box-shadow: none; }
+.sf-theme-atelier .sf-media,
+.sf-theme-perfume .sf-media:has(.sf-img-cutout) {
+  margin: 0; aspect-ratio: 4 / 5; border-radius: 999px 999px 4px 4px; border: 0;
+  background:
+    radial-gradient(42% 30% at 50% 0%, rgb(255 252 245 / 0.85), rgb(255 252 245 / 0) 100%),
+    radial-gradient(55% 22% at 50% 100%, rgb(60 45 30 / 0.16), transparent 70%),
+    linear-gradient(180deg, #e9e2d6, #d8cfc1);
+  box-shadow: inset 0 14px 30px -18px rgb(0 0 0 / 0.25), inset 0 -1px 0 rgb(255 255 255 / 0.6);
+}
+.sf-theme-perfume .sf-media:has(.sf-img-cutout) {
+  background:
+    radial-gradient(46% 34% at 50% 0%, color-mix(in srgb, var(--pf-metal) 45%, transparent), transparent 100%),
+    radial-gradient(60% 26% at 50% 100%, rgb(0 0 0 / 0.5), transparent 70%),
+    linear-gradient(180deg, #2a221d, #1a1512);
+  box-shadow: inset 0 14px 30px -18px rgb(0 0 0 / 0.6);
+}
+.sf .sf-media .sf-img-cutout {
+  object-fit: contain; padding: 14% 12% 10%;
+  filter: drop-shadow(0 16px 14px rgb(30 20 10 / 0.30));
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sf .sf-card:hover .sf-img-cutout { transform: translateY(-6px) scale(1.03); }
+.sf-theme-atelier .sf-heart-card { top: auto; bottom: 10px; }
+.sf-theme-atelier .sf-body { padding: 12px 2px 4px; gap: 4px; }
+.sf-theme-atelier .sf-cat { order: 2; font-family: var(--at-mono); font-size: 11px; letter-spacing: 0.04em; color: var(--at-mute); }
+.sf-theme-atelier .sf-name { order: 1; font-size: 15px; font-weight: 700; min-height: 0; -webkit-line-clamp: 1; line-clamp: 1; }
+.sf-theme-atelier .sf-rating { order: 3; }
+.sf-theme-atelier .sf-price { order: 1; font-size: 15px; font-weight: 700; color: var(--at-ink); }
+.sf-theme-atelier .sf-buy { order: 4; padding-top: 6px; }
+.sf.sf-theme-atelier .sf-add {
+  width: auto; height: 34px; padding-inline: 14px 10px; border-radius: 999px; background: transparent;
+  border: 1px solid rgb(28 26 23 / 0.2); color: var(--at-ink) !important; font-size: 13px; font-weight: 600; gap: 8px;
+}
+.sf.sf-theme-atelier .sf-add:hover { background: var(--at-ink); color: var(--at-light) !important; }
+.sf-theme-atelier .sf-step { height: 34px; background: rgb(28 26 23 / 0.06); border-radius: 999px; }
+.sf-theme-atelier .sf-tile { background: none; border: 0; box-shadow: none; }
+.sf-theme-atelier .sf-tile-img { border-radius: 999px 999px 4px 4px; background: linear-gradient(180deg, #efe9df, #e2dacd); }
+.sf-theme-atelier .sf-chips button { background: transparent; border: 1px solid var(--sf-line); }
+.sf-theme-atelier .sf-chips button[aria-pressed='true'] { background: var(--at-ink); color: var(--at-light); border-color: var(--at-ink); }
+.sf-theme-atelier .sf-sort select { background: rgb(251 248 242 / 0.7); }
+.sf-theme-atelier .sf-foot { background: var(--at-wall-2); }
+.sf-theme-atelier .sf-trust-ic { background: rgb(28 26 23 / 0.07); color: var(--at-ink); }
+.sf-theme-atelier .sf-bnav { background: rgb(228 221 210 / 0.94); }
+.sf-theme-atelier .sf-bnav button[aria-current='page'] { color: var(--at-ink); }
+.sf.sf-theme-atelier .sf-primary { background: var(--at-ink); }
+.sf-theme-atelier .sf-drawer, .sf-theme-atelier .sf-qv { background: var(--at-light); }
+
+/* Cut-out photos usually include the real hanger: hide the drawn one and hang the photo
+   straight from the rod, a little bigger so the rail reads like the shop floor. */
+.at-hang.is-cutout { --w: clamp(112px, 13.5vw, 210px); }
+.at-hang.is-cutout .at-hanger { display: none; }
+.at-hang.is-cutout .at-piece { margin-top: -10px; }
+.at-hang.is-cutout .at-piece img { aspect-ratio: 3 / 4.2; }
+@media (max-width: 760px) {
+  .at-hang.is-cutout { --w: 150px; }
+}
+
+/* Touch screens have no hover: every piece shows its tag under it, and the rod is drawn
+   across the full scrolling rail. */
+@media (hover: none) {
+  .at-tag {
+    position: relative; top: auto; inset-inline-start: auto; translate: none; margin-top: -12px;
+    max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis;
+    opacity: 1; transform: none; font-size: 10px; padding: 4px 7px;
+  }
+  .sf-theme-atelier[dir='rtl'] .at-tag { translate: none; }
+}
+@media (max-width: 760px) {
+  .at-rod { width: auto; inset-inline: 0; min-width: calc(var(--n) * 134px + 40px); }
+}
+
+/* =====================================================================
+   Studio theme (2026-11): shoes, sneakers, bags. Bright concrete studio,
+   one piece at a time on a turning pedestal, the owner's colour as the
+   loud accent.
+   ===================================================================== */
+.sf.sf-theme-studio {
+  --st-floor: #ecebe7;
+  --st-wall: #f6f5f2;
+  --st-ink: #111111;
+  --st-mute: #6b6a66;
+  --sf-bg: var(--st-wall);
+  --sf-card: #ffffff;
+  --sf-ink: var(--st-ink);
+  --sf-ink-2: var(--st-mute);
+  --sf-line: rgb(17 17 17 / 0.1);
+  background: var(--st-wall);
+}
+.sf-theme-studio .sf-bar { background: var(--sf-primary); color: #fff; }
+.sf-theme-studio .sf-brand-name { font-weight: 900; letter-spacing: -0.04em; }
+.sf-theme-studio .sf-mark { background: var(--st-ink); border-radius: 8px; }
+
+.st-hero { position: relative; overflow: hidden; padding-block: 40px 26px; background: radial-gradient(80% 70% at 70% 35%, #fff, var(--st-floor) 75%); }
+.st-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; gap: 24px; }
+.st-eyebrow { margin-bottom: 12px; }
+.st-title { margin: 0; font-size: clamp(40px, 6vw, 92px); line-height: 0.92; font-weight: 900; letter-spacing: -0.05em; text-wrap: balance; }
+.sf-theme-studio:lang(ar) .st-title { line-height: 1.2; letter-spacing: 0; }
+.st-sub { margin: 18px 0 0; max-width: 32rem; font-size: 16.5px; line-height: 1.6; color: var(--st-mute); }
+.st-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.sf .st-cta { height: 52px; padding-inline: 28px; border: 0; border-radius: 999px; cursor: pointer; background: var(--sf-primary); color: #fff; font-weight: 800; font-size: 16px; }
+.sf .st-cta:hover { filter: brightness(1.06); }
+.st-cta-2 { display: inline-flex; align-items: center; gap: 8px; height: 52px; padding-inline: 20px; border-radius: 999px; border: 2px solid var(--st-ink); color: var(--st-ink); text-decoration: none; font-weight: 700; }
+.st-cta-2 svg { width: 18px; height: 18px; }
+
+.st-stage { position: relative; height: clamp(340px, 42vw, 520px); display: grid; place-items: center; perspective: 1200px; }
+.st-name-bg {
+  position: absolute; inset-inline: -10%; top: 8%; margin: 0; text-align: center; white-space: nowrap; overflow: hidden;
+  font-size: clamp(44px, 7vw, 112px); font-weight: 900; letter-spacing: -0.05em; line-height: 1; text-overflow: clip;
+  color: transparent; -webkit-text-stroke: 1.5px rgb(17 17 17 / 0.1);
+  animation: st-fade 0.8s ease both;
+}
+.st-show {
+  position: relative; z-index: 2; width: min(78%, 460px); margin-bottom: 18%; border: 0; padding: 0; background: none; cursor: pointer;
+  transform-style: preserve-3d; animation: st-arrive 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.st-piece { display: block; transform-style: preserve-3d; animation: st-float 4.8s ease-in-out infinite; }
+.st-piece img {
+  display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain;
+  filter: drop-shadow(0 26px 22px rgb(0 0 0 / 0.22));
+  animation: st-turn 9s ease-in-out infinite;
+}
+.st-piece:not(.is-cutout) img { object-fit: cover; border-radius: 22px; border: 8px solid #fff; }
+.st-shadow {
+  position: absolute; left: 50%; bottom: -16%; width: 60%; height: 22px; translate: -50% 0; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.28), transparent); filter: blur(4px);
+  animation: st-shadow 4.8s ease-in-out infinite;
+}
+.st-pedestal {
+  position: absolute; z-index: 1; bottom: 4%; left: 50%; translate: -50% 0; width: min(62%, 380px); height: 22%;
+  border-radius: 0 0 50% 50% / 0 0 26% 26%;
+  background: linear-gradient(90deg, #d6d4cf, #f7f6f3 45%, #cfccc6);
+  box-shadow: 0 30px 40px -20px rgb(0 0 0 / 0.35);
+}
+.st-pedestal-top {
+  position: absolute; left: 0; right: 0; top: -14%; height: 28%; border-radius: 50%;
+  background: radial-gradient(60% 70% at 45% 40%, #ffffff, #e4e2dd);
+  box-shadow: inset 0 -4px 10px rgb(0 0 0 / 0.08);
+}
+.st-label { position: absolute; z-index: 3; bottom: 0; inset-inline-end: 4%; margin: 0; display: grid; gap: 2px; text-align: end; }
+.st-label b { font-size: 18px; font-weight: 800; }
+.st-label span { font-size: 15px; color: var(--sf-primary); font-weight: 800; }
+.st-strip { display: flex; gap: 10px; justify-content: center; margin-top: 18px; overflow-x: auto; scrollbar-width: none; padding-block: 6px; }
+.st-strip::-webkit-scrollbar { display: none; }
+.sf .st-thumb {
+  flex: 0 0 76px; height: 64px; padding: 6px; border-radius: 14px; border: 2px solid transparent; background: #fff; cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); transition: border-color 0.2s, transform 0.2s;
+}
+.st-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.sf .st-thumb[aria-pressed='true'] { border-color: var(--sf-primary); transform: translateY(-3px); }
+@keyframes st-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+@keyframes st-shadow { 0%, 100% { scale: 1; opacity: 1; } 50% { scale: 0.82; opacity: 0.7; } }
+@keyframes st-turn { 0%, 100% { transform: rotateY(-22deg) rotateZ(-2deg); } 50% { transform: rotateY(22deg) rotateZ(2deg); } }
+@keyframes st-arrive { from { opacity: 0; transform: rotateY(-70deg) translateX(-12%) scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes st-fade { from { opacity: 0; transform: translateX(4%); } to { opacity: 1; transform: none; } }
+@media (max-width: 860px) {
+  .st-grid { grid-template-columns: minmax(0, 1fr); }
+  .st-stage { height: 320px; order: -1; }
+  .st-label { inset-inline-end: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-piece, .st-piece img, .st-shadow, .st-show, .st-name-bg { animation: none; }
+}
+/* Product cards: each on a small pedestal */
+.sf-theme-studio .sf-card { border: 0; box-shadow: none; background: transparent; }
+.sf-theme-studio .sf-media {
+  margin: 0; border-radius: 22px; aspect-ratio: 1;
+  background: radial-gradient(70% 60% at 50% 35%, #fff, #eae8e3);
+}
+.sf-theme-studio .sf-media:has(.sf-img-cutout)::after {
+  content: ''; position: absolute; left: 22%; right: 22%; bottom: 10%; height: 9%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.2), transparent); pointer-events: none;
+}
+.sf-theme-studio .sf-media .sf-img-cutout { padding: 12% 10% 18%; }
+.sf.sf-theme-studio .sf-card:hover .sf-img-cutout { transform: translateY(-10px) rotate(-4deg); }
+.sf-theme-studio .sf-name { font-weight: 800; }
+.sf-theme-studio .sf-price { color: var(--st-ink); font-weight: 900; }
+.sf.sf-theme-studio .sf-add { background: var(--st-ink); border-radius: 999px; color: #fff !important; }
+.sf.sf-theme-studio .sf-add:hover { background: var(--sf-primary); }
+.sf-theme-studio .sf-chips button[aria-pressed='true'] { background: var(--st-ink); color: #fff; }
+
+/* =====================================================================
+   Bistro theme (2026-11): restaurants, bakeries, sweets. A table seen
+   from above with the main plate turning slowly; the catalogue reads
+   like a printed menu.
+   ===================================================================== */
+.sf.sf-theme-bistro {
+  --bi-cloth: #f2ebdf;
+  --bi-ink: #2a2118;
+  --bi-mute: #7a6c5c;
+  --bi-paper: #fbf7f0;
+  --bi-serif: 'ZV Cormorant', 'ZV Amiri', Georgia, serif;
+  --sf-bg: var(--bi-paper);
+  --sf-card: transparent;
+  --sf-ink: var(--bi-ink);
+  --sf-ink-2: var(--bi-mute);
+  --sf-line: rgb(42 33 24 / 0.14);
+  background: var(--bi-paper);
+}
+.sf.sf-theme-bistro:lang(ar) { --bi-serif: 'ZV Amiri', 'ZV Cormorant', serif; }
+.sf-theme-bistro .sf-bar { background: var(--sf-primary); color: var(--bi-paper); }
+.sf-theme-bistro .sf-brand-name { font-family: var(--bi-serif); font-weight: 700; font-size: 24px; }
+.sf-theme-bistro .sf-mark { background: var(--sf-primary); border-radius: 50%; font-family: var(--bi-serif); }
+
+.bi-hero { position: relative; overflow: hidden; padding-block: 36px; background: var(--bi-cloth); }
+.bi-hero::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  background-image:
+    linear-gradient(90deg, rgb(42 33 24 / 0.05) 50%, transparent 50%),
+    linear-gradient(0deg, rgb(42 33 24 / 0.05) 50%, transparent 50%);
+  background-size: 48px 48px;
+}
+.bi-grid { position: relative; display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); align-items: center; gap: 28px; }
+.bi-eyebrow { margin-bottom: 12px; }
+.bi-title { margin: 0; font-family: var(--bi-serif); font-weight: 700; font-size: clamp(42px, 5.6vw, 84px); line-height: 1; color: var(--bi-ink); text-wrap: balance; }
+.sf-theme-bistro:lang(ar) .bi-title { line-height: 1.35; }
+.bi-sub { margin: 16px 0 0; max-width: 30rem; font-size: 17px; line-height: 1.65; color: var(--bi-mute); }
+.bi-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.sf .bi-cta { height: 50px; padding-inline: 26px; border: 0; border-radius: 999px; cursor: pointer; background: var(--sf-primary); color: var(--bi-paper); font-weight: 700; font-size: 16px; }
+.bi-cta-2 { display: inline-flex; align-items: center; gap: 8px; height: 50px; padding-inline: 20px; border-radius: 999px; border: 1px solid rgb(42 33 24 / 0.3); color: var(--bi-ink); text-decoration: none; font-weight: 600; }
+.bi-cta-2 svg { width: 18px; height: 18px; }
+
+.bi-table { --r: clamp(130px, 17vw, 215px); position: relative; aspect-ratio: 1; width: min(100%, 560px); justify-self: center; }
+.bi-cloth { position: absolute; inset: 8%; border-radius: 50%; background: radial-gradient(closest-side, rgb(255 255 255 / 0.7), transparent); }
+.bi-plate {
+  position: absolute; left: 50%; top: 50%; border: 0; padding: 0; cursor: pointer; border-radius: 50%;
+  background: radial-gradient(closest-side, #fff 78%, #ece6dc 79%, #fff 86%, #f3eee6 100%);
+  box-shadow: 0 18px 30px -14px rgb(60 40 20 / 0.45), 0 2px 4px rgb(60 40 20 / 0.12);
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s;
+}
+.bi-plate--main { width: 52%; aspect-ratio: 1; translate: -50% -50%; z-index: 2; }
+.bi-plate--side {
+  width: 23%; aspect-ratio: 1; translate: -50% -50%; z-index: 1;
+  transform: rotate(calc(var(--i) * 360deg / var(--n) - 90deg)) translateX(var(--r)) rotate(calc(-1 * (var(--i) * 360deg / var(--n) - 90deg)));
+}
+.bi-plate--side:hover, .bi-plate--side:focus-visible {
+  z-index: 3;
+  transform: rotate(calc(var(--i) * 360deg / var(--n) - 90deg)) translateX(var(--r)) rotate(calc(-1 * (var(--i) * 360deg / var(--n) - 90deg))) scale(1.18);
+  box-shadow: 0 26px 40px -16px rgb(60 40 20 / 0.55);
+}
+.bi-dish { position: absolute; inset: 9%; border-radius: 50%; overflow: hidden; display: block; }
+.bi-dish img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bi-dish.is-cutout { overflow: visible; }
+.bi-dish.is-cutout img { object-fit: contain; filter: drop-shadow(0 6px 6px rgb(60 40 20 / 0.25)); }
+.bi-plate--main .bi-dish { animation: bi-turn 48s linear infinite; }
+.bi-plate--main:hover .bi-dish { animation-play-state: paused; }
+.bi-tag {
+  position: absolute; left: 50%; top: calc(100% + 6px); translate: -50% 0; white-space: nowrap; z-index: 4;
+  padding: 5px 10px; border-radius: 999px; background: var(--bi-ink); color: var(--bi-paper); font-size: 12.5px; font-weight: 600;
+  opacity: 0; transition: opacity 0.2s; pointer-events: none;
+}
+.bi-tag b { color: #f3c969; margin-inline-start: 4px; }
+.bi-plate:hover .bi-tag, .bi-plate:focus-visible .bi-tag, .bi-plate--main .bi-tag { opacity: 1; }
+@keyframes bi-turn { to { transform: rotate(360deg); } }
+@media (max-width: 860px) {
+  .bi-grid { grid-template-columns: minmax(0, 1fr); }
+  .bi-table { order: -1; width: min(100%, 420px); --r: clamp(118px, 34vw, 160px); }
+}
+@media (hover: none) { .bi-plate--side .bi-tag { display: none; } }
+@media (prefers-reduced-motion: reduce) { .bi-plate--main .bi-dish { animation: none; } }
+
+/* Catalogue as a printed menu: round photo, name, dotted leader, price */
+.sf-theme-bistro .sf-list-head h2, .sf-theme-bistro .sf-sec-title { font-family: var(--bi-serif); font-weight: 700; font-size: clamp(30px, 3.4vw, 46px); }
+.sf-theme-bistro .sf-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 6px 28px; }
+.sf-theme-bistro .sf-card {
+  display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 14px; align-items: center;
+  padding-block: 14px; border: 0; border-bottom: 1px dashed var(--sf-line); border-radius: 0; background: transparent; box-shadow: none;
+}
+.sf-theme-bistro .sf-media { margin: 0; aspect-ratio: 1; border-radius: 50%; background: #fff; box-shadow: 0 10px 18px -10px rgb(60 40 20 / 0.45); }
+.sf-theme-bistro .sf-media .sf-img-cutout { padding: 6%; }
+.sf-theme-bistro .sf-open-hint, .sf-theme-bistro .sf-heart-card { display: none; }
+.sf-theme-bistro .sf-body { padding: 0; gap: 2px; }
+.sf-theme-bistro .sf-name { font-family: var(--bi-serif); font-size: 21px; font-weight: 700; min-height: 0; -webkit-line-clamp: 1; line-clamp: 1; }
+.sf-theme-bistro:lang(ar) .sf-name { font-size: 19px; }
+.sf-theme-bistro .sf-cat { display: none; }
+.sf-theme-bistro .sf-price { display: flex; align-items: baseline; gap: 8px; color: var(--sf-primary); font-size: 16px; }
+.sf-theme-bistro .sf-buy { padding-top: 6px; }
+.sf.sf-theme-bistro .sf-add { width: auto; height: 34px; padding-inline: 14px; border-radius: 999px; background: transparent; border: 1px solid var(--sf-primary); color: var(--sf-primary) !important; font-size: 13.5px; }
+.sf.sf-theme-bistro .sf-add:hover { background: var(--sf-primary); color: var(--bi-paper) !important; }
+.sf-theme-bistro .sf-step { height: 34px; border-radius: 999px; max-width: 150px; }
+.sf-theme-bistro .sf-chips button[aria-pressed='true'] { background: var(--sf-primary); color: var(--bi-paper); border-color: var(--sf-primary); }
+.sf-theme-bistro .sf-tile-img { border-radius: 50%; }
+.sf-theme-bistro .sf-tile { background: none; border: 0; box-shadow: none; }
+.sf.sf-theme-bistro .sf-primary { background: var(--sf-primary); }
+
+.sf .st-play {
+  flex: 0 0 44px; height: 44px; align-self: center; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--st-ink); color: #fff; display: grid; place-items: center;
+}
+.st-play svg { width: 18px; height: 18px; fill: currentColor; }
+/* Price tags read "name, price" in either direction */
+.at-tag { unicode-bidi: plaintext; }
+
+/* Perfume window with a cut-out bottle: the bottle stands whole in a pool of light */
+.pf-window.is-cutout {
+  background:
+    radial-gradient(55% 40% at 50% 18%, color-mix(in srgb, var(--pf-metal) 38%, transparent), transparent 75%),
+    radial-gradient(70% 22% at 50% 96%, rgb(0 0 0 / 0.55), transparent 70%),
+    linear-gradient(180deg, #2b231d, #17120f);
+}
+.pf-window.is-cutout img { object-fit: contain; padding: 16% 14% 10%; transform: scale(calc(1.04 - var(--p) * 0.04)); filter: drop-shadow(0 22px 18px rgb(0 0 0 / 0.55)); }
+.pf-window-wrap:has(.is-cutout) .pf-reflect img { object-fit: contain; height: 100%; padding-inline: 14%; }
+
+/* The photo button inside a niche must not paint its own light background over the lighting */
+.sf .sf-media:has(.sf-img-cutout) .sf-open { background: transparent; }
+
+/* Showcase themes have transparent cards: the classic glare and card shadow would draw a grey box */
+@media (hover: hover) and (pointer: fine) {
+  .sf:not(.sf-theme-classic) .sf-card::after { display: none; }
+  .sf:not(.sf-theme-classic) .sf-card.is-tilting { box-shadow: none; }
+}
+
+/* Narrow screens: tags always sit under their own piece (never floating over the neighbours) */
+@media (max-width: 760px) {
+  .at-tag {
+    position: relative; top: auto; inset-inline-start: auto; translate: none; margin-top: -12px;
+    max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis;
+    opacity: 1; transform: none; font-size: 10px; padding: 4px 7px;
+  }
+  .sf-theme-atelier[dir='rtl'] .at-tag { translate: none; }
+}

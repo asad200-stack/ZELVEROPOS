@@ -38,6 +38,7 @@ import {
   type StoreTemplate,
 } from '@/domain/onlineStore';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { StoreDesignEditor } from './StoreDesignEditor';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { useI18n } from '@/i18n/i18n';
 import { api } from '@/services/functionsClient';
@@ -445,6 +446,13 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
               </div>
             )}
           </div>
+          <StoreDesignEditor
+            draft={draft}
+            set={set}
+            products={initial.products.filter((p) => selected.includes(p.id))}
+            config={config}
+            onConfig={(next) => setConfig((c) => ({ ...c, listings: next.listings }))}
+          />
           {brandingDirty && <Alert tone="warning">{t('onlineStore.unsaved')}</Alert>}
           <div className="modal-actions">
             <Button variant="primary" loading={action.busy} disabled={!brandingDirty} onClick={() => void saveDraft()}>

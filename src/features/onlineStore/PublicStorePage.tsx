@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type SyntheticEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SyntheticEvent } from 'react';
 import { useParams } from 'react-router';
 import { EmptyState } from '@/components/ui/Layout';
 import {
@@ -10,15 +10,20 @@ import {
   type FulfillmentMethod,
   type PublicOrderReceipt,
 } from '@/domain/onlineOrders';
-import { deliveryQuote, discountPercent, freeDeliveryProgress, isRtl, mapLink, openState, shopClock, type PublicProduct, type StoreLocale } from '@/domain/onlineStore';
+import { deliveryQuote, discountPercent, freeDeliveryProgress, isRtl, mapLink, openState, shopClock, type PublicProduct, toHeroProductIds, toSections, type StoreLocale, type StoreSection } from '@/domain/onlineStore';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { translate, type TranslationKey, type TParams } from '@/i18n/i18n';
 import { toUserMessage, type UserMessage } from '@/services/errors';
 import { api } from '@/services/functionsClient';
+import { forgetCachedCatalog, readCachedCatalog, writeCachedCatalog } from './storefrontCache';
 import { trackStoreEvent } from './storefrontTrack';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { fitKind, withSizes } from './sizeAdvisor';
+import AtelierRail from './AtelierRail';
+import BistroHero from './BistroHero';
+import StudioHero from './StudioHero';
+import PerfumeHero from './PerfumeHero';
 import StorefrontQuickView, { HeartIcon } from './StorefrontQuickView';
 import StorefrontTrackOrder from './StorefrontTrackOrder';
 import { whatsAppLink, whatsAppOrderText, type WaWords } from './storefrontWhatsApp';
@@ -190,12 +195,14 @@ function initial(name: string): string {
   return name.trim().charAt(0).toUpperCase() || '•';
 }
 
-function ProductVisual({ product }: { product: PublicProduct }) {
-  if (product.imageUrl) {
+/** `cutout` themes show the background-free photo when the owner made one. */
+function ProductVisual({ product, cutout = false }: { product: PublicProduct; cutout?: boolean }) {
+  const src = (cutout && product.cutoutUrl) || product.imageUrl;
+  if (src) {
     return (
       <img
-        className="sf-img"
-        src={product.imageUrl}
+        className={cutout && product.cutoutUrl ? 'sf-img sf-img-cutout' : 'sf-img'}
+        src={src}
         alt=""
         loading="lazy"
         decoding="async"
@@ -279,7 +286,19 @@ const IconClose = () => (
 export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } = {}) {
   const params = useParams();
   const slug = fixedSlug ?? params.slug ?? '';
-  const data = useAsyncData(`public-store-${slug}`, () => api.publicStoreCatalog({ slug }));
+  const fresh = useAsyncData(`public-store-${slug}`, () => api.publicStoreCatalog({ slug }));
+  // Returning visitors see the last catalogue at once; the fresh one replaces it when it lands.
+  const cached = useMemo(() => readCachedCatalog(slug), [slug]);
+  useEffect(() => {
+    if (fresh.data) writeCachedCatalog(slug, fresh.data);
+    else if (fresh.error) forgetCachedCatalog(slug);
+  }, [fresh.data, fresh.error, slug]);
+  const catalog = fresh.data ?? (fresh.error ? null : cached);
+  const data = {
+    data: catalog,
+    error: fresh.error,
+    loading: fresh.loading && !cached,
+  };
   const [chosenLang, setChosenLang] = useState<StoreLocale | null>(null);
   const [cart, setCart] = useState<Cart>({});
   const [cartOpen, setCartOpen] = useState(false);
@@ -353,7 +372,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   }, [quick]);
 
   const store = data.data?.store;
-  const products = useMemo(() => data.data?.products ?? [], [data.data]);
+  const products = useMemo(() => catalog?.products ?? [], [catalog]);
   const lang: StoreLocale = chosenLang ?? store?.defaultLocale ?? 'ar';
   const t = (key: TranslationKey, params?: TParams) => translate(lang, key, params);
 
@@ -645,6 +664,19 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
           </label>
         )}
         <div className="sf-actions">
+          {waDigits && (
+            // Phones: WhatsApp lives in the header instead of a floating bubble over the products.
+            <a
+              className="sf-wa-top"
+              href={`https://wa.me/${waDigits}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t('storefront.whatsapp')}
+              title={t('storefront.whatsapp')}
+            >
+              <IconWhatsApp />
+            </a>
+          )}
           {store.enabledLocales.length > 1 && (
             <div className="sf-langs">
               {store.enabledLocales.map((l) => (
@@ -957,7 +989,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
 
   if (receipt) {
     return (
-      <div className="sf" dir={isRtl(lang) ? 'rtl' : 'ltr'} lang={lang} style={rootStyle}>
+      <div className={`sf sf-theme-${store.theme ?? 'classic'}`} dir={isRtl(lang) ? 'rtl' : 'ltr'} lang={lang} style={rootStyle}>
         {bar}
         {header}
         <main className="sf-wrap">
@@ -1049,7 +1081,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
               aria-label={t('storefront.openProduct', { name: p.name })}
               onClick={() => setQuick(p.id)}
             >
-              <ProductVisual product={p} />
+              <ProductVisual product={p} cutout={store.theme !== 'classic'} />
               <span className="sf-open-hint" aria-hidden="true">
                 {t('storefront.quickView')}
               </span>
@@ -1117,70 +1149,92 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const dealsCount = products.filter((p) => p.compareAtUsdCents !== null).length;
   const activeTitle = wishOnly ? t('storefront.wishlist') : category === 'all' ? t('storefront.all') : category === DEALS ? t('storefront.deals') : category;
 
-  return (
-    <div className="sf" dir={isRtl(lang) ? 'rtl' : 'ltr'} lang={lang} style={rootStyle}>
-      {bar}
-      {header}
+  const heroTitle = store.heroTitle || store.storeName;
+  const heroSubtitle = store.heroSubtitle || store.tagline || t('storefront.heroFallback');
+  const heroCtaText = store.heroCta || t('storefront.shopNow');
+  // Pieces on the 3D rail: the owner's picks in their order, else the first products with photos.
+  const pickedHero = toHeroProductIds(store.heroProductIds)
+    .map((id) => products.find((p) => p.id === id))
+    .filter((p): p is PublicProduct => !!p && !!(p.cutoutUrl || p.imageUrl));
+  const heroItems = pickedHero.length > 0 ? pickedHero : products.filter((p) => p.imageUrl).slice(0, 8);
+  // Perfume window: the owner's photo, else the first showcase piece (cut-out first), else any photo.
+  const heroImage = store.heroImageUrl || pickedHero[0]?.cutoutUrl || pickedHero[0]?.imageUrl || heroPics[0]?.imageUrl || null;
 
-      <section className="sf-hero">
-        <div className={heroPics.length >= 3 ? 'sf-wrap sf-hero-grid' : 'sf-wrap sf-hero-grid sf-hero-solo'}>
-          <div className="sf-hero-copy">
-            <div className="sf-hero-tags">
-              <p className="sf-eyebrow">{t('storefront.heroStats', { count: products.filter((p) => p.inStock).length })}</p>
-              {openNow && <p className={openNow.open ? 'sf-open is-open' : 'sf-open'}>{openText}</p>}
-            </div>
-            <h1>{store.storeName}</h1>
-            <p className="sf-hero-sub">{store.tagline || t('storefront.heroFallback')}</p>
-            <div className="sf-hero-actions">
-              <button type="button" className="sf-cta" onClick={toCatalog}>
-                {t('storefront.shopNow')}
-                <IconArrow />
-              </button>
-              {waDigits && (
-                <a className="sf-cta-2" href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer">
-                  <IconWhatsApp />
-                  {t('storefront.whatsapp')}
-                </a>
-              )}
-            </div>
-            <ul className="sf-perks">
-              <li>
-                <IconCash />
-                {t('storefront.perkCod')}
-              </li>
-              <li>
-                <IconStore />
-                {t('storefront.perkPickup')}
-              </li>
-              <li>
-                <IconBolt />
-                {t('storefront.perkEasy')}
-              </li>
-            </ul>
-          </div>
-          {heroPics.length >= 3 && (
-            <div className="sf-scene" data-tilt="7" aria-hidden="true">
-              <div className="sf-sway">
-            <div className={`sf-bento sf-bento-${heroPics.length}`}>
-              {heroPics.map((p) => (
-                <figure key={p.id} className="sf-bento-item">
-                  <span className="sf-bento-img">
-                    <img src={p.imageUrl ?? ''} alt="" decoding="async" fetchPriority="high" />
-                  </span>
-                  <figcaption>
-                    <b>{p.name}</b>
-                    <span>{priceLabel(p, lang)}</span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
+  const heroEyebrow = openNow ? <span className={openNow.open ? 'sf-open is-open' : 'sf-open'}>{openText}</span> : null;
+  const heroWhatsApp = (className: string) =>
+    waDigits ? (
+      <a className={className} href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer">
+        <IconWhatsApp />
+        {t('storefront.whatsapp')}
+      </a>
+    ) : null;
+
+  const classicHero = (
+        <section className="sf-hero">
+          <div className={store.heroImageUrl || heroPics.length >= 3 ? 'sf-wrap sf-hero-grid' : 'sf-wrap sf-hero-grid sf-hero-solo'}>
+            <div className="sf-hero-copy">
+              <div className="sf-hero-tags">
+                <p className="sf-eyebrow">{t('storefront.heroStats', { count: products.filter((p) => p.inStock).length })}</p>
+                {openNow && <p className={openNow.open ? 'sf-open is-open' : 'sf-open'}>{openText}</p>}
               </div>
+              <h1>{heroTitle}</h1>
+              <p className="sf-hero-sub">{heroSubtitle}</p>
+              <div className="sf-hero-actions">
+                <button type="button" className="sf-cta" onClick={toCatalog}>
+                  {heroCtaText}
+                  <IconArrow />
+                </button>
+                {waDigits && (
+                  <a className="sf-cta-2" href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer">
+                    <IconWhatsApp />
+                    {t('storefront.whatsapp')}
+                  </a>
+                )}
+              </div>
+              <ul className="sf-perks">
+                <li>
+                  <IconCash />
+                  {t('storefront.perkCod')}
+                </li>
+                <li>
+                  <IconStore />
+                  {t('storefront.perkPickup')}
+                </li>
+                <li>
+                  <IconBolt />
+                  {t('storefront.perkEasy')}
+                </li>
+              </ul>
             </div>
-          )}
-        </div>
-      </section>
+            {store.heroImageUrl ? (
+              <figure className="sf-hero-photo" aria-hidden="true">
+                <img src={store.heroImageUrl} alt="" decoding="async" fetchPriority="high" />
+              </figure>
+            ) : heroPics.length >= 3 ? (
+              <div className="sf-scene" data-tilt="7" aria-hidden="true">
+                <div className="sf-sway">
+              <div className={`sf-bento sf-bento-${heroPics.length}`}>
+                {heroPics.map((p) => (
+                  <figure key={p.id} className="sf-bento-item">
+                    <span className="sf-bento-img">
+                      <img src={p.imageUrl ?? ''} alt="" decoding="async" fetchPriority="high" />
+                    </span>
+                    <figcaption>
+                      <b>{p.name}</b>
+                      <span>{priceLabel(p, lang)}</span>
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+  );
 
-      {categoryTiles.length >= 2 && (
+  const sectionViews: Record<StoreSection, ReactNode> = {
+    categories: categoryTiles.length >= 2 && (
         <section className="sf-wrap sf-shelf" aria-labelledby="sf-shelf-title">
           <h2 id="sf-shelf-title" className="sf-sec-title">
             {t('storefront.shopByCategory')}
@@ -1207,73 +1261,153 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
             ))}
           </div>
         </section>
+      ),
+    bestSellers: shelf('sf-best', t('storefront.bestSellers'), bestSellers),
+    newArrivals: shelf('sf-new', t('storefront.newArrivals'), newArrivals),
+    catalog: (
+          <section id="catalog" className="sf-wrap sf-catalog">
+            <div>
+              <div className="sf-toolbar">
+                <div className="sf-list-head">
+                  <h2>{activeTitle}</h2>
+                  <span>{t('storefront.productCount', { count: visible.length })}</span>
+                </div>
+                <label className="sf-sort">
+                  <span>{t('storefront.sort.label')}</span>
+                  <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+                    {SORTS.map((k) => (
+                      <option key={k} value={k}>
+                        {t(`storefront.sort.${k}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {categories.length > 0 && (
+                <div className="sf-chips" role="group" aria-label={t('storefront.categories')}>
+                  <button
+                    type="button"
+                    aria-pressed={category === 'all' && !wishOnly}
+                    onClick={() => {
+                      setWishOnly(false);
+                      setCategory('all');
+                    }}
+                  >
+                    {t('storefront.all')}
+                    <small>{products.length}</small>
+                  </button>
+                  {dealsCount > 0 && (
+                    <button type="button" className="sf-chip-deals" aria-pressed={category === DEALS} onClick={() => setCategory(DEALS)}>
+                      {t('storefront.deals')}
+                      <small>{dealsCount}</small>
+                    </button>
+                  )}
+                  {categories.map((c) => (
+                    <button key={c.label} type="button" aria-pressed={category === c.label} onClick={() => setCategory(c.label)}>
+                      {c.label}
+                      <small>{c.count}</small>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {products.length === 0 ? (
+                <div className="sf-empty">{t('storefront.noProducts')}</div>
+              ) : visible.length === 0 ? (
+                <div className="sf-empty">
+                  <p>{wishOnly && wish.length === 0 ? t('storefront.wishEmpty') : t('storefront.noResults')}</p>
+                  <button type="button" className="sf-link" onClick={clearFilters}>
+                    {t('storefront.clearFilters')}
+                  </button>
+                </div>
+              ) : (
+                <div className="sf-grid">
+                  {sorted.map((p, k) => card(p, k))}
+                </div>
+              )}
+            </div>
+          </section>
+    ),
+  };
+
+  return (
+    <div className={`sf sf-theme-${store.theme ?? 'classic'}`} dir={isRtl(lang) ? 'rtl' : 'ltr'} lang={lang} style={rootStyle}>
+      {bar}
+      {header}
+
+      {store.theme === 'studio' ? (
+        <StudioHero
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          cta={heroCtaText}
+          items={heroItems}
+          price={(p) => priceLabel(p, lang)}
+          onOpen={(id) => setQuick(id)}
+          onCta={toCatalog}
+          pickLabel={(name) => t('storefront.studio.show', { name })}
+          pauseLabel={t('storefront.studio.pause')}
+          playLabel={t('storefront.studio.play')}
+          eyebrow={heroEyebrow}
+          secondary={heroWhatsApp('st-cta-2')}
+        />
+      ) : store.theme === 'bistro' ? (
+        <BistroHero
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          cta={heroCtaText}
+          items={heroItems}
+          price={(p) => priceLabel(p, lang)}
+          onOpen={(id) => setQuick(id)}
+          onCta={toCatalog}
+          eyebrow={heroEyebrow}
+          secondary={heroWhatsApp('bi-cta-2')}
+        />
+      ) : store.theme === 'atelier' ? (
+        <AtelierRail
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          cta={heroCtaText}
+          items={heroItems}
+          price={(p) => priceLabel(p, lang)}
+          hint={t('storefront.atelier.hint')}
+          touchHint={t('storefront.atelier.touchHint')}
+          onOpen={(id) => setQuick(id)}
+          onCta={toCatalog}
+          eyebrow={openNow ? <span className={openNow.open ? 'sf-open is-open' : 'sf-open'}>{openText}</span> : null}
+          secondary={
+            waDigits ? (
+              <a className="at-cta-2" href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer">
+                <IconWhatsApp />
+                {t('storefront.whatsapp')}
+              </a>
+            ) : null
+          }
+        />
+      ) : store.theme === 'perfume' ? (
+        <PerfumeHero
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          cta={heroCtaText}
+          imageUrl={heroImage}
+          cutout={!store.heroImageUrl && !!pickedHero[0]?.cutoutUrl}
+          eyebrow={openNow ? <span className={openNow.open ? 'sf-open is-open' : 'sf-open'}>{openText}</span> : null}
+          onCta={toCatalog}
+          secondary={
+            waDigits ? (
+              <a className="pf-cta-2" href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer">
+                <IconWhatsApp />
+                {t('storefront.whatsapp')}
+              </a>
+            ) : null
+          }
+        />
+      ) : (
+        classicHero
       )}
 
-      {shelf('sf-best', t('storefront.bestSellers'), bestSellers)}
-      {shelf('sf-new', t('storefront.newArrivals'), newArrivals)}
-
-      <section id="catalog" className="sf-wrap sf-catalog">
-        <div>
-          <div className="sf-toolbar">
-            <div className="sf-list-head">
-              <h2>{activeTitle}</h2>
-              <span>{t('storefront.productCount', { count: visible.length })}</span>
-            </div>
-            <label className="sf-sort">
-              <span>{t('storefront.sort.label')}</span>
-              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-                {SORTS.map((k) => (
-                  <option key={k} value={k}>
-                    {t(`storefront.sort.${k}`)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {categories.length > 0 && (
-            <div className="sf-chips" role="group" aria-label={t('storefront.categories')}>
-              <button
-                type="button"
-                aria-pressed={category === 'all' && !wishOnly}
-                onClick={() => {
-                  setWishOnly(false);
-                  setCategory('all');
-                }}
-              >
-                {t('storefront.all')}
-                <small>{products.length}</small>
-              </button>
-              {dealsCount > 0 && (
-                <button type="button" className="sf-chip-deals" aria-pressed={category === DEALS} onClick={() => setCategory(DEALS)}>
-                  {t('storefront.deals')}
-                  <small>{dealsCount}</small>
-                </button>
-              )}
-              {categories.map((c) => (
-                <button key={c.label} type="button" aria-pressed={category === c.label} onClick={() => setCategory(c.label)}>
-                  {c.label}
-                  <small>{c.count}</small>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {products.length === 0 ? (
-            <div className="sf-empty">{t('storefront.noProducts')}</div>
-          ) : visible.length === 0 ? (
-            <div className="sf-empty">
-              <p>{wishOnly && wish.length === 0 ? t('storefront.wishEmpty') : t('storefront.noResults')}</p>
-              <button type="button" className="sf-link" onClick={clearFilters}>
-                {t('storefront.clearFilters')}
-              </button>
-            </div>
-          ) : (
-            <div className="sf-grid">
-              {sorted.map((p, k) => card(p, k))}
-            </div>
-          )}
-        </div>
-      </section>
+      {toSections(store.sections).map((k) => (
+        <Fragment key={k}>{sectionViews[k]}</Fragment>
+      ))}
 
       {trackOpen && (
         <StorefrontTrackOrder

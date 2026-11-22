@@ -74,4 +74,10 @@ describe('service worker cache versioning', () => {
     ]);
     expect(precacheList(['index.html', 'assets/app-1.js'], '/app/0.9.0-dev')).toEqual(['/app/0.9.0-dev/assets/app-1.js', '/app/0.9.0-dev/index.html']);
   });
+
+  it('leaves the on-device AI runtime out of the offline shell', () => {
+    expect(
+      precacheList(['index.html', 'assets/ort-wasm-simd-threaded.asyncify-Ab12.mjs', 'assets/ort-wasm-simd-threaded.asyncify-Cd34.wasm', 'assets/app-1.js']),
+    ).toEqual(['/assets/app-1.js', '/index.html']);
+  });
 });
