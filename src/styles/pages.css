@@ -3357,3 +3357,8 @@
 .os-split-legend .muted { grid-column: 2; font-size: 13px; }
 .os-split-dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c-border-strong); }
 .os-split-dot--online { background: var(--c-primary); }
+
+/* Published store link */
+.store-link { display: grid; gap: 12px; }
+.store-link__url { font-size: 18px; font-weight: 600; color: var(--c-primary); word-break: break-all; text-align: start; }
+.store-link__actions { display: flex; flex-wrap: wrap; gap: 8px; }
