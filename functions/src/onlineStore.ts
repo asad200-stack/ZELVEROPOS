@@ -75,6 +75,7 @@ import {
   type PublicProduct,
   type PublicStore,
 } from './shared/onlineStore.js';
+import { summarizeSalesSplit, toOnlineOrder, type SalesSplit } from './shared/onlineOrders.js';
 import { caller, parse, type Caller } from './validate.js';
 
 /** Products offered to the owner's picker; a larger catalog is truncated (flagged in the reply). */
@@ -590,6 +591,28 @@ export const publicTrackEvent = onCall(publicFn, async (request): Promise<{ ok: 
 export interface StoreStatsResponse extends StoreStatsSummary {
   /** Names for topViewed, keyed by product id (archived products are left out). */
   names: Record<string, string>;
+  /** Website orders vs sales at the till over the same days. */
+  sales: SalesSplit;
+}
+
+const SPLIT_ORDERS_MAX = 2000;
+
+/** Website orders vs till sales over the given shop days (orders by time, till sales by day totals). */
+async function salesSplit(tenantId: string, dates: readonly string[], days: number): Promise<SalesSplit> {
+  const since = Date.now() - days * 86_400_000;
+  const [orderSnap, daySnaps] = await Promise.all([
+    storeRef(tenantId).collection('orders').where('createdAtMs', '>=', since).limit(SPLIT_ORDERS_MAX).get(),
+    db.getAll(...dates.map((d) => tenantPaths(tenantId).dailyStats(d))),
+  ]);
+  const store = { revenueUsdCents: 0, returnsUsdCents: 0, salesCount: 0 };
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  for (const d of daySnaps) {
+    const x = d.data() ?? {};
+    store.revenueUsdCents += n(x.revenueUsdCents);
+    store.returnsUsdCents += n(x.returnsUsdCents);
+    store.salesCount += n(x.salesCount);
+  }
+  return summarizeSalesSplit(orderSnap.docs.map((d) => toOnlineOrder(d.id, d.data())), store, STATS_TOP);
 }
 
 /** Owner view of the storefront counters for the last 7 or 30 shop days. */
@@ -599,10 +622,13 @@ export const onlineStoreStats = onCall({ region: REGION }, (request) =>
     const dates = statDates(businessDate(Date.now()), input.days);
     const snaps = await db.getAll(...dates.map((d) => statsRef(tenantId, d)));
     const summary = summarizeStats(snaps.map((s, i) => toDayStats(dates[i] ?? s.id, s.data())), STATS_TOP);
-    const products = await activeProducts(tenantId, summary.topViewed.map((t) => t.productId));
+    const [products, sales] = await Promise.all([
+      activeProducts(tenantId, summary.topViewed.map((t) => t.productId)),
+      salesSplit(tenantId, dates, input.days),
+    ]);
     const names: Record<string, string> = {};
     for (const [id, p] of products) names[id] = typeof p.name === 'string' ? p.name : '';
-    return { ...summary, names };
+    return { ...summary, names, sales };
   }),
 );
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { axesOf, cleanValues, compareValues, collapseVariants, optionCombos, pickVariant, usableAxes, valueInStock, variantName } from './variants';
+import { axesOf, cleanValues, compareValues, collapseVariants, inheritedPhoto, optionCombos, photoAxisIndex, pickVariant, samePhotoLook, usableAxes, valueInStock, variantName } from './variants';
 
 const v = (id: string, size: string, color: string, stock: boolean, price = 1000) => ({
   id,
@@ -71,5 +71,38 @@ describe('value order', () => {
     expect(['L', 'S', 'XL', 'M'].sort(compareValues)).toEqual(['S', 'M', 'L', 'XL']);
     expect(['42', '38', '40'].sort(compareValues)).toEqual(['38', '40', '42']);
     expect(['Red', 'Blue'].sort(compareValues)).toEqual(['Red', 'Blue']);
+  });
+});
+
+describe('photos per colour', () => {
+  const opt = (size: string, color: string, imageUrl: string | null = null) => ({
+    options: [
+      { name: 'Size', value: size },
+      { name: 'Color', value: color },
+    ],
+    imageUrl,
+    imagePath: imageUrl ? `p/${imageUrl}` : null,
+  });
+
+  it('puts the photo on the colour, not the size', () => {
+    expect(photoAxisIndex(axesOf([opt('S', 'Red'), opt('M', 'Blue')]))).toBe(1);
+    expect(photoAxisIndex([{ values: ['Red', 'Blue'] }, { values: ['S', 'M'] }])).toBe(0);
+    expect(photoAxisIndex([{ values: ['S', 'M', 'L'] }])).toBe(-1);
+    expect(photoAxisIndex([{ values: ['40', '41'] }])).toBe(-1);
+  });
+
+  it('a new size starts with the photo of its colour', () => {
+    const siblings = [opt('S', 'Red', 'red.webp'), opt('S', 'Blue', 'blue.webp'), opt('M', 'Blue')];
+    expect(inheritedPhoto(siblings, ['XL', 'blue'])).toEqual({ imageUrl: 'blue.webp', imagePath: 'p/blue.webp' });
+    expect(inheritedPhoto(siblings, ['XL', 'Green'])).toBeNull();
+  });
+
+  it('sizes only: every option shares the photo', () => {
+    const siblings = [
+      { options: [{ name: 'Size', value: 'S' }], imageUrl: 'a.webp', imagePath: 'p/a' },
+      { options: [{ name: 'Size', value: 'M' }], imageUrl: null, imagePath: null },
+    ];
+    expect(inheritedPhoto(siblings, ['XL'])?.imageUrl).toBe('a.webp');
+    expect(samePhotoLook(['S'], ['M'], -1)).toBe(true);
   });
 });

@@ -381,7 +381,12 @@ export interface PublicProduct {
   groupName: string;
   /** This option's values ([] for a stand-alone product). */
   options: { name: string; value: string }[];
+  /** Extra photos after the main one ([] when none). */
+  images: string[];
 }
+
+/** Extra photos a product can have besides its main one. */
+export const MAX_GALLERY_PHOTOS = 5;
 
 export const NEW_PRODUCT_DAYS = 21;
 const DAY_MS = 86_400_000;
@@ -453,7 +458,7 @@ export function toListings(v: unknown): Record<string, ProductListing> {
 }
 
 export function projectPublicProduct(
-  p: Pick<Product, 'id' | 'name' | 'category' | 'prices' | 'imageUrl' | 'stock' | 'groupId' | 'groupName' | 'options'> & { createdAt?: number | null },
+  p: Pick<Product, 'id' | 'name' | 'category' | 'prices' | 'imageUrl' | 'stock' | 'groupId' | 'groupName' | 'options' | 'gallery'> & { createdAt?: number | null },
   listing?: ProductListing,
   totals?: RatingTotals,
   nowMs?: number,
@@ -477,6 +482,11 @@ export function projectPublicProduct(
     groupId: p.groupId || null,
     groupName: p.groupId ? (p.groupName ?? '') : '',
     options: p.groupId ? (p.options ?? []).map((o) => ({ name: o.name, value: o.value })) : [],
+    images: (p.gallery ?? [])
+      .map((g) => g.url)
+      // https only (the local emulator serves photos from http://127.0.0.1 or localhost).
+      .filter((u) => /^https:\/\//.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(u))
+      .slice(0, MAX_GALLERY_PHOTOS),
   };
 }
 
@@ -785,6 +795,32 @@ export function storeShareMeta(slug: string, b: StoreBranding, origin: string, i
     url: `${origin.replace(/\/+$/, '')}/s/${encodeURIComponent(slug)}`,
     themeColor: HEX_COLOR_RE.test(b.primaryColor) ? b.primaryColor : '#0f172a',
     locale: b.defaultLocale,
+  };
+}
+
+/** "$12" or "$12.50" for share previews (no locale formatting on the server). */
+function sharePrice(cents: number): string {
+  if (!Number.isFinite(cents) || cents <= 0) return '';
+  return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
+}
+
+/**
+ * What WhatsApp shows when one product's link is shared: its name, price and photo, linking
+ * straight to it. Falls back to the store's photo when the product has none.
+ */
+export function productShareMeta(
+  store: StoreShareMeta,
+  product: Pick<PublicProduct, 'id' | 'name' | 'priceUsdCents' | 'imageUrl' | 'groupId' | 'groupName'>,
+): StoreShareMeta {
+  const name = ((product.groupId && product.groupName.trim()) || product.name).trim() || store.title;
+  const price = sharePrice(product.priceUsdCents);
+  const order = store.locale === 'ar' ? `اطلب من ${store.title}` : `Order from ${store.title}`;
+  return {
+    ...store,
+    title: (price ? `${name} — ${price}` : name).slice(0, 120),
+    description: (price ? `${price} · ${order}` : order).slice(0, 200),
+    imageUrl: product.imageUrl && /^https:\/\//.test(product.imageUrl) ? product.imageUrl : store.imageUrl,
+    url: `${store.url}?p=${encodeURIComponent(product.id)}`,
   };
 }
 

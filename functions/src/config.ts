@@ -46,6 +46,15 @@ export const STORE_SITE_ORIGIN = defineString('STORE_SITE_ORIGIN', {
   description: 'Origin (https://host) whose /index.html is used as the storefront shell',
 });
 
+/**
+ * Path of the HTML shell on STORE_SITE_ORIGIN. Stores are served by a versioned tree
+ * (e.g. /app/0.9.3/index.html) while the root keeps the older app.
+ */
+export const STORE_SHELL_PATH = defineString('STORE_SHELL_PATH', {
+  default: '/index.html',
+  description: 'Path of the storefront HTML shell, e.g. /app/0.9.3/index.html',
+});
+
 /** Extra hostnames (comma separated) that may appear in store links, e.g. connected custom domains. */
 export const STORE_EXTRA_HOSTS = defineString('STORE_EXTRA_HOSTS', {
   default: '',

@@ -4,6 +4,10 @@ import {
   ORDER_MAX_QTY,
   ORDER_STATUSES,
   canReviewOrder,
+  canSettleByHand,
+  summarizeSalesSplit,
+  manualPayment,
+  waitsForPayment,
   canTransition,
   formatOrderRef,
   isFinalStatus,
@@ -194,5 +198,51 @@ describe('Whish Money helpers', () => {
     const o = toOnlineOrder('o2', { payment: 'whish', paymentStatus: 'paid', payerPhone: '96170123456' });
     expect([o.payment, o.paymentStatus, o.payerPhone]).toEqual(['whish', 'paid', '96170123456']);
     expect(toOnlineOrder('o3', { payment: 'bitcoin' }).payment).toBe('cod');
+  });
+});
+
+describe('Whish orders wait for the money', () => {
+  const whish = { payment: 'whish' as const, paymentStatus: 'unpaid' as const };
+  it('cannot be accepted or moved on before it is paid', () => {
+    expect(waitsForPayment(whish, 'accepted')).toBe(true);
+    expect(waitsForPayment(whish, 'delivered')).toBe(true);
+    expect(waitsForPayment(whish, 'cancelled')).toBe(false);
+    expect(waitsForPayment(whish, 'rejected')).toBe(false);
+    expect(waitsForPayment({ ...whish, paymentStatus: 'paid' }, 'accepted')).toBe(false);
+    expect(waitsForPayment({ payment: 'cod', paymentStatus: 'none' }, 'accepted')).toBe(false);
+  });
+
+  it('the owner can confirm the money arrived or switch to cash', () => {
+    expect(manualPayment('whish')).toEqual({ payment: 'whish', paymentStatus: 'paid' });
+    expect(manualPayment('cash')).toEqual({ payment: 'cod', paymentStatus: 'none' });
+    expect(canSettleByHand({ ...whish, status: 'pending' })).toBe(true);
+    expect(canSettleByHand({ ...whish, status: 'cancelled' })).toBe(false);
+    expect(canSettleByHand({ payment: 'whish', paymentStatus: 'paid', status: 'pending' })).toBe(false);
+  });
+});
+
+describe('website vs shop sales', () => {
+  const line = (productId: string, qty: number, lineUsdCents: number) => ({ productId, name: productId, qty, unitUsdCents: 0, unitLbp: 0, lineUsdCents, lineLbp: 0 });
+  it('counts orders that went ahead and ranks products by quantity', () => {
+    const out = summarizeSalesSplit(
+      [
+        { status: 'delivered', lines: [line('a', 1, 1000), line('b', 3, 1500)] },
+        { status: 'pending', lines: [line('a', 1, 1000)] },
+        { status: 'cancelled', lines: [line('c', 9, 9000)] },
+      ],
+      { revenueUsdCents: 7000, returnsUsdCents: 500, salesCount: 4 },
+    );
+    expect(out.onlineUsdCents).toBe(3500);
+    expect(out.onlineOrders).toBe(2);
+    expect(out.storeUsdCents).toBe(6500);
+    expect(out.onlinePct).toBe(35);
+    expect(out.topOrdered.map((x) => [x.productId, x.qty])).toEqual([
+      ['b', 3],
+      ['a', 2],
+    ]);
+  });
+
+  it('has no share without any sales', () => {
+    expect(summarizeSalesSplit([], { revenueUsdCents: 0, returnsUsdCents: 0, salesCount: 0 }).onlinePct).toBeNull();
   });
 });

@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Layout';
 import { Modal } from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useFeedback } from '@/contexts/feedback';
 import { useTenant } from '@/contexts/session';
-import { OPTION_PRESETS, OPTION_PRESET_KEYS, axesOf, cleanValues, comboKey, compareValues, type OptionAxis } from '@/domain/variants';
+import { OPTION_PRESETS, OPTION_PRESET_KEYS, axesOf, cleanValues, comboKey, compareValues, photoAxisIndex, samePhotoLook, type OptionAxis } from '@/domain/variants';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useI18n } from '@/i18n/i18n';
 import { newClientOperationId } from '@/services/clientOperation';
 import { toUserMessage } from '@/services/errors';
-import { addProductOptions, adjustStock, listGroupOptions } from '@/services/productService';
+import { addProductOptions, adjustStock, listGroupOptions, setOptionsPhoto } from '@/services/productService';
+import { prepareImage, uploadPreparedImage } from '@/services/storageService';
 import type { Product } from '@/types/models';
 import { formatUsd } from '@/utils/format';
 import { VariantBuilder } from './VariantBuilder';
@@ -37,6 +38,98 @@ function withKnownSizes(axis: OptionAxis): AxisDraft {
   });
   const values = preset ? cleanValues([...OPTION_PRESETS[preset], ...axis.values]).sort(compareValues) : axis.values;
   return { name: axis.name, preset: preset ?? 'custom', values, on: values.filter((v) => axis.values.includes(v)) };
+}
+
+interface Look {
+  key: string;
+  /** The colour (or other non-size value), '' when the item only comes in sizes. */
+  label: string;
+  options: Product[];
+  imageUrl: string | null;
+}
+
+/** Options grouped by what they look like: one photo per colour, or one for all sizes. */
+function looksOf(options: readonly Product[]): Look[] {
+  const live = options.filter((p) => p.status !== 'archived');
+  const axis = photoAxisIndex(axesOf(live));
+  const out: Look[] = [];
+  for (const p of live) {
+    const vals = valuesOf(p);
+    const hit = out.find((l) => samePhotoLook(valuesOf(l.options[0]!), vals, axis));
+    if (hit) {
+      hit.options.push(p);
+      hit.imageUrl ??= p.imageUrl;
+    } else {
+      out.push({ key: axis < 0 ? '*' : (vals[axis] ?? '').toLowerCase(), label: axis < 0 ? '' : (vals[axis] ?? ''), options: [p], imageUrl: p.imageUrl });
+    }
+  }
+  return out;
+}
+
+/** One photo per colour: every size of that colour shows it, on the store and at the till. */
+function LookPhotos({ options, onChanged }: { options: Product[]; onChanged: (next: Product[]) => void }) {
+  const { t } = useI18n();
+  const { tenantId, actor } = useTenant();
+  const { notify } = useFeedback();
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const target = useRef<Look | null>(null);
+  const looks = looksOf(options);
+
+  const pick = (look: Look) => {
+    target.current = look;
+    input.current?.click();
+  };
+
+  const upload = async (file: File) => {
+    const look = target.current;
+    if (!look) return;
+    setBusyKey(look.key);
+    try {
+      const blob = await prepareImage(file);
+      const first = look.options[0]!;
+      const image = await uploadPreparedImage(tenantId, 'products', first.groupId ? `${first.groupId}-look` : first.id, blob);
+      await setOptionsPhoto(actor, look.options, image);
+      const ids = new Set(look.options.map((o) => o.id));
+      onChanged(options.map((o) => (ids.has(o.id) ? { ...o, imageUrl: image.url, imagePath: image.path } : o)));
+      notify('success', t('products.variants.photoSaved', { count: look.options.length }));
+    } catch (e) {
+      const m = toUserMessage(e);
+      notify('error', t(m.key, m.params));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  return (
+    <div className="vb-looks">
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) void upload(f);
+        }}
+      />
+      {looks.map((look) => (
+        <div key={look.key} className="vb-look">
+          <div className="vb-look-img">{look.imageUrl ? <img src={look.imageUrl} alt="" loading="lazy" /> : <span aria-hidden="true">+</span>}</div>
+          <div className="vb-look-text">
+            <strong>
+              <bdi>{look.label || t('products.variants.allSizes')}</bdi>
+            </strong>
+            <span className="muted">{t('products.variants.photoFor', { count: look.options.length })}</span>
+          </div>
+          <Button size="sm" variant="secondary" loading={busyKey === look.key} disabled={busyKey !== null} onClick={() => pick(look)}>
+            {look.imageUrl ? t('products.variants.photoChange') : t('products.variants.photoAdd')}
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -187,6 +280,14 @@ export function VariantGroupModal({ product, onClose }: { product: Product; onCl
           </div>
           {badCount && <p className="field__error">{t('products.variants.errCount')}</p>}
           <p className="field__hint">{t('products.variants.countHint')}</p>
+
+          {canAdjust && (
+            <>
+              <h3 className="section-title">{t('products.variants.photos')}</h3>
+              <p className="field__hint">{t('products.variants.photosHint')}</p>
+              <LookPhotos options={options} onChanged={setOptions} />
+            </>
+          )}
 
           {can('canAddProducts') && (
             <>

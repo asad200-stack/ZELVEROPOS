@@ -50,6 +50,8 @@ export interface Product {
   groupName?: string;
   /** This option's values, e.g. [{ name: 'Size', value: 'M' }]. */
   options?: { name: string; value: string }[];
+  /** Extra photos shown after the main one on the website (at most MAX_GALLERY_PHOTOS). */
+  gallery?: ProductPhoto[];
   /** Archived products keep their stock and history but cannot be sold or purchased. */
   status: ProductStatus;
   archivedAt: Millis;
@@ -58,6 +60,11 @@ export interface Product {
 }
 
 export type ProductStatus = 'active' | 'archived';
+
+export interface ProductPhoto {
+  url: string;
+  path: string;
+}
 
 export interface Customer {
   id: string;

@@ -19,6 +19,8 @@ import { findByNormalizedName, pageSuppliers } from '@/services/catalogQuery';
 import { newClientOperationId } from '@/services/clientOperation';
 import { addCategory, assertUniqueBarcode, createProduct, createProductGroup, setProductImage, updateProduct } from '@/services/productService';
 import { deleteStorageFile, prepareImage, uploadPreparedImage } from '@/services/storageService';
+import { GalleryField } from './GalleryField';
+import { galleryChanged, galleryFrom, saveGallery, type GalleryItem } from './gallery';
 import { createSupplier } from '@/services/supplierService';
 import type { ProductDraftFields } from '@/features/ai/actions/productDraft';
 import type { Product } from '@/types/models';
@@ -384,6 +386,7 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
     preparedImage.current = file ? { file, blob: prepareImage(file) } : null;
     preparedImage.current?.blob.catch(() => undefined);
   };
+  const [gallery, setGallery] = useState<GalleryItem[]>(() => galleryFrom(product?.gallery));
   const imageBlob = (file: File) => (preparedImage.current?.file === file ? preparedImage.current.blob : prepareImage(file));
   const [serials, setSerials] = useState<string[]>([]);
   const [serialError, setSerialError] = useState<string | null>(null);
@@ -640,6 +643,7 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
       notify('success', t(product ? 'common.saved' : 'products.created'));
       onClose();
       if (upload) inBackground(async () => setProductImage(actor, id, await upload, product?.imagePath ?? null));
+      if (galleryChanged(gallery, product?.gallery)) inBackground(async () => saveGallery(actor, id, gallery, product?.gallery));
     });
 
   /** Finishes the photo after the form has closed; the product itself is already saved. */
@@ -880,6 +884,7 @@ export function ProductFormModal({ product, seed = null, onClose }: Props) {
           />
           {product?.imageUrl && !image && <img className="image-preview" src={product.imageUrl} alt="" />}
         </div>
+        {!withVariants && <GalleryField items={gallery} onChange={setGallery} />}
       </form>
     </Modal>
   );

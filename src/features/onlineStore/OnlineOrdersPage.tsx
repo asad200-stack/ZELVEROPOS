@@ -9,7 +9,10 @@ import { useFeedback } from '@/contexts/feedback';
 import {
   ORDER_STATUSES,
   REVIEW_STATUSES,
+  canSettleByHand,
   nextStatuses,
+  waitsForPayment,
+  type ManualPayment,
   type OnlineOrder,
   type OrderStatus,
   type ProductReview,
@@ -184,6 +187,18 @@ function OrderCard({ order, onChanged }: { order: OnlineOrder; onChanged: () => 
     if (res && res.paymentStatus !== order.paymentStatus) onChanged();
   };
 
+  const [settling, setSettling] = useState<ManualPayment | null>(null);
+  const settle = async (how: ManualPayment) => {
+    if (!window.confirm(t(how === 'whish' ? 'onlineOrders.pay.confirmPaid' : 'onlineOrders.pay.confirmCash', { ref: order.ref }))) return;
+    setSettling(how);
+    const res = await action.run(() => api.onlineOrdersSettlePayment({ orderId: order.id, how }));
+    setSettling(null);
+    if (res) {
+      notify('success', t(how === 'whish' ? 'onlineOrders.pay.markedPaid' : 'onlineOrders.pay.markedCash', { ref: order.ref }));
+      onChanged();
+    }
+  };
+
   const move = async (status: OrderStatus) => {
     if ((status === 'cancelled' || status === 'rejected') && !window.confirm(t('onlineOrders.confirmStop', { ref: order.ref }))) return;
     setPending(status);
@@ -195,7 +210,9 @@ function OrderCard({ order, onChanged }: { order: OnlineOrder; onChanged: () => 
     }
   };
 
-  const next = nextStatuses(order.status);
+  // A Whish order is prepared only once the money is in.
+  const next = nextStatuses(order.status).filter((s) => !waitsForPayment(order, s));
+  const waiting = nextStatuses(order.status).some((s) => waitsForPayment(order, s));
   const statusText =
     order.status === 'ready'
       ? t(order.fulfillment === 'delivery' ? 'onlineOrders.wa.readyDelivery' : 'onlineOrders.wa.readyPickup', { name: order.customerName, ref: order.ref })
@@ -245,8 +262,19 @@ function OrderCard({ order, onChanged }: { order: OnlineOrder; onChanged: () => 
                 {t('onlineOrders.pay.check')}
               </Button>
             )}
+            {canSettleByHand(order) && (
+              <>
+                <Button size="sm" variant="secondary" loading={settling === 'whish'} disabled={action.busy} onClick={() => void settle('whish')}>
+                  {t('onlineOrders.pay.markPaid')}
+                </Button>
+                <Button size="sm" variant="ghost" loading={settling === 'cash'} disabled={action.busy} onClick={() => void settle('cash')}>
+                  {t('onlineOrders.pay.toCash')}
+                </Button>
+              </>
+            )}
           </div>
         )}
+        {waiting && <p className="field__hint">{t('onlineOrders.pay.waitHint')}</p>}
         <ul style={{ margin: 0, paddingInlineStart: 18 }}>
           {order.lines.map((l) => (
             <li key={l.productId}>

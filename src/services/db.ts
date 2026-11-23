@@ -96,6 +96,15 @@ function variantFields(d: DocumentData): Pick<Product, 'groupId' | 'groupName' |
   return { groupId: d.groupId, groupName: typeof d.groupName === 'string' ? d.groupName : '', options };
 }
 
+function galleryField(d: DocumentData): Pick<Product, 'gallery'> {
+  if (!Array.isArray(d.gallery)) return {};
+  const gallery = (d.gallery as unknown[])
+    .filter((x): x is { url: string; path: string } => !!x && typeof (x as { url?: unknown }).url === 'string' && typeof (x as { path?: unknown }).path === 'string')
+    .slice(0, 5)
+    .map((x) => ({ url: x.url, path: x.path }));
+  return gallery.length ? { gallery } : {};
+}
+
 export function toProduct(id: string, d: DocumentData): Product {
   const prices = (d.prices ?? {}) as DocumentData;
   return {
@@ -117,6 +126,7 @@ export function toProduct(id: string, d: DocumentData): Product {
     imeis: arr<ImeiEntry>(d.imeis).filter((e) => e && typeof e.imei === 'string'),
     lastMovementId: strOrNull(d.lastMovementId),
     ...variantFields(d),
+    ...galleryField(d),
     status: d.status === 'archived' ? 'archived' : 'active',
     archivedAt: millis(d.archivedAt),
     createdAt: millis(d.createdAt, d.createdAtMs),

@@ -342,7 +342,8 @@ service cloud.firestore {
           && d.prices is map && nonNegInt(d.costUsdCents) && d.imeiTracking is bool
           && (d.minStock == null || d.minStock is number)
           && (d.expiryDate == null || isDate(d.expiryDate))
-          && str(d.supplierName, 200);
+          && str(d.supplierName, 200)
+          && (!('gallery' in d) || (d.gallery is list && d.gallery.size() <= 5));
       }
 
       match /products/{id} {
@@ -351,7 +352,7 @@ service cloud.firestore {
         allow create: if false;
         allow update: if canW(t, 'canEditProducts')
           && changed().hasOnly(['name', 'nameNormalized', 'category', 'barcode', 'prices', 'costUsdCents', 'costKnown', 'minStock', 'supplierId',
-                                'supplierName', 'expiryDate', 'imeiTracking', 'imageUrl', 'imagePath', 'updatedAt'])
+                                'supplierName', 'expiryDate', 'imeiTracking', 'imageUrl', 'imagePath', 'gallery', 'updatedAt'])
           && productFieldsValid(incoming())
           && (!changed().hasAny(['imeiTracking']) || (existing().stock == 0 && existing().imeis.size() == 0));
         // Archiving (status) and deletion go through posSetProductStatus / posDeleteProduct, which

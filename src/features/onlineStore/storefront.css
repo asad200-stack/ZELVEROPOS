@@ -525,6 +525,11 @@
 .sf-qv-face .sf-ph { width: 100%; height: 100%; display: grid; place-items: center; font-size: 72px; }
 .sf-qv-back { transform: rotateY(180deg); }
 .sf-qv-zoom { position: absolute; inset: 0; transform: scale(2); }
+.sf-qv-thumbs { display: flex; gap: 8px; overflow-x: auto; padding: 2px; scrollbar-width: none; }
+.sf-qv-thumbs button { flex: none; inline-size: 56px; block-size: 56px; padding: 0; border: 1px solid var(--sf-line); border-radius: calc(var(--sf-radius) / 2); background: var(--sf-card); overflow: hidden; cursor: pointer; opacity: .7; transition: opacity .15s, border-color .15s; }
+.sf-qv-thumbs button img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.sf-qv-thumbs button:hover, .sf-qv-thumbs button.is-on { opacity: 1; border-color: var(--sf-primary); }
+.sf-qv-thumbs button:focus-visible { outline: 2px solid var(--sf-primary); outline-offset: 2px; }
 .sf-qv-tools { display: flex; justify-content: space-between; align-items: center; color: var(--sf-ink-2); font-size: 13px; }
 .sf-qv-info { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding-top: 8px; }
 .sf-qv-info h2 { margin: 0; font-size: 26px; line-height: 1.2; color: var(--sf-ink); }

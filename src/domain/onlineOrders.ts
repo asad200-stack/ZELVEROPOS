@@ -60,6 +60,31 @@ export function isFinalStatus(s: OrderStatus): boolean {
   return TRANSITIONS[s].length === 0;
 }
 
+/**
+ * A Whish order is prepared only once the money is in: until Whish (or the owner) confirms the
+ * payment, the order can only be cancelled, rejected or switched to cash.
+ */
+export function waitsForPayment(order: { payment: PaymentMethod; paymentStatus: PaymentStatus }, to: OrderStatus): boolean {
+  return order.payment === 'whish' && order.paymentStatus !== 'paid' && to !== 'cancelled' && to !== 'rejected';
+}
+
+/** How the owner settles an unpaid Whish order by hand. */
+export const MANUAL_PAYMENTS = ['whish', 'cash'] as const;
+export type ManualPayment = (typeof MANUAL_PAYMENTS)[number];
+
+/**
+ * What the order's payment becomes when the owner settles it by hand: the money reached their
+ * Whish account ('whish'), or the customer will pay cash instead ('cash').
+ */
+export function manualPayment(how: ManualPayment): { payment: PaymentMethod; paymentStatus: PaymentStatus } {
+  return how === 'whish' ? { payment: 'whish', paymentStatus: 'paid' } : { payment: 'cod', paymentStatus: 'none' };
+}
+
+/** Whether the owner may settle this order's payment by hand. */
+export function canSettleByHand(order: { payment: PaymentMethod; paymentStatus: PaymentStatus; status: OrderStatus }): boolean {
+  return order.payment === 'whish' && order.paymentStatus !== 'paid' && !isFinalStatus(order.status);
+}
+
 /** Stock was taken when the order was placed; cancelling or rejecting gives it back once. */
 export function restoresStock(from: OrderStatus, to: OrderStatus): boolean {
   return canTransition(from, to) && (to === 'cancelled' || to === 'rejected');
@@ -351,4 +376,59 @@ export function paymentStatusFromWhish(collectStatus: unknown): PaymentStatus {
   if (s === 'success') return 'paid';
   if (s === 'failed') return 'failed';
   return 'unpaid';
+}
+
+/* ------------------------------------------------------------------ online vs in-store */
+
+export interface TopOrdered {
+  productId: string;
+  name: string;
+  qty: number;
+  usdCents: number;
+}
+
+export interface SalesSplit {
+  /** Website orders that went ahead (not cancelled/rejected): items only, without delivery fees. */
+  onlineUsdCents: number;
+  onlineOrders: number;
+  /** Sales rung at the till, net of returns. */
+  storeUsdCents: number;
+  storeSales: number;
+  /** Website share of all sales as a whole percent; null with no sales at all. */
+  onlinePct: number | null;
+  /** Products ordered most on the website, by quantity. */
+  topOrdered: TopOrdered[];
+}
+
+/** Totals for the "website vs shop" report. Cancelled and rejected orders don't count. */
+export function summarizeSalesSplit(
+  orders: readonly { status: OrderStatus; lines: readonly OnlineOrderLine[] }[],
+  store: { revenueUsdCents: number; returnsUsdCents: number; salesCount: number },
+  top = 5,
+): SalesSplit {
+  let onlineUsdCents = 0;
+  let onlineOrders = 0;
+  const byProduct = new Map<string, TopOrdered>();
+  for (const o of orders) {
+    if (o.status === 'cancelled' || o.status === 'rejected') continue;
+    onlineOrders += 1;
+    for (const l of o.lines) {
+      if (!l.productId || l.qty <= 0) continue;
+      onlineUsdCents += Math.max(0, l.lineUsdCents);
+      const cur = byProduct.get(l.productId) ?? { productId: l.productId, name: l.name, qty: 0, usdCents: 0 };
+      cur.qty += l.qty;
+      cur.usdCents += Math.max(0, l.lineUsdCents);
+      byProduct.set(l.productId, cur);
+    }
+  }
+  const storeUsdCents = Math.max(0, store.revenueUsdCents - store.returnsUsdCents);
+  const all = onlineUsdCents + storeUsdCents;
+  return {
+    onlineUsdCents,
+    onlineOrders,
+    storeUsdCents,
+    storeSales: Math.max(0, store.salesCount),
+    onlinePct: all > 0 ? Math.round((onlineUsdCents / all) * 100) : null,
+    topOrdered: [...byProduct.values()].sort((a, b) => b.qty - a.qty || b.usdCents - a.usdCents).slice(0, top),
+  };
 }

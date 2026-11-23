@@ -17,6 +17,8 @@ import { TrialChip } from '@/features/account/TrialBanner';
 import { UpdateCenter } from '@/features/features/UpdateCenter';
 import { useFeatureUpdates } from '@/features/features/useFeatureUpdates';
 import { PosCashboxChip } from '@/features/pos/PosCashboxChip';
+import { OrderAlertBanner } from '@/features/onlineStore/OrderAlertCenter';
+import { useOrderAlerts } from '@/features/onlineStore/useOrderAlerts';
 import { aiDockModeAfterPermissionChange, shouldShowAiEntry } from '@/features/ai/aiAccess';
 import { useAiServerAccess } from '@/features/ai/aiServerAccess';
 import { copilotAccess } from '@/features/ai/copilotTransport';
@@ -99,6 +101,10 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
   const onlineStoreActive = session.isInternalDemo || featureUpdates.some(
     (update) => update.featureId === 'online_store' && update.status === 'active',
   );
+  const orderAlerts = useOrderAlerts(
+    !adminOnly && !!session.tenantId && session.isOwner && onlineStoreActive,
+    location.pathname === '/online-orders',
+  );
   const items = adminOnly || !session.tenantId
     ? []
     : NAV_ITEMS.filter((i) => ((i.path === '/online-store' || i.path === '/online-orders') && !onlineStoreActive
@@ -145,6 +151,11 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
             >
               <Icon name={item.icon} />
               <span>{t(item.label)}</span>
+              {item.path === '/online-orders' && !!orderAlerts.pending && (
+                <span className="nav-badge" aria-label={t('onlineOrders.alert.pending', { n: orderAlerts.pending })}>
+                  {orderAlerts.pending}
+                </span>
+              )}
             </NavLink>
           ))}
           {featureUpdates
@@ -250,6 +261,7 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
           </div>
         </header>
         <main className="content">
+          <OrderAlertBanner alerts={orderAlerts} />
           {!adminOnly && session.isInternalDemo && <Alert tone="warning">{t('demo.banner')}</Alert>}
           {!adminOnly ? <UpdateCenter updates={featureUpdates} onChanged={() => setUpdateToken((value) => value + 1)} /> : null}
           <ErrorBoundary

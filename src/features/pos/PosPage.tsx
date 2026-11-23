@@ -13,6 +13,7 @@ import { formatUsdCentsInput, parseLbpInput, parseUsdInput, usdCentsToLbp } from
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { mergeKnown } from '@/domain/catalogSession';
+import { lowStockAfterSale } from '@/domain/inventory';
 import { useCashbox, useCategories, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { takeReopenRequest, useOfflineQueue } from '@/offline/queue';
@@ -284,6 +285,14 @@ export default function PosPage() {
           void getProductsByIds(tenantId, soldIds)
             .then((found) => {
               if (found.length > 0) setKnownProducts((known) => mergeKnown(known, found));
+              // Heads-up at the till when this sale left an item (or one size of it) running low.
+              const soldQty = new Map<string, number>();
+              for (const item of result.sale.items) soldQty.set(item.productId, (soldQty.get(item.productId) ?? 0) + item.quantity);
+              const low = lowStockAfterSale(found, soldQty, settings.lowStockThreshold);
+              if (low.length > 0) {
+                const list = low.slice(0, 3).map((item) => t('pos.lowStockItem', { name: item.name, n: item.stock })).join(lang === 'ar' ? '، ' : ', ');
+                notify('warning', low.length > 3 ? t('pos.lowStockMore', { list, more: low.length - 3 }) : t('pos.lowStockAfterSale', { list }));
+              }
             })
             .catch((error: unknown) => console.error('[pos] catalog stock refresh', error));
         }

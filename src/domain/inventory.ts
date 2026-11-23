@@ -39,3 +39,23 @@ export function stockValue(products: Pick<Product, 'stock' | 'costUsdCents'>[]):
   for (const p of products) if (p.stock > 0) total += p.stock * p.costUsdCents;
   return total;
 }
+
+/**
+ * Products this sale pushed to or below their low-stock level, or sold out, lowest first. An item
+ * that was already low before the sale is not repeated on every sale, only when it runs out.
+ */
+export function lowStockAfterSale<T extends Pick<Product, 'id' | 'stock' | 'minStock'> & { status?: string }>(
+  after: readonly T[],
+  soldQty: ReadonlyMap<string, number>,
+  storeDefault: number,
+): T[] {
+  return after
+    .filter((p) => {
+      const sold = soldQty.get(p.id) ?? 0;
+      if (p.status === 'archived' || sold <= 0) return false;
+      const before = p.stock + sold;
+      const level = lowStockThreshold(p, storeDefault);
+      return (before > level && p.stock <= level) || (before > 0 && p.stock <= 0);
+    })
+    .sort((a, b) => a.stock - b.stock);
+}

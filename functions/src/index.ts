@@ -34,6 +34,7 @@ export {
   publicPayOrder,
   publicCheckPayment,
   onlineOrdersCheckPayment,
+  onlineOrdersSettlePayment,
   whishCallback,
 } from './onlineOrders.js';
 export {

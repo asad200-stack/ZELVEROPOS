@@ -76,6 +76,60 @@ export default function StoreStatsPanel() {
             </Card>
           </div>
 
+          {s.sales && (
+            <Card title={t('onlineOrders.split.title')}>
+              <div className="os-split">
+                <div className="os-split-bar" role="img" aria-label={t('onlineOrders.split.share', { pct: s.sales.onlinePct ?? 0 })}>
+                  <span className="os-split-online" style={{ inlineSize: `${s.sales.onlinePct ?? 0}%` }} />
+                </div>
+                <div className="os-split-legend">
+                  <div>
+                    <span className="os-split-dot os-split-dot--online" aria-hidden="true" />
+                    <span>{t('onlineOrders.split.online')}</span>
+                    <strong>{formatUsd(s.sales.onlineUsdCents)}</strong>
+                    <span className="muted">
+                      {t('onlineOrders.split.orders', { count: s.sales.onlineOrders })}
+                      {s.sales.onlinePct !== null ? ` · ${s.sales.onlinePct}%` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="os-split-dot" aria-hidden="true" />
+                    <span>{t('onlineOrders.split.store')}</span>
+                    <strong>{formatUsd(s.sales.storeUsdCents)}</strong>
+                    <span className="muted">
+                      {t('onlineOrders.split.sales', { count: s.sales.storeSales })}
+                      {s.sales.onlinePct !== null ? ` · ${100 - s.sales.onlinePct}%` : ''}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <p className="muted" style={{ margin: 0 }}>
+                {t('onlineOrders.split.hint')}
+              </p>
+            </Card>
+          )}
+
+          {s.sales && (
+            <Card title={t('onlineOrders.split.topOrdered')}>
+              {s.sales.topOrdered.length === 0 ? (
+                <p className="muted" style={{ margin: 0 }}>
+                  {t('onlineOrders.split.noOrders')}
+                </p>
+              ) : (
+                <ol className="os-top">
+                  {s.sales.topOrdered.map((p) => (
+                    <li key={p.productId}>
+                      <bdi>{p.name}</bdi>
+                      <b>
+                        {t('onlineOrders.split.qty', { count: p.qty })} · {formatUsd(p.usdCents)}
+                      </b>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </Card>
+          )}
+
           <Card title={t('onlineOrders.stats.funnel')}>
             <ol className="os-funnel">
               {FUNNEL.map((f) => (

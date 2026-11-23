@@ -40,6 +40,10 @@ import {
   normalizeOrderPhone,
   orderProblem,
   restoresStock,
+  waitsForPayment,
+  MANUAL_PAYMENTS,
+  manualPayment,
+  canSettleByHand,
   toOnlineOrder,
   toReceipt,
   paymentStatusFromWhish,
@@ -294,6 +298,7 @@ export const onlineOrdersSetStatus = onCall({ region: REGION }, (request) =>
       if (!snap.exists) fail('not-found', 'error.onlineOrders.notFound');
       const order = toOnlineOrder(snap.id, snap.data());
       if (!canTransition(order.status, input.status)) fail('failed-precondition', 'error.onlineOrders.badTransition');
+      if (waitsForPayment(order, input.status)) fail('failed-precondition', 'error.onlineOrders.unpaid');
 
       if (restoresStock(order.status, input.status)) {
         const lines = order.lines.filter((l) => l.productId && l.qty > 0);
@@ -326,6 +331,37 @@ export const onlineOrdersSetStatus = onCall({ region: REGION }, (request) =>
         history: FieldValue.arrayUnion({ status: input.status, atMs: now, by: uid }),
       });
       return { order: { ...order, status: input.status, updatedAtMs: now } };
+    });
+  }),
+);
+
+const settleSchema = z.strictObject({
+  orderId: idField,
+  how: z.enum(MANUAL_PAYMENTS),
+});
+
+/**
+ * Owner: settles an unpaid Whish order by hand, either because the money reached the shop's
+ * Whish account outside the link (how: 'whish') or because the customer will pay cash ('cash').
+ */
+export const onlineOrdersSettlePayment = onCall({ region: REGION }, (request) =>
+  ownerCall(request, async ({ tenantId, uid }, data): Promise<OnlineOrderStatusResponse> => {
+    const input = parse(settleSchema, data);
+    const orderRef = ordersCol(tenantId).doc(input.orderId);
+    const now = Date.now();
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(orderRef);
+      if (!snap.exists) fail('not-found', 'error.onlineOrders.notFound');
+      const order = toOnlineOrder(snap.id, snap.data());
+      if (!canSettleByHand(order)) fail('failed-precondition', 'error.onlineOrders.badTransition');
+      const next = manualPayment(input.how);
+      tx.update(orderRef, {
+        ...next,
+        ...(input.how === 'whish' ? { paidAtMs: now, paidManually: true } : {}),
+        updatedAtMs: now,
+        history: FieldValue.arrayUnion({ status: order.status, atMs: now, by: `${uid}:${input.how === 'whish' ? 'paid' : 'cash'}` }),
+      });
+      return { order: { ...order, ...next, updatedAtMs: now } };
     });
   }),
 );

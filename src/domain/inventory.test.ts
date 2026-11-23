@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { product } from './fixtures.test-utils';
-import { isLowNotOut, isLowStock, lowStockScanBound, perItemLowStock, stockValue, weightedAverageCost } from './inventory';
+import { isLowNotOut, isLowStock, lowStockAfterSale, lowStockScanBound, perItemLowStock, stockValue, weightedAverageCost } from './inventory';
 
 describe('inventory', () => {
   it('computes the weighted average cost of added stock', () => {
@@ -40,5 +40,24 @@ describe('inventory', () => {
 
   it('values positive stock at cost', () => {
     expect(stockValue([product({ stock: 3, costUsdCents: 100 }), product({ stock: -2, costUsdCents: 100 })])).toBe(300);
+  });
+});
+
+describe('low stock after a sale', () => {
+  const p = (id: string, stock: number, minStock: number | null = null) => ({ id, stock, minStock });
+  it('warns when the sale crossed the level or sold the last one', () => {
+    const sold = new Map([
+      ['a', 2],
+      ['b', 1],
+      ['c', 1],
+      ['d', 1],
+    ]);
+    const after = [p('a', 9), p('b', 0, 2), p('c', 1, 2), p('d', 12)];
+    // a: 11 -> 9 crosses 10. b: 1 -> 0 sold out. c: 2 -> 1 was already low. d: still above.
+    expect(lowStockAfterSale(after, sold, 10).map((x) => x.id)).toEqual(['b', 'a']);
+  });
+
+  it('ignores products that were not in the sale', () => {
+    expect(lowStockAfterSale([p('x', 0)], new Map(), 10)).toEqual([]);
   });
 });

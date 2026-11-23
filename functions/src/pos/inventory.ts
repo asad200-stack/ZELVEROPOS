@@ -5,6 +5,7 @@ import { db, storage } from '../admin.js';
 import { fail } from '../errors.js';
 import { weightedAverageCost } from '../shared/inventory.js';
 import { MAX_VISIBLE_PRODUCTS } from '../shared/onlineStore.js';
+import { inheritedPhoto } from '../shared/variants.js';
 import { nameNormalized } from '../shared/searchKey.js';
 import { parse } from '../validate.js';
 import { auditFields, bumpDailyStats, cents, idField, lbpField, posActor, runClientOp, tenantPaths, toCashbox, toProduct } from './common.js';
@@ -274,6 +275,9 @@ export const posAddProductOptions = onCall(async (request) => {
     const atMs = Date.now();
     const audit = auditFields(actor, atMs);
     const base = String(t.groupName ?? '') || String(t.name ?? '');
+    const looks = siblings.docs
+      .filter((d) => d.data().status !== 'archived')
+      .map((d) => toProduct(d.id, d.data()));
     const ids: string[] = [];
     for (const row of input.rows) {
       const ref = p.newRef('products');
@@ -314,10 +318,10 @@ export const posAddProductOptions = onCall(async (request) => {
         options: row.values.map((value, i) => ({ name: axisNames[i]!, value })),
         stock: row.stock,
         imeis: [],
-        // No shared photo file: replacing another option's photo deletes its file. The store
-        // shows a sibling's photo for an option without one.
-        imageUrl: null,
-        imagePath: null,
+        // A new size starts with the photo of its colour. The file is shared; deleting or
+        // replacing one option's photo keeps a file another option still uses.
+        imageUrl: inheritedPhoto(looks, row.values)?.imageUrl ?? null,
+        imagePath: inheritedPhoto(looks, row.values)?.imagePath ?? null,
         lastMovementId,
         status: 'active',
         archivedAt: null,
@@ -449,7 +453,10 @@ export const posDeleteProduct = onCall(async (request) => {
       ...REFERENCING.map((name) => tx.get(p.col(name).where('productIds', 'array-contains', product.id).limit(1))),
     ]);
     if (checks.some((q) => !q.empty)) fail('failed-precondition', 'error.productInUse', { name: product.name });
+    // Options of one colour share their photo file: keep it while another option uses it.
+    const sharing = product.imagePath && product.groupId ? await tx.get(p.col('products').where('imagePath', '==', product.imagePath).limit(2)) : null;
     tx.delete(ref);
+    if (sharing?.docs.some((d) => d.id !== product.id)) return null;
     return product.imagePath;
   });
 

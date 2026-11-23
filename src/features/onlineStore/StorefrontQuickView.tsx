@@ -40,12 +40,12 @@ const FITS: { id: FitPref; key: TranslationKey }[] = [
   { id: 'loose', key: 'storefront.fitLoose' },
 ];
 
-function Face({ product, back }: { product: PublicProduct; back?: boolean }) {
+function Face({ product, src, back }: { product: PublicProduct; src: string | null; back?: boolean }) {
   const cls = back ? 'sf-qv-face sf-qv-back' : 'sf-qv-face';
   return (
     <div className={cls}>
-      {product.imageUrl ? (
-        <img src={product.imageUrl} alt="" draggable={false} decoding="async" />
+      {src ? (
+        <img src={src} alt="" draggable={false} decoding="async" />
       ) : (
         <div className="sf-ph">{product.name.trim().charAt(0).toUpperCase() || '•'}</div>
       )}
@@ -118,6 +118,11 @@ export default function StorefrontQuickView(props: Props) {
   const [bad, setBad] = useState(false);
   const [finder, setFinder] = useState(false);
   const [tryOn, setTryOn] = useState(false);
+  // Main photo first, then the extra ones; the choice resets when another option is shown.
+  const photos = [p.imageUrl, ...(p.images ?? [])].filter((u): u is string => !!u);
+  const [photo, setPhoto] = useState({ id: p.id, i: 0 });
+  const shown = photo.id === p.id ? Math.min(photo.i, Math.max(0, photos.length - 1)) : 0;
+  const src = photos[shown] ?? null;
 
   const sizes: readonly string[] = kind === 'shoes' ? SHOE_SIZES : APPAREL_SIZES;
   const needsSize = kind !== null;
@@ -186,15 +191,34 @@ export default function StorefrontQuickView(props: Props) {
           >
             {zoom ? (
               <div className="sf-qv-zoom" style={{ transformOrigin: origin }}>
-                <Face product={p} />
+                <Face product={p} src={src} />
               </div>
             ) : (
               <div className="sf-qv-spin" style={{ transform: `rotateY(${angle}deg)` }}>
-                <Face product={p} />
-                <Face product={p} back />
+                <Face product={p} src={src} />
+                <Face product={p} src={src} back />
               </div>
             )}
           </div>
+          {photos.length > 1 && (
+            <div className="sf-qv-thumbs" role="group" aria-label={t('storefront.photos')}>
+              {photos.map((u, i) => (
+                <button
+                  key={u}
+                  type="button"
+                  className={i === shown ? 'is-on' : undefined}
+                  aria-pressed={i === shown}
+                  aria-label={t('storefront.photoN', { n: i + 1, total: photos.length })}
+                  onClick={() => {
+                    setPhoto({ id: p.id, i });
+                    setAngle(0);
+                  }}
+                >
+                  <img src={u} alt="" loading="lazy" decoding="async" />
+                </button>
+              ))}
+            </div>
+          )}
           <div className="sf-qv-tools">
             <span>{t('storefront.dragRotate')}</span>
             <button type="button" className="sf-link" onClick={() => setZoom((z) => !z)}>
@@ -217,7 +241,7 @@ export default function StorefrontQuickView(props: Props) {
             {discountPercent(p) !== null && <span className="sf-off">−{discountPercent(p)}%</span>}
           </div>
           {p.description && <p className="sf-qv-desc">{p.description}</p>}
-          <ShareRow t={t} name={p.name} url={props.shareUrl} />
+          <ShareRow t={t} name={`${title} — ${priceOf(p)}`} url={props.shareUrl} />
           {!p.inStock && (!grouped || chosen) && <p className="sf-msg sf-msg-warn">{t('storefront.outOfStock')}</p>}
 
           {axes.map((axis, i) => (

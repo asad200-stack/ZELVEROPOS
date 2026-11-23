@@ -5,7 +5,7 @@ import { customerReleaseCutoverAllowed } from '@/domain/previewAccess';
 import { firebase } from '@/firebase/app';
 import type { PermissionMap } from '@/constants/permissions';
 import type { OnlineStoreConfig, PublicProduct, PublicStore, StatsRange, StoreBranding, StoreEvent, StoreStatsSummary } from '@/domain/onlineStore';
-import type { FulfillmentMethod, OnlineOrder, OrderStatus, PaymentMethod, PaymentStatus, ProductReview, PublicOrderReceipt, PublicOrderTracking, PublicReview, ReviewStatus, ReviewSummary } from '@/domain/onlineOrders';
+import type { FulfillmentMethod, OnlineOrder, ManualPayment, OrderStatus, PaymentMethod, PaymentStatus, ProductReview, PublicOrderReceipt, PublicOrderTracking, PublicReview, ReviewStatus, ReviewSummary, SalesSplit } from '@/domain/onlineOrders';
 import { withoutUndefined } from './callableData';
 import { requirePreviewCredential } from './previewCredential';
 
@@ -288,7 +288,7 @@ export const api = {
   >('onlineStoreSaveListing'),
   onlineStoreSetDomain: callable<{ domain: string }, { config: OnlineStoreConfig }>('onlineStoreSetDomain'),
   publicStoreByDomain: callable<{ domain: string }, { slug: string }>('publicStoreByDomain'),
-  onlineStoreStats: callable<{ days: StatsRange }, StoreStatsSummary & { names: Record<string, string> }>('onlineStoreStats'),
+  onlineStoreStats: callable<{ days: StatsRange }, StoreStatsSummary & { names: Record<string, string>; sales?: SalesSplit }>('onlineStoreStats'),
   publicTrackEvent: callable<{ slug: string; type: StoreEvent; productId?: string }, { ok: true }>('publicTrackEvent'),
   publicStoreCatalog: callable<
     { slug: string },
@@ -318,6 +318,7 @@ export const api = {
   >('publicPlaceOrder'),
   onlineOrdersList: callable<{ status?: OrderStatus; limit?: number }, { orders: OnlineOrder[] }>('onlineOrdersList'),
   onlineOrdersSetStatus: callable<{ orderId: string; status: OrderStatus }, { order: OnlineOrder }>('onlineOrdersSetStatus'),
+  onlineOrdersSettlePayment: callable<{ orderId: string; how: ManualPayment }, { order: OnlineOrder }>('onlineOrdersSettlePayment'),
   publicTrackOrder: callable<{ slug: string; ref: string; phone: string }, PublicOrderTracking>('publicTrackOrder'),
   publicSubmitReview: callable<{ slug: string; ref: string; phone: string; productId: string; rating: number; text: string }, { ok: true }>('publicSubmitReview'),
   publicProductReviews: callable<{ slug: string; productId: string }, { reviews: PublicReview[]; summary: ReviewSummary }>('publicProductReviews'),

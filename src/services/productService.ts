@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { nameNormalized } from '@/domain/searchKey';
 import { firebase } from '@/firebase/app';
-import type { Product, ProductStatus, StockMovement, TierPrices } from '@/types/models';
+import type { Product, ProductPhoto, ProductStatus, StockMovement, TierPrices } from '@/types/models';
 import { paths, toProduct, toStockMovement, type Actor } from './db';
 import { newClientOperationId, retryOnTransport } from './clientOperation';
 import { AppError } from './errors';
@@ -159,7 +159,38 @@ export async function setProductImage(actor: Actor, id: string, image: { url: st
     imagePath: image?.path ?? null,
     updatedAt: serverTimestamp(),
   });
-  if (previousPath && previousPath !== image?.path) await deleteStorageFile(previousPath);
+  if (previousPath && previousPath !== image?.path && !(await photoStillUsed(actor.tenantId, previousPath))) await deleteStorageFile(previousPath);
+}
+
+/** Stores the product's extra photos in their order and deletes the ones the owner removed. */
+export async function setProductGallery(actor: Actor, id: string, gallery: readonly ProductPhoto[], removedPaths: readonly string[]): Promise<void> {
+  await updateDoc(paths.doc(actor.tenantId, 'products', id), {
+    gallery: gallery.map((g) => ({ url: g.url, path: g.path })),
+    updatedAt: serverTimestamp(),
+  });
+  for (const path of removedPaths) await deleteStorageFile(path).catch(() => undefined);
+}
+
+/** Options of one colour share a photo file; it is deleted only when no product uses it any more. */
+async function photoStillUsed(tenantId: string, path: string): Promise<boolean> {
+  const snap = await getDocs(query(paths.col(tenantId, 'products'), where('imagePath', '==', path), limit(1)));
+  return !snap.empty;
+}
+
+/**
+ * Gives several options of an item (e.g. every size of the red one) the same photo, stored once.
+ * Their previous photos are deleted when nothing else uses them.
+ */
+export async function setOptionsPhoto(actor: Actor, options: readonly Product[], image: { url: string; path: string }): Promise<void> {
+  const batch = writeBatch(firebase.db);
+  for (const o of options) {
+    batch.update(paths.doc(actor.tenantId, 'products', o.id), { imageUrl: image.url, imagePath: image.path, updatedAt: serverTimestamp() });
+  }
+  await commit(batch);
+  const old = [...new Set(options.map((o) => o.imagePath).filter((x): x is string => !!x && x !== image.path))];
+  for (const path of old) {
+    if (!(await photoStillUsed(actor.tenantId, path))) await deleteStorageFile(path).catch(() => undefined);
+  }
 }
 
 /** Archives (hides from POS and purchases, keeps stock and history) or restores a product. */

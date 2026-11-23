@@ -66,7 +66,11 @@ const config = {
       { source: TREE, destination: `${TREE}/index.html` },
       { source: `${TREE}/**`, destination: `${TREE}/index.html` },
       // Public store pages run on the new tree while it is piloted; the customer app itself stays on the root.
-      { source: '/s/**', destination: `${TREE}/index.html` },
+      // STORE_SHARE_PREVIEWS=1 (only after publicStorePage is deployed with STORE_SHELL_PATH set to
+      // this tree): store and product links get their own WhatsApp/Facebook preview.
+      process.env.STORE_SHARE_PREVIEWS === '1'
+        ? { source: '/s/**', function: { functionId: 'publicStorePage', region: 'europe-west1' } }
+        : { source: '/s/**', destination: `${TREE}/index.html` },
       { source: '**/!(*.*)', destination: '/index.html' },
     ],
     headers,

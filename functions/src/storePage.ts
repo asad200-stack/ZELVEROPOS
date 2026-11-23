@@ -16,9 +16,10 @@
  * unpublished stores get the plain shell; the app then shows its own "not found" page.
  */
 import { onRequest } from 'firebase-functions/v2/https';
-import { REGION, STORE_EXTRA_HOSTS, STORE_SITE_ORIGIN } from './config.js';
+import { REGION, STORE_EXTRA_HOSTS, STORE_SHELL_PATH, STORE_SITE_ORIGIN } from './config.js';
 import { activeProducts, resolvePublishedStore } from './onlineStore.js';
-import { injectShareMeta, normalizeSlug, slugProblem, storeManifest, storeShareMeta } from './shared/onlineStore.js';
+import { toProduct } from './pos/common.js';
+import { injectShareMeta, normalizeSlug, productShareMeta, projectPublicProduct, slugProblem, storeManifest, storeShareMeta } from './shared/onlineStore.js';
 
 const SHELL_TTL_MS = 5 * 60_000;
 const META_TTL_MS = 5 * 60_000;
@@ -45,7 +46,9 @@ function siteOrigin(): string {
 async function loadShell(now: number): Promise<string> {
   if (shell && now - shell.atMs < SHELL_TTL_MS) return shell.html;
   try {
-    const res = await fetch(`${siteOrigin()}/index.html`, { signal: AbortSignal.timeout(4000) });
+    const path = STORE_SHELL_PATH.value().trim();
+    const shellPath = /^\/[A-Za-z0-9._/-]*\.html$/.test(path) && !path.includes('..') ? path : '/index.html';
+    const res = await fetch(`${siteOrigin()}${shellPath}`, { signal: AbortSignal.timeout(4000) });
     const html = res.ok ? await res.text() : '';
     if (/<\/head>/i.test(html) && html.length < 200_000) {
       shell = { html, atMs: now };
@@ -71,8 +74,10 @@ function linkOrigin(host: string | undefined): string {
   return h && allowed.has(h) ? `https://${h}` : site;
 }
 
-async function loadMeta(slug: string, origin: string, now: number) {
-  const key = `${origin}|${slug}`;
+const PRODUCT_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+
+async function loadMeta(slug: string, origin: string, now: number, productId = '') {
+  const key = `${origin}|${slug}|${productId}`;
   const hit = metaCache.get(key);
   if (hit && now - hit.atMs < META_TTL_MS) return hit.meta;
   let meta: ReturnType<typeof storeShareMeta> | null;
@@ -82,6 +87,11 @@ async function loadMeta(slug: string, origin: string, now: number) {
     const products = await activeProducts(tenantId, ids);
     const image = ids.map((id) => products.get(id)?.imageUrl).find((u): u is string => typeof u === 'string' && u.startsWith('https://'));
     meta = storeShareMeta(slug, published, origin, image ?? '');
+    // A shared product link (?p=id) previews that product, when it is on the store.
+    if (productId && config.visibleProductIds.includes(productId)) {
+      const data = products.get(productId) ?? (await activeProducts(tenantId, [productId])).get(productId);
+      if (data) meta = productShareMeta(meta, projectPublicProduct(toProduct(productId, data)));
+    }
   } catch {
     meta = null; // not found / not published: plain shell
   }
@@ -100,7 +110,9 @@ export const publicStorePage = onRequest({ region: REGION, memory: '256MiB', con
   const slug = match ? normalizeSlug(decodeURIComponent(match[1] ?? '')) : '';
   const valid = !!slug && !slugProblem(slug);
   const origin = linkOrigin(req.get('x-forwarded-host') ?? req.get('host'));
-  const meta = valid ? await loadMeta(slug, origin, now) : null;
+  const rawProduct = typeof req.query.p === 'string' ? req.query.p : '';
+  const productId = !match?.[2] && PRODUCT_ID_RE.test(rawProduct) ? rawProduct : '';
+  const meta = valid ? await loadMeta(slug, origin, now, productId) : null;
 
   if (match?.[2]) {
     if (!meta) {

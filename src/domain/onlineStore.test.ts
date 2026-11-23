@@ -12,6 +12,7 @@ import {
   FREE_DELIVERY_MAX_USD_CENTS,
   freeDeliveryProgress,
   normalizeSlug,
+  productShareMeta,
   projectPublicProduct,
   projectPublicStore,
   publishBlockers,
@@ -121,7 +122,16 @@ describe('public projections', () => {
       groupId: null,
       groupName: '',
       options: [],
+      images: [],
     });
+  });
+
+  it('passes on extra photos (https only, at most five)', () => {
+    const base = { id: 'g', name: 'Bag', category: '', prices: { retail: { usdCents: 900, lbp: null } }, imageUrl: null, stock: 2 };
+    const gallery = ['a', 'b', 'c', 'd', 'e', 'f'].map((x) => ({ url: `https://x/${x}.webp`, path: `p/${x}` }));
+    gallery.unshift({ url: 'javascript:alert(1)', path: 'bad' });
+    const out = projectPublicProduct({ ...base, gallery } as unknown as Parameters<typeof projectPublicProduct>[0]);
+    expect(out.images).toEqual(['https://x/a.webp', 'https://x/b.webp', 'https://x/c.webp', 'https://x/d.webp', 'https://x/e.webp']);
   });
 
   it('passes on which size or colour a product is, and nothing for a stand-alone one', () => {
@@ -367,6 +377,18 @@ describe('share previews', () => {
     expect(html).not.toContain('ZELVERO POS');
     expect(html.match(/rel="manifest"/g)).toHaveLength(1);
     expect(m.url).toBe('https://zelvoropos.web.app/s/abu-ali');
+  });
+
+  it('previews one shared product with its name, price and photo', () => {
+    const store = storeShareMeta('shop', { ...defaultBranding('Shop'), defaultLocale: 'ar' }, 'https://x.web.app', 'https://img/store.webp');
+    const meta = productShareMeta(store, { id: 'v1', name: 'Tee - M', priceUsdCents: 1250, imageUrl: 'https://img/tee.webp', groupId: 'g1', groupName: 'Tee' });
+    expect(meta.title).toBe('Tee — $12.50');
+    expect(meta.imageUrl).toBe('https://img/tee.webp');
+    expect(meta.url).toBe('https://x.web.app/s/shop?p=v1');
+    expect(meta.description).toContain('Shop');
+    const plain = productShareMeta(store, { id: 'p2', name: 'Mug', priceUsdCents: 500, imageUrl: null, groupId: null, groupName: '' });
+    expect(plain.title).toBe('Mug — $5');
+    expect(plain.imageUrl).toBe('https://img/store.webp');
   });
 
   it('drops non-https images and builds a per-store manifest', () => {

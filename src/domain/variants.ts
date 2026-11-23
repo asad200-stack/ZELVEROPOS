@@ -208,3 +208,30 @@ export function valueInStock(
     return v.inStock && vals[axis] === value && vals.every((x, i) => i === axis || i > axis || x === current[i]);
   });
 }
+
+/**
+ * Which option kind carries the photo: the first one that is not a size list (usually colour).
+ * -1 when every kind is a size list, so all options of the item share one photo.
+ */
+export function photoAxisIndex(axes: readonly { values: readonly string[] }[]): number {
+  return axes.findIndex((a) => a.values.length > 0 && !SIZE_LISTS.some((list) => a.values.every((v) => list.includes(v.toUpperCase()))));
+}
+
+/** Whether two options look the same in a photo: same value on the photo axis (any, without one). */
+export function samePhotoLook(a: readonly string[], b: readonly string[], photoAxis: number): boolean {
+  if (photoAxis < 0) return true;
+  return (a[photoAxis] ?? '').trim().toLowerCase() === (b[photoAxis] ?? '').trim().toLowerCase();
+}
+
+/**
+ * The photo a newly added option should start with: the photo of an option that looks the same
+ * (same colour), else nothing. Returns the first match that has a photo.
+ */
+export function inheritedPhoto<P extends { options?: ProductOption[]; imageUrl: string | null; imagePath?: string | null }>(
+  siblings: readonly P[],
+  values: readonly string[],
+): { imageUrl: string; imagePath: string | null } | null {
+  const axis = photoAxisIndex(axesOf(siblings));
+  const hit = siblings.find((s) => !!s.imageUrl && samePhotoLook(valuesOf(s), values, axis));
+  return hit?.imageUrl ? { imageUrl: hit.imageUrl, imagePath: hit.imagePath ?? null } : null;
+}
