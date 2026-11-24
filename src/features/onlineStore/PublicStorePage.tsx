@@ -24,6 +24,8 @@ import { formatLbp, formatUsd } from '@/utils/format';
 import { fitKind, withSizes } from './sizeAdvisor';
 import { collapseVariants } from '@/domain/variants';
 import AtelierRail from './AtelierRail';
+import FittingRoom from './FittingRoom';
+import { FITTING_ROOM_MIN, fittingLooks } from './roomLooks';
 import BistroHero from './BistroHero';
 import StudioHero from './StudioHero';
 import TechHero from './TechHero';
@@ -415,6 +417,8 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const allProducts = useMemo(() => catalog?.products ?? [], [catalog]);
   // Sizes/colours of one item show as one card; the cart and orders keep the exact option.
   const collapsed = useMemo(() => collapseVariants(allProducts), [allProducts]);
+  // Pieces the owner photographed for the fitting room (shown instead of the hero when there are enough).
+  const looks = useMemo(() => fittingLooks(allProducts), [allProducts]);
   const products = collapsed.listed;
   /** The card listed for any product id (an option leads to its item's card). */
   const listedFor = (id: string) => products.find((p) => p.id === (collapsed.leadOf.get(id) ?? id));
@@ -1440,7 +1444,19 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
       {bar}
       {header}
 
-      {store.theme === 'studio' ? (
+      {looks.length >= FITTING_ROOM_MIN ? (
+        <FittingRoom
+          storeName={store.storeName}
+          looks={looks}
+          t={t}
+          priceOf={(p) => priceLabel(p, lang)}
+          sizeOf={(id) => sizes[id] ?? ''}
+          onSize={(id, s) => setSizes((m) => ({ ...m, [id]: s }))}
+          onAdd={(p, from) => addFrom(p, from)}
+          onOpen={(id) => setQuick(id)}
+          bagIcon={<IconBag />}
+        />
+      ) : store.theme === 'studio' ? (
         <StudioHero
           title={heroTitle}
           subtitle={heroSubtitle}

@@ -3,7 +3,6 @@ import { discountPercent, type PublicProduct, type StoreLocale } from '@/domain/
 import { formatUsd } from '@/utils/format';
 import type { TranslationKey, TParams } from '@/i18n/i18n';
 import { APPAREL_SIZES, SHOE_SIZES, apparelSize, fitKind, shoeSize, type FitPref } from './sizeAdvisor';
-import StorefrontTryOn from './StorefrontTryOn';
 import StorefrontReviews from './StorefrontReviews';
 import { axesOf, pickVariant, valueInStock } from '@/domain/variants';
 
@@ -117,7 +116,6 @@ export default function StorefrontQuickView(props: Props) {
   const [advice, setAdvice] = useState<string | null>(null);
   const [bad, setBad] = useState(false);
   const [finder, setFinder] = useState(false);
-  const [tryOn, setTryOn] = useState(false);
   // Main photo first, then the extra ones; the choice resets when another option is shown.
   const photos = [p.imageUrl, ...(p.images ?? [])].filter((u): u is string => !!u);
   const [photo, setPhoto] = useState({ id: p.id, i: 0 });
@@ -224,11 +222,6 @@ export default function StorefrontQuickView(props: Props) {
             <button type="button" className="sf-link" onClick={() => setZoom((z) => !z)}>
               {zoom ? t('storefront.zoomOut') : t('storefront.zoomIn')}
             </button>
-            {kind !== null && p.imageUrl && (
-              <button type="button" className="sf-link sf-to-open" onClick={() => setTryOn(true)}>
-                {t('storefront.tryOn')}
-              </button>
-            )}
           </div>
         </div>
 
@@ -395,7 +388,6 @@ export default function StorefrontQuickView(props: Props) {
           )}
         </div>
       </div>
-      {tryOn && kind && <StorefrontTryOn product={p} kind={kind} t={t} onSize={props.onSize} onClose={() => setTryOn(false)} />}
     </>
   );
 }

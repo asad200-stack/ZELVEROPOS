@@ -1,5 +1,5 @@
 // Settings → Online Store (Milestone A). Owner-only; every call is re-authorized on the server.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Checkbox, Field, FormGrid, SelectInput, TextArea, TextInput } from '@/components/ui/Form';
 import { Alert, Badge, Card, EmptyState, PageHeader, SearchBox } from '@/components/ui/Layout';
@@ -41,6 +41,7 @@ import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { StoreDesignEditor } from './StoreDesignEditor';
 import { WhishSettingsCard } from './WhishSettingsCard';
 import { StoreLinkCard } from './StoreLinkCard';
+import { FittingRoomCard } from './FittingRoomCard';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { useI18n } from '@/i18n/i18n';
 import { api } from '@/services/functionsClient';
@@ -164,8 +165,18 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
   const slugIssue = slug ? slugProblem(slug) : null;
   const domain = normalizeDomain(domainInput);
   const domainIssue = domain ? domainProblem(domain) : null;
-  const blockers = publishBlockers(config);
+  const dirty = brandingDirty || productsDirty;
+  // Judged on what is on screen: publishing saves the unsaved edits first.
+  const blockers = publishBlockers({ ...config, enabled, draft, visibleProductIds: selected });
   const isPublished = config.publication === 'published';
+
+  // Closing or reloading the tab with unsaved edits asks first instead of losing them.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   const set = <K extends keyof StoreBranding>(key: K, value: StoreBranding[K]) => setDraft((d) => ({ ...d, [key]: value }));
 
@@ -221,13 +232,18 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
     setSelected((cur) => cur.filter((id) => !drop.has(id)));
   };
 
-  const apply = (next: OnlineStoreConfig) => {
+  /*
+   * Each save only refreshes its own section. Edits still unsaved in the other sections stay on
+   * screen (before, any save reloaded the whole page from the server and wiped them).
+   */
+  const applyBranding = (next: OnlineStoreConfig) => {
     setConfig(next);
     setEnabled(next.enabled);
     setDraft(next.draft);
+  };
+  const applyProducts = (next: OnlineStoreConfig) => {
+    setConfig(next);
     setSelected(next.visibleProductIds);
-    setSlugInput(next.slug ?? '');
-    setDomainInput(next.customDomain);
   };
 
   const setZone = (i: number, patch: Partial<DeliveryZone>) =>
@@ -244,23 +260,27 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
     return Number.isFinite(dollars) && dollars > 0 ? Math.min(max, Math.round(dollars * 100)) : 0;
   };
 
-  const saveDraft = async () => {
+  const storeDraft = async () => {
     // Rows left without a name are dropped instead of failing the whole save.
     const clean = {
       ...draft,
       deliveryZones: draft.deliveryZones.map((z) => ({ ...z, name: z.name.trim() })).filter((z) => z.name.length > 0),
     };
     const res = await action.run(() => api.onlineStoreSaveDraft({ enabled, draft: clean }));
-    if (!res) return;
-    apply(res.config);
-    notify('success', t('onlineStore.draftSaved'));
+    if (!res) return null;
+    applyBranding(res.config);
+    return res.config;
+  };
+  const saveDraft = async () => {
+    if (await storeDraft()) notify('success', t('onlineStore.draftSaved'));
   };
 
   const saveSlug = async () => {
     if (!slug || slugIssue) return;
     const res = await action.run(() => api.onlineStoreSetSlug({ slug }));
     if (!res) return;
-    apply(res.config);
+    setConfig(res.config);
+    setSlugInput(res.config.slug ?? '');
     notify('success', t('onlineStore.slugSaved'));
   };
 
@@ -268,28 +288,35 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
     if (domainIssue) return;
     const res = await action.run(() => api.onlineStoreSetDomain({ domain }));
     if (!res) return;
-    apply(res.config);
+    setConfig(res.config);
+    setDomainInput(res.config.customDomain);
     notify('success', t(domain ? 'onlineStore.domain.saved' : 'onlineStore.domain.removed'));
   };
 
-  const saveProducts = async () => {
+  const storeProducts = async () => {
     const res = await action.run(() => api.onlineStoreSetProductVisibility({ productIds: selected }));
-    if (!res) return;
-    apply(res.config);
-    notify('success', t('onlineStore.productsSaved'));
+    if (!res) return null;
+    applyProducts(res.config);
+    return res.config;
+  };
+  const saveProducts = async () => {
+    if (await storeProducts()) notify('success', t('onlineStore.productsSaved'));
   };
 
+  /** Publishing first saves whatever is still unsaved, so nothing typed is left out of the live site. */
   const publish = async () => {
+    if (brandingDirty && !(await storeDraft())) return;
+    if (productsDirty && !(await storeProducts())) return;
     const res = await action.run(() => api.onlineStorePublish({}));
     if (!res) return;
-    apply(res.config);
+    setConfig(res.config);
     notify('success', t('onlineStore.published'));
   };
 
   const unpublish = async () => {
     const res = await action.run(() => api.onlineStoreUnpublish({}));
     if (!res) return;
-    apply(res.config);
+    setConfig(res.config);
     notify('success', t('onlineStore.unpublished'));
   };
 
@@ -685,6 +712,12 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
         </div>
       </Card>
 
+      <FittingRoomCard
+        products={initial.products.filter((p) => selectedSet.has(p.id))}
+        config={config}
+        onConfig={(next) => setConfig((c) => ({ ...c, listings: next.listings }))}
+      />
+
       <Card title={t('onlineStore.preview')}>
         <div className="stack">
           <p className="muted">{t('onlineStore.previewHint')}</p>
@@ -733,10 +766,10 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
             <Button
               variant="primary"
               loading={action.busy}
-              disabled={blockers.length > 0 || brandingDirty || productsDirty}
+              disabled={blockers.length > 0}
               onClick={() => void publish()}
             >
-              {t('onlineStore.publish')}
+              {t(dirty ? 'onlineStore.saveAndPublish' : 'onlineStore.publish')}
             </Button>
           </div>
         </div>

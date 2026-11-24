@@ -375,6 +375,8 @@ export interface PublicProduct {
   isNew: boolean;
   /** Same product on a transparent background, when the owner made one; else null. */
   cutoutUrl: string | null;
+  /** Fitting room photo (the model wearing it, background removed), else null. */
+  lookUrl: string | null;
   /** Size/colour set this product is one option of (see domain/variants), else null. */
   groupId: string | null;
   /** The set's own name ('' for a stand-alone product). */
@@ -437,6 +439,8 @@ export interface ProductListing {
   compareAtUsdCents: number | null;
   /** Product photo with the background removed (for the 3D showcase), or '' when none. */
   cutoutUrl: string;
+  /** Fitting room: the model or mannequin wearing it, background removed, or '' when none. */
+  lookUrl: string;
 }
 
 const LISTING_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -451,8 +455,9 @@ export function toListings(v: unknown): Record<string, ProductListing> {
     const description = typeof o.description === 'string' ? o.description.trim().slice(0, LISTING_DESC_MAX) : '';
     const compareAtUsdCents = toFreeDeliveryThreshold(o.compareAtUsdCents);
     const cutoutUrl = heroImageOk(o.cutoutUrl) ? o.cutoutUrl : '';
-    if (!description && compareAtUsdCents === null && !cutoutUrl) continue;
-    out[id] = { description, compareAtUsdCents, cutoutUrl };
+    const lookUrl = heroImageOk(o.lookUrl) ? o.lookUrl : '';
+    if (!description && compareAtUsdCents === null && !cutoutUrl && !lookUrl) continue;
+    out[id] = { description, compareAtUsdCents, cutoutUrl, lookUrl };
   }
   return out;
 }
@@ -479,6 +484,7 @@ export function projectPublicProduct(
     rating: ratingOf(totals),
     isNew: nowMs !== undefined && created > 0 && nowMs - created < NEW_PRODUCT_DAYS * DAY_MS,
     cutoutUrl: listing?.cutoutUrl || null,
+    lookUrl: listing?.lookUrl || null,
     groupId: p.groupId || null,
     groupName: p.groupId ? (p.groupName ?? '') : '',
     options: p.groupId ? (p.options ?? []).map((o) => ({ name: o.name, value: o.value })) : [],

@@ -283,7 +283,7 @@ export const api = {
   onlineStoreUnpublish: callable<Record<string, never>, { config: OnlineStoreConfig }>('onlineStoreUnpublish'),
   onlineStoreSetProductVisibility: callable<{ productIds: string[] }, { config: OnlineStoreConfig }>('onlineStoreSetProductVisibility'),
   onlineStoreSaveListing: callable<
-    { productId: string; description: string; compareAtUsdCents: number | null; cutoutUrl?: string },
+    { productId: string; description: string; compareAtUsdCents: number | null; cutoutUrl?: string; lookUrl?: string },
     { config: OnlineStoreConfig }
   >('onlineStoreSaveListing'),
   onlineStoreSetDomain: callable<{ domain: string }, { config: OnlineStoreConfig }>('onlineStoreSetDomain'),

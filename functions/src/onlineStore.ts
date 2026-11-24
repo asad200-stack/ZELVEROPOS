@@ -223,6 +223,11 @@ const listingSchema = z.strictObject({
     .max(HERO_IMAGE_URL_MAX)
     .refine((u) => u === '' || heroImageOk(u))
     .optional(),
+  lookUrl: z
+    .string()
+    .max(HERO_IMAGE_URL_MAX)
+    .refine((u) => u === '' || heroImageOk(u))
+    .optional(),
 });
 
 /* ------------------------------------------------------------------ helpers */
@@ -395,10 +400,13 @@ export const onlineStoreSaveListing = onCall({ region: REGION }, (request) =>
     const ref = storeRef(tenantId);
     const snap = await ref.get();
     if (!snap.exists) await ref.set({ ...toStoreConfig(undefined), updatedAt: Date.now() });
-    const cutoutUrl = input.cutoutUrl ?? toStoreConfig(snap.data()).listings[input.productId]?.cutoutUrl ?? '';
-    const empty = !description && input.compareAtUsdCents === null && !cutoutUrl;
+    const stored = toStoreConfig(snap.data()).listings[input.productId];
+    // Photos the request leaves out are kept as they are (older clients don't send them).
+    const cutoutUrl = input.cutoutUrl ?? stored?.cutoutUrl ?? '';
+    const lookUrl = input.lookUrl ?? stored?.lookUrl ?? '';
+    const empty = !description && input.compareAtUsdCents === null && !cutoutUrl && !lookUrl;
     await ref.update({
-      [`listings.${input.productId}`]: empty ? FieldValue.delete() : { description, compareAtUsdCents: input.compareAtUsdCents, cutoutUrl },
+      [`listings.${input.productId}`]: empty ? FieldValue.delete() : { description, compareAtUsdCents: input.compareAtUsdCents, cutoutUrl, lookUrl },
       updatedAt: Date.now(),
     });
     return { config: await loadConfig(tenantId) };

@@ -61,7 +61,8 @@ export default function AtelierRail({ title, subtitle, cta, items, price, hint, 
                   <img src={p.cutoutUrl ?? p.imageUrl ?? ''} alt="" decoding="async" loading={i < 5 ? 'eager' : 'lazy'} />
                 </span>
                 <span className="at-tag" aria-hidden="true">
-                  {p.name}, {price(p)}
+                  <span className="at-tag-name">{p.name}</span>
+                  <span className="at-tag-price">{price(p)}</span>
                 </span>
               </button>
             ))}

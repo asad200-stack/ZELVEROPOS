@@ -11,9 +11,9 @@ import { cardColumns, customPriceFromDiscount, customPriceFromUnit, matchesInvoi
 /** Fixed row height keeps windowing exact. Must match .inv-row height in pages.css. */
 const ROW_H = 64;
 /** Card view: minimum card width, gap, and the fixed height of one row of cards (card + gap). */
-const CARD_MIN = 118;
+const CARD_MIN = 140;
 const CARD_GAP = 10;
-const CARD_ROW_H = 290;
+const CARD_ROW_H = 326;
 
 interface Props {
   totals: CartTotals;
