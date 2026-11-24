@@ -120,7 +120,7 @@ export default function FittingRoom({ storeName, looks, t, priceOf, sizeOf, onSi
     return (
       <button type="button" className={`fr-card ${cls}`} onClick={() => go(step)} aria-label={t('storefront.room.show', { name: q.name })}>
         <span className="fr-card-img">{q.imageUrl ? <img src={q.imageUrl} alt="" loading="lazy" decoding="async" /> : null}</span>
-        <span className="fr-card-name">{q.name}</span>
+        <span className="fr-card-name" dir="auto">{q.name}</span>
       </button>
     );
   };
@@ -183,7 +183,7 @@ export default function FittingRoom({ storeName, looks, t, priceOf, sizeOf, onSi
         <div className="fr-item">
           <span className="fr-thumb">{p.imageUrl ? <img src={p.imageUrl} alt="" /> : null}</span>
           <button type="button" className="fr-item-text" onClick={() => onOpen(p.id)}>
-            <b>{p.groupId ? p.groupName || p.name : p.name}</b>
+            <b dir="auto">{p.groupId ? p.groupName || p.name : p.name}</b>
             <span>{priceOf(p)}</span>
           </button>
           <button type="button" className="fr-add" onClick={buy}>

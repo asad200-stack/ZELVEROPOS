@@ -596,7 +596,7 @@ export const ar: Record<TranslationKey, string> = {
   'products.variants.created': 'انزاد المنتج بـ {count} خيار.',
   'storefront.fromPrice': 'من {price}',
   'storefront.optionSoldOut': 'خلصان',
-  'storefront.chooseOption': 'اختار {name}',
+  'storefront.chooseOption': 'اختر {name}',
   'products.variants.manage': 'المقاسات والكميّات',
   'products.variants.groupTitle': 'مقاسات {name}',
   'products.variants.current': 'المقاسات الموجودة',

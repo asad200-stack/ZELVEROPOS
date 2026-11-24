@@ -1698,7 +1698,7 @@ html:has(.sf), .sf { overflow-x: clip; }
 .sf-theme-atelier .sf-heart-card { top: auto; bottom: 10px; }
 .sf-theme-atelier .sf-body { padding: 12px 2px 4px; gap: 4px; }
 .sf-theme-atelier .sf-cat { order: 2; font-family: var(--at-mono); font-size: 11px; letter-spacing: 0.04em; color: var(--at-mute); }
-.sf-theme-atelier .sf-name { order: 1; font-size: 15px; font-weight: 700; min-height: 0; -webkit-line-clamp: 1; line-clamp: 1; }
+.sf-theme-atelier .sf-name { order: 1; font-size: 15px; font-weight: 700; min-height: 2.6em; -webkit-line-clamp: 2; line-clamp: 2; }
 .sf-theme-atelier .sf-rating { order: 3; }
 .sf-theme-atelier .sf-price { order: 1; font-size: 15px; font-weight: 700; color: var(--at-ink); }
 .sf-theme-atelier .sf-buy { order: 4; padding-top: 6px; }
@@ -2514,3 +2514,12 @@ html:has(.sf), .sf { overflow-x: clip; }
   .fr-model.is-changing, .fr-model.is-old { animation-duration: 0.01s; }
   .fr-scan { display: none; }
 }
+
+/* ---------- Audit fixes (2026-11-24) ---------- */
+/* Product names keep their own direction (an English name in the Arabic store ends with "…", not
+   starts with it) but stay aligned like the text around them. */
+.sf [dir='auto'] { text-align: match-parent; }
+/* "−18%" reads the same in both directions */
+.sf-chip-off, .sf-off { direction: ltr; unicode-bidi: isolate; }
+/* The category tag in the product window is a tag, not a full-width bar (it ran under the close button). */
+.sf-qv-info .sf-eyebrow { align-self: flex-start; max-width: calc(100% - 52px); }

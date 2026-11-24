@@ -1203,7 +1203,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
           </div>
           <div className="sf-body">
             {p.category.trim() && <span className="sf-cat">{p.category}</span>}
-            <h3 className="sf-name">{p.name}</h3>
+            <h3 className="sf-name" dir="auto">{p.name}</h3>
             {p.rating && (
               <span className="sf-rating" aria-label={t('storefront.ratingAria', { avg: p.rating.average, count: p.rating.count })}>
                 <span aria-hidden="true">★</span> {p.rating.average.toFixed(1)} <small>({p.rating.count})</small>
@@ -1664,7 +1664,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
                           <ProductVisual product={p} />
                         </div>
                         <div>
-                          <div className="sf-line-name">{p.name}</div>
+                          <div className="sf-line-name" dir="auto">{p.name}</div>
                           {sizes[p.id] && <div className="sf-line-size">{t('storefront.sizeLabel', { size: sizes[p.id] ?? '' })}</div>}
                           <div className="sf-line-price">{priceLabel(p, lang)}</div>
                         </div>

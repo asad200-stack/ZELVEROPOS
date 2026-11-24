@@ -378,7 +378,7 @@ export default function StorefrontQuickView(props: Props) {
                       <span className="sf-thumb">
                         {r.imageUrl ? <img src={r.imageUrl} alt="" loading="lazy" /> : <span className="sf-ph">{r.name.charAt(0)}</span>}
                       </span>
-                      <span className="sf-related-name">{r.name}</span>
+                      <span className="sf-related-name" dir="auto">{r.name}</span>
                       <span className="sf-related-price">{priceOf(r)}</span>
                     </button>
                   </li>
