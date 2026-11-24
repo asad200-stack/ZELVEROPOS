@@ -1700,7 +1700,8 @@ html:has(.sf), .sf { overflow-x: clip; }
 .sf-theme-atelier .sf-cat { order: 2; font-family: var(--at-mono); font-size: 11px; letter-spacing: 0.04em; color: var(--at-mute); }
 .sf-theme-atelier .sf-name { order: 1; font-size: 15px; font-weight: 700; min-height: 2.6em; -webkit-line-clamp: 2; line-clamp: 2; }
 .sf-theme-atelier .sf-rating { order: 3; }
-.sf-theme-atelier .sf-price { order: 1; font-size: 15px; font-weight: 700; color: var(--at-ink); }
+/* cards only: in the product window the price stays under the name */
+.sf-theme-atelier .sf-body .sf-price { order: 1; font-size: 15px; font-weight: 700; color: var(--at-ink); }
 .sf-theme-atelier .sf-buy { order: 4; padding-top: 6px; }
 .sf.sf-theme-atelier .sf-add {
   width: auto; height: 34px; padding-inline: 14px 10px; border-radius: 999px; background: transparent;
