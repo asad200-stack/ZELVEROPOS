@@ -22,6 +22,8 @@ interface Props {
 
 /** How long the model takes to change (the light line sweeping down). */
 const CHANGE_MS = 950;
+/** With more pieces than this, a button opens all of them at once to jump straight to one. */
+const BROWSE_FROM = 4;
 
 /**
  * The store's fitting room: one model in a lit room, the store's name behind them, and the
@@ -35,10 +37,11 @@ export default function FittingRoom({ storeName, looks, t, priceOf, sizeOf, onSi
   const [leaving, setLeaving] = useState<{ url: string; n: number } | null>(null);
   const [n, setN] = useState(0);
   const [nudge, setNudge] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
 
-  const cats = lookCategories(looks);
+  const cats = lookCategories(looks, 8);
   const list = cat ? looks.filter((l) => l.variants[0]?.category.trim() === cat) : looks;
   const i = wrap(at, list.length);
   const look = list[i];
@@ -71,6 +74,10 @@ export default function FittingRoom({ storeName, looks, t, priceOf, sizeOf, onSi
     apply();
   };
   const go = (step: number) => change(() => setAt(i + step));
+  const jump = (k: number) => {
+    setBrowsing(false);
+    if (k !== i) change(() => setAt(k));
+  };
   const choose = (c: string) => {
     if (c === cat) return;
     change(() => {
@@ -174,9 +181,53 @@ export default function FittingRoom({ storeName, looks, t, priceOf, sizeOf, onSi
             </button>
           </>
         )}
-        <span className="sf-sr" aria-live="polite">
-          {i + 1} / {list.length}
-        </span>
+        {list.length > BROWSE_FROM ? (
+          <button type="button" className="fr-browse" onClick={() => setBrowsing(true)} aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="4" width="6" height="6" rx="1.5" />
+              <rect x="14" y="4" width="6" height="6" rx="1.5" />
+              <rect x="4" y="14" width="6" height="6" rx="1.5" />
+              <rect x="14" y="14" width="6" height="6" rx="1.5" />
+            </svg>
+            <span aria-live="polite">
+              {i + 1} / {list.length}
+            </span>
+          </button>
+        ) : (
+          <span className="sf-sr" aria-live="polite">
+            {i + 1} / {list.length}
+          </span>
+        )}
+        {browsing && (
+          <div className="fr-grid" role="dialog" aria-label={t('storefront.room.browse')}>
+            <div className="fr-grid-head">
+              <b>{t('storefront.room.browse')}</b>
+              <button type="button" className="fr-grid-close" onClick={() => setBrowsing(false)} aria-label={t('storefront.room.close')}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <ul className="fr-grid-list">
+              {list.map((l, k) => {
+                const q = l.variants[0];
+                if (!q) return null;
+                return (
+                  <li key={l.key}>
+                    <button type="button" aria-current={k === i ? 'true' : undefined} onClick={() => jump(k)}>
+                      <span className="fr-grid-img">
+                        <img src={q.lookUrl ?? q.imageUrl ?? ''} alt="" loading="lazy" decoding="async" />
+                      </span>
+                      <span className="fr-grid-name" dir="auto">
+                        {q.groupId ? q.groupName || q.name : q.name}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="fr-bar">

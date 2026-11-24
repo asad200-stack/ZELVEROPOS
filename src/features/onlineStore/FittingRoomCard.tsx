@@ -8,6 +8,13 @@ import { useI18n } from '@/i18n/i18n';
 import { clearLook, makeLook } from './looks';
 import { FITTING_ROOM_MIN } from './roomLooks';
 
+/** Pieces shown at first, and added by each "Show more". */
+const PAGE = 12;
+/** From this many pieces the list gets a search box and filters. */
+const TOOLS_FROM = 8;
+
+type View = 'all' | 'ready' | 'missing';
+
 interface Props {
   /** Products shown online. */
   products: PublicProduct[];
@@ -31,6 +38,19 @@ export function FittingRoomCard({ products, config, onConfig }: Props) {
   const lookOf = (id: string) => config.listings[id]?.lookUrl ?? '';
   const ready = withPhoto.filter((p) => lookOf(p.id));
   const missing = withPhoto.filter((p) => !lookOf(p.id));
+
+  const [view, setView] = useState<View>('all');
+  const [query, setQuery] = useState('');
+  const [cat, setCat] = useState('');
+  const [limit, setLimit] = useState(PAGE);
+  const cats = [...new Set(withPhoto.map((p) => p.category.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const q = query.trim().toLowerCase();
+  const shown = (view === 'ready' ? ready : view === 'missing' ? missing : withPhoto).filter(
+    (p) => (!cat || p.category.trim() === cat) && (!q || p.name.toLowerCase().includes(q)),
+  );
+  const visible = shown.slice(0, limit);
+  const tools = withPhoto.length >= TOOLS_FROM;
+  const reset = () => setLimit(PAGE);
 
   const run = async (items: PublicProduct[], photo: Blob | null) => {
     let cfg = config;
@@ -91,8 +111,67 @@ export function FittingRoomCard({ products, config, onConfig }: Props) {
         {withPhoto.length === 0 ? (
           <span className="muted">{t('onlineStore.hero.noPhotos')}</span>
         ) : (
-          <ul className="os-room-list">
-            {withPhoto.map((p) => {
+          <>
+          {tools && (
+            <div className="os-room-tools">
+              <div className="os-room-views" role="tablist" aria-label={t('onlineStore.room.title')}>
+                {(
+                  [
+                    ['all', t('onlineStore.room.viewAll', { count: withPhoto.length })],
+                    ['ready', t('onlineStore.room.viewReady', { count: ready.length })],
+                    ['missing', t('onlineStore.room.viewMissing', { count: missing.length })],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="tab"
+                    aria-selected={view === k}
+                    onClick={() => {
+                      setView(k);
+                      reset();
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="search"
+                className="input os-room-search"
+                value={query}
+                placeholder={t('onlineStore.room.search')}
+                aria-label={t('onlineStore.room.search')}
+                onChange={(e) => {
+                  setQuery(e.currentTarget.value);
+                  reset();
+                }}
+              />
+              {cats.length > 1 && (
+                <select
+                  className="input os-room-cat"
+                  value={cat}
+                  aria-label={t('onlineStore.room.category')}
+                  onChange={(e) => {
+                    setCat(e.currentTarget.value);
+                    reset();
+                  }}
+                >
+                  <option value="">{t('onlineStore.room.allCategories')}</option>
+                  {cats.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+          {shown.length === 0 ? (
+            <span className="muted">{t('onlineStore.room.noMatch')}</span>
+          ) : (
+          <ul className={tools ? 'os-room-list is-compact' : 'os-room-list'}>
+            {visible.map((p) => {
               const look = lookOf(p.id);
               return (
                 <li key={p.id} className={look ? 'os-room-item is-ready' : 'os-room-item'}>
@@ -125,6 +204,15 @@ export function FittingRoomCard({ products, config, onConfig }: Props) {
               );
             })}
           </ul>
+          )}
+          {shown.length > visible.length && (
+            <div>
+              <Button variant="ghost" onClick={() => setLimit((n) => n + PAGE * 2)}>
+                {t('onlineStore.room.showMore', { count: shown.length - visible.length })}
+              </Button>
+            </div>
+          )}
+          </>
         )}
         {job ? (
           <p className="muted" role="status" style={{ margin: 0 }}>

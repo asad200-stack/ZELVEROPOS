@@ -3373,6 +3373,21 @@
   padding: 0;
   list-style: none;
 }
+/* Many pieces: filters, search and a denser grid keep the list short. */
+.os-room-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.os-room-views {
+  display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--c-surface-2);
+}
+.os-room-views button {
+  border: 0; padding: 6px 12px; border-radius: 8px; background: transparent; color: inherit; cursor: pointer;
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.os-room-views button[aria-selected='true'] { background: var(--c-surface); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+.os-room-search { flex: 1 1 180px; min-width: 0; max-width: 320px; }
+.os-room-cat { flex: 0 1 200px; min-width: 0; }
+.os-room-list.is-compact { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
+.os-room-list.is-compact .os-room-item { padding: 6px; gap: 4px; }
+.os-room-list.is-compact .os-room-name { font-size: 12px; }
 .os-room-item {
   display: grid;
   grid-template-rows: auto auto 1fr;
