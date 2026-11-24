@@ -1,4 +1,34 @@
 (function () {
+  /**
+   * Shop websites (/s/<slug>): ask for the catalogue now, while the app's scripts are still
+   * downloading, instead of after they start (saves about a second on every visit). The store
+   * page picks the answer up from window.__zvCatalog (see storefrontPrefetch.ts).
+   */
+  try {
+    var m = /(?:^|\/)s\/([a-z0-9-]{3,30})\/?$/.exec(location.pathname || '');
+    var meta = document.querySelector('meta[name="zv-functions"]');
+    var base = meta ? meta.getAttribute('content') || '' : '';
+    if (m && /^https:\/\/[a-z0-9-]+\.cloudfunctions\.net\/$/.test(base) && base.indexOf('-demo-') < 0) {
+      window.__zvCatalog = {
+        slug: m[1],
+        promise: fetch(base + 'publicStoreCatalog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: { slug: m[1] } })
+        })
+          .then(function (r) {
+            return r.ok ? r.json() : null;
+          })
+          .then(function (j) {
+            return j && j.result ? j.result : null;
+          })
+          .catch(function () {
+            return null;
+          })
+      };
+    }
+  } catch (e) {}
+
   try {
     var lang = localStorage.getItem('zelvero.lang') || 'en';
     var theme = localStorage.getItem('zelvero.theme') || 'light';

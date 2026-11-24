@@ -9,7 +9,8 @@ import {
 } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
 import { connectStorageEmulator, getStorage, type FirebaseStorage } from 'firebase/storage';
-import { initAppCheck } from './appCheck';
+import { customStoreHost } from '@/features/onlineStore/customStoreHost';
+import { initAppCheck, isPublicStorePath } from './appCheck';
 import { isolatedProjectAllowed } from './emulatorIsolated';
 import { resolveFirebaseConfig, type ResolvedFirebaseConfig } from './config';
 import { isBlockedProjectId } from './isolation';
@@ -90,7 +91,9 @@ export function getFirebase(): FirebaseServices {
     throw new Error('Refusing to connect: isolated emulator harness only allows demo-zelvero.');
   }
 
-  initAppCheck(app, config);
+  const publicStore =
+    typeof location !== 'undefined' && (isPublicStorePath(location.pathname) || customStoreHost(import.meta.env, location.hostname) !== null);
+  if (!publicStore) initAppCheck(app, config);
 
   const auth = initializeAuth(app, { persistence: browserLocalPersistence });
   const db = initializeFirestore(app, {

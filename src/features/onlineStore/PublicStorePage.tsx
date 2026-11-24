@@ -18,6 +18,7 @@ import { translate, type TranslationKey, type TParams } from '@/i18n/i18n';
 import { toUserMessage, type UserMessage } from '@/services/errors';
 import { api } from '@/services/functionsClient';
 import { forgetCachedCatalog, readCachedCatalog, writeCachedCatalog } from './storefrontCache';
+import { takePrefetchedCatalog } from './storefrontPrefetch';
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from './pendingPayment';
 import { trackStoreEvent } from './storefrontTrack';
 import { formatLbp, formatUsd } from '@/utils/format';
@@ -299,7 +300,12 @@ const IconClose = () => (
 export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } = {}) {
   const params = useParams();
   const slug = fixedSlug ?? params.slug ?? '';
-  const fresh = useAsyncData(`public-store-${slug}`, () => api.publicStoreCatalog({ slug }));
+  // The request boot.js already started is used when there is one; otherwise (or if it failed) ask now.
+  const fresh = useAsyncData(`public-store-${slug}`, async () => {
+    type Catalog = Awaited<ReturnType<typeof api.publicStoreCatalog>>;
+    const early = await takePrefetchedCatalog<Catalog>(slug);
+    return early ?? api.publicStoreCatalog({ slug });
+  });
   // Returning visitors see the last catalogue at once; the fresh one replaces it when it lands.
   const cached = useMemo(() => readCachedCatalog(slug), [slug]);
   useEffect(() => {

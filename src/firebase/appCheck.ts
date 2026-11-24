@@ -9,6 +9,15 @@ export function shouldInitializeAppCheck(config: Pick<ResolvedFirebaseConfig, 'a
 }
 
 /**
+ * A shop's public website (/s/<slug>, or the shop's own domain). Its functions don't use App Check,
+ * and starting it there made every visitor wait about 3 s (reCAPTCHA download plus token exchange)
+ * before the first catalogue request could leave. The POS itself keeps App Check.
+ */
+export function isPublicStorePath(pathname: string): boolean {
+  return /(?:^|\/)s\/[^/]+\/?$/.test(pathname);
+}
+
+/**
  * Debug tokens must never be committed. In local DEV only, `VITE_FIREBASE_APPCHECK_DEBUG=true`
  * (gitignored .env.local) lets the SDK print a one-time token to register in the Firebase console.
  * Production builds ignore the flag (`import.meta.env.DEV` is false).
