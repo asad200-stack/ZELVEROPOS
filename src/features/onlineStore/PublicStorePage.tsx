@@ -36,6 +36,9 @@ import BloomHero from './BloomHero';
 import PerfumeHero from './PerfumeHero';
 import StorefrontQuickView, { HeartIcon } from './StorefrontQuickView';
 import StorefrontTrackOrder from './StorefrontTrackOrder';
+import StorefrontAccount from './StorefrontAccount';
+import { shopperApi, useShopper } from './shopperAuth';
+import { mergeWishlists, orderAgainLines, type ShopperOrder } from '@/domain/shopperAccount';
 import { whatsAppLink, whatsAppOrderText, type WaWords } from './storefrontWhatsApp';
 import './storefront.css';
 
@@ -298,6 +301,12 @@ const IconTruck = () => (
     <circle cx="17.5" cy="17.5" r="1.6" />
   </svg>
 );
+const IconUser = () => (
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+  </svg>
+);
 const IconHome = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M4 11 12 4l8 7v9h-5v-6h-6v6H4z" />
@@ -377,6 +386,38 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const toastTimer = useRef<number | undefined>(undefined);
   const place = useAsyncAction('storefront');
   useTilt3d(!!data.data);
+
+  // Optional shopper account: past orders, saved details and favourites (see shopperAuth.ts).
+  const { shopper } = useShopper();
+  const [accountOpen, setAccountOpen] = useState(false);
+  const shopperData = useAsyncData(shopper ? `shopper-${slug}-${shopper.uid}` : null, () => shopperApi.account({ slug }));
+  const account = shopperData.data;
+  const syncedUid = useRef<string | null>(null);
+  const savedWish = useRef('');
+  useEffect(() => {
+    if (!shopper) {
+      syncedUid.current = null;
+      return;
+    }
+    if (!account || syncedUid.current === shopper.uid) return;
+    syncedUid.current = shopper.uid;
+    // Fill only empty checkout fields, and keep this browser's favourites with the account's.
+    setName((v) => (v.trim() ? v : account.profile.name));
+    setPhone((v) => (v.trim() ? v : account.profile.phone));
+    setAddress((v) => (v.trim() ? v : account.profile.address));
+    savedWish.current = JSON.stringify(account.wishlist);
+    setWish((w) => mergeWishlists(account.wishlist, w));
+  }, [shopper, account]);
+  useEffect(() => {
+    if (!shopper || syncedUid.current !== shopper.uid) return;
+    const next = JSON.stringify(wish);
+    if (next === savedWish.current) return;
+    const id = window.setTimeout(() => {
+      savedWish.current = next;
+      shopperApi.saveWishlist({ slug, ids: wish }).catch((err: unknown) => console.warn('[shopper] favourites not saved', err));
+    }, 1200);
+    return () => window.clearTimeout(id);
+  }, [wish, shopper, slug]);
 
   useEffect(() => {
     try {
@@ -503,7 +544,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const problem = orderProblem(lines, { name, phone, address }, fulfillment) ?? delivery?.problem ?? null;
 
   const quickOpen = quick !== null && allProducts.some((p) => p.id === quick);
-  const overlay = cartOpen || quickOpen || trackOpen;
+  const overlay = cartOpen || quickOpen || trackOpen || accountOpen;
   useEffect(() => {
     if (!overlay) return;
     const onKey = (e: KeyboardEvent) => {
@@ -512,6 +553,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
       if (e.defaultPrevented) return;
       // Close the top-most layer first.
       if (trackOpen) setTrackOpen(false);
+      else if (accountOpen) setAccountOpen(false);
       else if (quick !== null) setQuick(null);
       else setCartOpen(false);
     };
@@ -522,7 +564,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [overlay, quick, trackOpen]);
+  }, [overlay, quick, trackOpen, accountOpen]);
 
   if (data.loading) {
     return (
@@ -590,6 +632,21 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const openCart = () => {
     setStep('cart');
     setCartOpen(true);
+  };
+  /** Puts a past order's products that are still for sale back in the bag. */
+  const orderAgain = (o: ShopperOrder): number => {
+    const forSale = new Set(allProducts.filter((p) => p.inStock).map((p) => p.id));
+    const add = orderAgainLines(o, (id) => forSale.has(id));
+    if (add.length === 0) return 0;
+    setCart((c) => {
+      const next = { ...c };
+      for (const l of add) next[l.productId] = Math.min(ORDER_MAX_QTY, (next[l.productId] ?? 0) + l.qty);
+      return next;
+    });
+    setAccountOpen(false);
+    setReceipt(null);
+    openCart();
+    return add.length;
   };
   const toCatalog = () => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' });
   const clearFilters = () => {
@@ -681,7 +738,8 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
     const waWindow = viaWhatsApp ? window.open('about:blank', '_blank') : null;
     const res = await place.run(async () => {
       try {
-        return await api.publicPlaceOrder({
+        // Through the shopper connection: carries the shopper's sign-in, never a POS one.
+        return await shopperApi.placeOrder({
           slug,
           lines,
           name,
@@ -712,6 +770,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
       window.location.assign(res.payUrl);
       return;
     }
+    if (res && shopper) shopperData.reload();
     if (res) {
       setReceipt(res);
       setCart({});
@@ -809,6 +868,19 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
               {wish.length > 0 && <span className="sf-badge">{wish.length}</span>}
             </button>
           )}
+          <button
+            type="button"
+            className={shopper ? 'sf-account-btn is-in' : 'sf-account-btn'}
+            aria-label={t('storefront.account.title')}
+            title={t('storefront.account.title')}
+            onClick={() => setAccountOpen(true)}
+          >
+            {shopper ? (
+              <span aria-hidden="true">{((shopper.name || shopper.email || shopper.phone).trim()[0] ?? '•').toUpperCase()}</span>
+            ) : (
+              <IconUser />
+            )}
+          </button>
           <button
             type="button"
             className="sf-track-btn"
@@ -1600,7 +1672,28 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
           t={t}
           lang={lang}
           initialRef={trackRef}
+          initialPhone={account?.profile.phone ?? ''}
           onClose={() => setTrackOpen(false)}
+        />
+      )}
+
+      {accountOpen && (
+        <StorefrontAccount
+          t={t}
+          lang={lang}
+          shopper={shopper}
+          account={account}
+          accountLoading={shopperData.loading}
+          accountError={!!shopperData.error}
+          onReload={shopperData.reload}
+          onOrderAgain={orderAgain}
+          onProfileSaved={() => shopperData.reload()}
+          onTrack={(ref) => {
+            setAccountOpen(false);
+            setTrackRef(ref);
+            setTrackOpen(true);
+          }}
+          onClose={() => setAccountOpen(false)}
         />
       )}
 
@@ -1721,6 +1814,14 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
               <>
                 <div className="sf-drawer-body">
                   <div className="sf-form">
+                    {!shopper && (
+                      <p className="sf-signin-hint">
+                        {t('storefront.account.checkoutHint')}{' '}
+                        <button type="button" className="sf-link" onClick={() => setAccountOpen(true)}>
+                          {t('storefront.account.signIn')}
+                        </button>
+                      </p>
+                    )}
                     <label className="sf-field">
                       {t('storefront.name')}
                       <input value={name} maxLength={ORDER_NAME_MAX} autoComplete="name" onChange={(e) => setName(e.target.value)} />

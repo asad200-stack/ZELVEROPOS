@@ -1,5 +1,5 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
-import { browserLocalPersistence, connectAuthEmulator, initializeAuth, type Auth } from 'firebase/auth';
+import { browserLocalPersistence, browserPopupRedirectResolver, connectAuthEmulator, initializeAuth, type Auth } from 'firebase/auth';
 import {
   connectFirestoreEmulator,
   initializeFirestore,
@@ -109,6 +109,28 @@ export function getFirebase(): FirebaseServices {
 
   services = { app, auth, db, storage, functions, config };
   return services;
+}
+
+let shopper: { auth: Auth; functions: Functions } | null = null;
+
+/**
+ * Shoppers on the shop websites sign in here, in a second Firebase app with its own saved
+ * session: signing in as a shopper never signs anyone in or out of the POS, and the POS
+ * sign-in is never sent with a shopper's requests. Created only when a shop page needs it.
+ */
+export function getShopperFirebase(): { auth: Auth; functions: Functions } {
+  if (shopper) return shopper;
+  const config = getFirebase().config;
+  const app = initializeApp(config.options, 'shopper');
+  const auth = initializeAuth(app, { persistence: browserLocalPersistence, popupRedirectResolver: browserPopupRedirectResolver });
+  const functions = getFunctions(app, config.functionsRegion);
+  if (config.useEmulators) {
+    const ends = config.isolatedEmulators ? config.isolatedEndpoints : null;
+    connectAuthEmulator(auth, ends?.authOrigin ?? PRIMARY_EMULATOR.authOrigin, { disableWarnings: true });
+    connectFunctionsEmulator(functions, ends?.functionsHost ?? PRIMARY_EMULATOR.functionsHost, ends?.functionsPort ?? PRIMARY_EMULATOR.functionsPort);
+  }
+  shopper = { auth, functions };
+  return shopper;
 }
 
 export const firebase = {

@@ -7,8 +7,9 @@ echo === started %date% %time% > "%LOG%"
 call npx tsc -p tsconfig.app.json --noEmit >> "%LOG%" 2>&1
 echo === EXIT tsc %errorlevel% >> "%LOG%"
 call npm --prefix functions run typecheck >> "%LOG%" 2>&1
+call npm --prefix functions run build >> "%LOG%" 2>&1
 echo === EXIT fn-typecheck %errorlevel% >> "%LOG%"
-call npx eslint src/app src/hooks src/features/onlineStore functions/src/storePage.ts functions/src/onlineStore.ts >> "%LOG%" 2>&1
+call npx eslint src/app src/hooks src/features/onlineStore functions/src/storePage.ts functions/src/onlineStore.ts functions/src/shopper.ts functions/src/onlineOrders.ts src/domain/shopperAccount.ts src/firebase/app.ts >> "%LOG%" 2>&1
 echo === EXIT eslint %errorlevel% >> "%LOG%"
 call npx vitest run src >> "%LOG%" 2>&1
 echo === EXIT tests %errorlevel% >> "%LOG%"

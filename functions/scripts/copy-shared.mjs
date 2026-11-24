@@ -24,6 +24,7 @@ const FILES = {
   'src/domain/onlineStore.ts': 'onlineStore.ts',
   'src/domain/storeSeo.ts': 'storeSeo.ts',
   'src/domain/onlineOrders.ts': 'onlineOrders.ts',
+  'src/domain/shopperAccount.ts': 'shopperAccount.ts',
   'src/domain/variants.ts': 'variants.ts',
   'src/types/models.ts': 'models.ts',
   'src/constants/permissions.ts': 'permissions.ts',

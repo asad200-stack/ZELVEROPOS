@@ -21,6 +21,7 @@ export {
   publicTrackEvent,
 } from './onlineStore.js';
 export { publicStorePage } from './storePage.js';
+export { shopperAccount, shopperSaveProfile, shopperSaveWishlist } from './shopper.js';
 export { onlineStoreGetPayments, onlineStoreSetWhish } from './whish.js';
 export {
   publicPlaceOrder,

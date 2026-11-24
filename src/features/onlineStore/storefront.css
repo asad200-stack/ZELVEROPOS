@@ -563,7 +563,7 @@
 .sf-heart:active { transform: scale(0.9); }
 .sf-heart.is-on { color: #e11d48; border-color: #fda4af; background: #fff1f2; }
 .sf-heart-card { position: absolute; top: 10px; inset-inline-end: 10px; z-index: 2; width: 38px; height: 38px; border: none; box-shadow: var(--sf-shadow); }
-.sf-wish-btn {
+.sf-wish-btn, .sf-account-btn {
   position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
   border: 1px solid var(--sf-line); background: var(--sf-card); color: var(--sf-ink); cursor: pointer;
 }
@@ -662,7 +662,7 @@
   cursor: pointer; white-space: nowrap; transition: border-color 0.15s, background 0.15s;
 }
 .sf-track-btn:hover { border-color: color-mix(in srgb, var(--sf-ink) 30%, var(--sf-line)); }
-.sf-track-btn:focus-visible, .sf-wish-btn:focus-visible, .sf-cart-btn:focus-visible { outline: 3px solid var(--sf-primary); outline-offset: 2px; }
+.sf-track-btn:focus-visible, .sf-wish-btn:focus-visible, .sf-account-btn:focus-visible, .sf-cart-btn:focus-visible { outline: 3px solid var(--sf-primary); outline-offset: 2px; }
 .sf-track-form { display: grid; gap: 12px; }
 .sf-track-result { margin-block-start: 18px; padding: 14px; border: 1px solid var(--sf-line); border-radius: var(--sf-radius); display: grid; gap: 8px; }
 .sf-track-result h3 { margin: 6px 0 0; font-size: 14px; }
@@ -711,7 +711,7 @@ html:has(.sf), .sf { overflow-x: clip; }
   .sf-top-row { gap: 8px; min-height: 60px; padding-block: 8px; }
   .sf-actions { gap: 6px; }
   .sf-langs button { padding: 5px 9px; font-size: 12px; }
-  .sf-wish-btn, .sf-track-btn { width: 40px; height: 40px; }
+  .sf-wish-btn, .sf-track-btn, .sf-account-btn { width: 40px; height: 40px; }
   .sf-cart-btn { height: 40px; padding-inline: 11px; }
   .sf-stage { --w: 100px; --h: 132px; height: 230px; perspective: 900px; }
   .sf-ring-cap { padding: 20px 8px 7px; font-size: 10px; }
@@ -837,7 +837,7 @@ html:has(.sf), .sf { overflow-x: clip; }
 .sf-brand-name { font-size: 19px; font-weight: 800; }
 .sf-search input { height: 46px; border-radius: 12px; background: var(--sf-bg); border-color: transparent; }
 .sf-cart-btn { border-radius: 12px; }
-.sf-wish-btn, .sf-track-btn { border-radius: 12px; }
+.sf-wish-btn, .sf-track-btn, .sf-account-btn { border-radius: 12px; }
 
 /* Hero */
 .sf-hero { background: #fff; border-bottom: 1px solid var(--sf-line); }
@@ -1290,6 +1290,7 @@ html:has(.sf), .sf { overflow-x: clip; }
 .sf-theme-perfume .sf-langs button[aria-pressed='true'] { background: var(--pf-parch); color: var(--pf-night); }
 .sf-theme-perfume .sf-cart-btn,
 .sf-theme-perfume .sf-wish-btn,
+.sf-theme-perfume .sf-account-btn,
 .sf-theme-perfume .sf-track-btn { background: var(--pf-ash); color: var(--pf-parch); border-color: var(--sf-line); }
 
 /* ---------- Hero: scroll story ---------- */
@@ -2035,6 +2036,7 @@ html:has(.sf), .sf { overflow-x: clip; }
 .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-langs button[aria-pressed='true'] { background: var(--dk-ink); color: var(--dk-bg); }
 .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-cart-btn,
 .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-wish-btn,
+.sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-account-btn,
 .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-track-btn,
 .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-share-btn { background: var(--dk-raise); color: var(--dk-ink) !important; border-color: var(--sf-line); }
 .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-tile { background: none; border: 0; box-shadow: none; }
@@ -2573,3 +2575,38 @@ html:has(.sf), .sf { overflow-x: clip; }
 .sf-chip-off, .sf-off { direction: ltr; unicode-bidi: isolate; }
 /* The category tag in the product window is a tag, not a full-width bar (it ran under the close button). */
 .sf-qv-info .sf-eyebrow { align-self: flex-start; max-width: calc(100% - 52px); }
+
+/* ---------- Shopper account (optional sign-in, My orders) ---------- */
+.sf-account-btn { font: inherit; font-weight: 800; font-size: 15px; }
+.sf-account-btn.is-in { background: var(--sf-primary); color: #fff; border-color: transparent; }
+.sf-account .sf-drawer-body { display: grid; gap: 18px; align-content: start; }
+.sf-account-signin { display: grid; gap: 14px; }
+.sf-account-lead { margin: 0; font-size: 15px; line-height: 1.5; }
+.sf-google {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 48px; border-radius: 14px; cursor: pointer;
+  border: 1px solid var(--sf-line); background: #fff; color: #1f1f1f; font: inherit; font-weight: 700; font-size: 15px;
+}
+.sf-google:hover { border-color: color-mix(in srgb, #1f1f1f 30%, var(--sf-line)); }
+.sf-google:disabled { opacity: 0.6; cursor: default; }
+.sf-account-in { display: grid; gap: 22px; }
+.sf-account-who { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
+.sf-account-who > div { display: grid; min-width: 0; }
+.sf-account-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-account-sec { display: grid; gap: 10px; }
+.sf-account-sec h3 { margin: 0; font-size: 16px; }
+.sf-account-sec > .sf-muted { margin: -4px 0 0; }
+.sf-account-orders { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.sf-account-orders li { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--sf-line); border-radius: 14px; background: var(--sf-card); }
+.sf-account-ref { font-size: 15px; letter-spacing: 0.02em; }
+.sf-account-items { margin: 0; font-size: 13.5px; color: var(--sf-ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.sf-account-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.sf-account-btns { display: inline-flex; align-items: center; gap: 12px; }
+.sf-again {
+  height: 36px; padding-inline: 14px; border-radius: 10px; border: 0; cursor: pointer;
+  background: var(--sf-primary); color: #fff; font: inherit; font-weight: 700; font-size: 13.5px;
+}
+.sf-signin-hint { margin: 0 0 4px; padding: 10px 12px; border-radius: 12px; background: var(--sf-tint, color-mix(in srgb, var(--sf-primary) 8%, transparent)); font-size: 13.5px; }
+.sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-account-btn.is-in { background: var(--dk-hi); color: var(--dk-on-hi); }
+.sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-account-orders li { background: var(--dk-raise); }
+.sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-again { background: var(--dk-hi); color: var(--dk-on-hi); }
+.sf .sf-google, .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-google { background: #fff; color: #1f1f1f; }

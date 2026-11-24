@@ -68,6 +68,7 @@ import {
 } from './shared/onlineOrders.js';
 import { deliveryQuote } from './shared/onlineStore.js';
 import { tierLbp, tierUsdCents } from './shared/pricing.js';
+import { rememberShopperDetails } from './shopper.js';
 import { parse } from './validate.js';
 import { createWhishPayment, loadWhish, whishStatus, type WhishCreds } from './whish.js';
 
@@ -146,6 +147,7 @@ export const publicPlaceOrder = onCall(publicFn, async (request): Promise<Public
     if (note.length > ORDER_NOTE_MAX) fail('invalid-argument', 'error.onlineOrders.note');
 
     const now = Date.now();
+    const shopper = request.auth?.uid ?? null;
     await rateLimit('placeOrder', clientIp(request), now, PLACE_ORDER_PER_HOUR);
     const { tenantId, config } = await resolvePublishedStore(slug);
     const visible = new Set(config.visibleProductIds);
@@ -247,9 +249,24 @@ export const publicPlaceOrder = onCall(publicFn, async (request): Promise<Public
         { orders: FieldValue.increment(1), revenueUsdCents: FieldValue.increment(doc.totalUsdCents), updatedAt: now },
         { merge: true },
       );
-      tx.set(orderRef, { ...doc, ...audit, history: [{ status: 'pending', atMs: now, by: ONLINE_ACTOR.createdBy }] });
+      tx.set(orderRef, {
+        ...doc,
+        ...audit,
+        // Signed-in shoppers find their orders again under My orders (see shopper.ts).
+        ...(shopper ? { shopperUid: shopper } : {}),
+        history: [{ status: 'pending', atMs: now, by: ONLINE_ACTOR.createdBy }],
+      });
       return doc;
     });
+
+    if (shopper) {
+      // Next checkout fills itself in; a failure here never fails the order.
+      await rememberShopperDetails(shopper, {
+        name: input.name,
+        phone: input.phone,
+        ...(input.fulfillment === 'delivery' ? { address: input.address } : {}),
+      }).catch((err: unknown) => console.warn('[shopper] details not saved', err instanceof Error ? err.message : err));
+    }
 
     if (whish) {
       // The order is already saved (stock reserved). If Whish can't start now, the guest gets
