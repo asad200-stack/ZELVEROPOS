@@ -523,23 +523,31 @@ export function publicSlug(raw: string): string {
   return slug;
 }
 
+/**
+ * What a published shop shows to visitors (also embedded in the shop page's HTML by
+ * storePage.ts, so the products appear without waiting for a second request).
+ */
+export async function loadPublicCatalog(slug: string): Promise<{ catalog: PublicCatalogResponse; published: PublishedStore['published'] }> {
+  const { tenantId, config, published } = await resolvePublishedStore(slug);
+  const found = await activeProducts(tenantId, config.visibleProductIds);
+  const products = config.visibleProductIds
+    .filter((id) => found.has(id))
+    .map((id) => toProduct(id, found.get(id) as DocumentData))
+    // Same rules as publicPlaceOrder: IMEI-tracked or unpriced items can't be ordered online.
+    .filter((p) => !p.imeiTracking)
+    .map((p) => projectPublicProduct(p, config.listings[p.id], config.ratings[p.id], Date.now()))
+    .filter((p) => p.priceUsdCents > 0 || (p.priceLbp ?? 0) > 0);
+  const shown = new Set(products.filter((p) => p.inStock).map((p) => p.id));
+  const [bestAll, whish] = await Promise.all([bestSellerIds(tenantId), whishReady(tenantId)]);
+  const best = bestAll.filter((id) => shown.has(id)).slice(0, BEST_SHOW);
+  return { catalog: { store: projectPublicStore(slug, published), products, bestSellerIds: best, payments: { whish } }, published };
+}
+
 export const publicStoreCatalog = onCall(publicFn, async (request): Promise<PublicCatalogResponse> => {
   try {
     const slug = publicSlug(parse(slugSchema, stripTransport(request.data)).slug);
     await rateLimit('storeCatalog', clientIp(request), Date.now(), PUBLIC_CATALOG_PER_HOUR);
-    const { tenantId, config, published } = await resolvePublishedStore(slug);
-    const found = await activeProducts(tenantId, config.visibleProductIds);
-    const products = config.visibleProductIds
-      .filter((id) => found.has(id))
-      .map((id) => toProduct(id, found.get(id) as DocumentData))
-      // Same rules as publicPlaceOrder: IMEI-tracked or unpriced items can't be ordered online.
-      .filter((p) => !p.imeiTracking)
-      .map((p) => projectPublicProduct(p, config.listings[p.id], config.ratings[p.id], Date.now()))
-      .filter((p) => p.priceUsdCents > 0 || (p.priceLbp ?? 0) > 0);
-    const shown = new Set(products.filter((p) => p.inStock).map((p) => p.id));
-    const [bestAll, whish] = await Promise.all([bestSellerIds(tenantId), whishReady(tenantId)]);
-    const best = bestAll.filter((id) => shown.has(id)).slice(0, BEST_SHOW);
-    return { store: projectPublicStore(slug, published), products, bestSellerIds: best, payments: { whish } };
+    return (await loadPublicCatalog(slug)).catalog;
   } catch (err) {
     rethrowClientSafe(err);
   }

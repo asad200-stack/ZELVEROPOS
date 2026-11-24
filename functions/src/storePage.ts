@@ -23,13 +23,11 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { db } from './admin.js';
 import { REGION, STORE_EXTRA_HOSTS, STORE_SHELL_PATH, STORE_SITE_ORIGIN } from './config.js';
-import { activeProducts, resolvePublishedStore } from './onlineStore.js';
-import { toProduct } from './pos/common.js';
+import { loadPublicCatalog, type PublicCatalogResponse } from './onlineStore.js';
 import {
   injectShareMeta,
   normalizeSlug,
   productShareMeta,
-  projectPublicProduct,
   slugProblem,
   storeManifest,
   storeShareMeta,
@@ -97,6 +95,23 @@ interface LoadedStore {
   seo: SeoStore;
   /** Products on the website, in the shop's order (same rules as publicStoreCatalog). */
   products: PublicProduct[];
+  /** The whole catalogue response, embedded in the page so products show without a second request. */
+  catalog: PublicCatalogResponse;
+}
+
+/** Larger catalogues are not embedded (the app then asks for them as before). */
+const SEED_MAX_CHARS = 700_000;
+
+/** Adds the catalogue to the page as a JSON data block the storefront reads at start. */
+function injectCatalogSeed(html: string, slug: string, catalog: PublicCatalogResponse): string {
+  const json = JSON.stringify({ slug, catalog })
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+  if (json.length > SEED_MAX_CHARS) return html;
+  const block = `<script type="application/json" id="zv-catalog-seed">${json}</script>`;
+  const at = html.search(/<\/body>/i);
+  return at < 0 ? html + block : html.slice(0, at) + block + html.slice(at);
 }
 
 const storeCache = new Map<string, { data: LoadedStore | null; atMs: number }>();
@@ -107,19 +122,14 @@ async function loadStore(slug: string, origin: string, now: number): Promise<Loa
   if (hit && now - hit.atMs < META_TTL_MS) return hit.data;
   let data: LoadedStore | null;
   try {
-    const { tenantId, config, published } = await resolvePublishedStore(slug);
-    const found = await activeProducts(tenantId, config.visibleProductIds);
-    const products = config.visibleProductIds
-      .filter((id) => found.has(id))
-      .map((id) => toProduct(id, found.get(id) as Record<string, unknown>))
-      .filter((p) => !p.imeiTracking)
-      .map((p) => projectPublicProduct(p, config.listings[p.id], config.ratings[p.id], now))
-      .filter((p) => p.priceUsdCents > 0 || (p.priceLbp ?? 0) > 0);
+    const { catalog, published } = await loadPublicCatalog(slug);
+    const products = catalog.products;
     const image = products.map((p) => p.imageUrl).find((u): u is string => typeof u === 'string' && u.startsWith('https://'));
     const meta = storeShareMeta(slug, published, origin, image ?? '');
     data = {
       meta,
       products,
+      catalog,
       seo: { name: meta.title, description: meta.description, url: meta.url, imageUrl: meta.imageUrl, locale: meta.locale },
     };
   } catch {
@@ -208,5 +218,5 @@ export const publicStorePage = onRequest({ region: REGION, memory: '256MiB', con
     .set('Content-Type', 'text/html; charset=utf-8')
     // Short shared cache: store edits show up within minutes, the shell itself stays fresh.
     .set('Cache-Control', 'public, max-age=60, s-maxage=300')
-    .send(injectSeo(injectShareMeta(html, meta), store.seo, store.products, product));
+    .send(injectCatalogSeed(injectSeo(injectShareMeta(html, meta), store.seo, store.products, product), slug, store.catalog));
 });

@@ -17,8 +17,8 @@ import { useAsyncData } from '@/hooks/useAsyncData';
 import { translate, type TranslationKey, type TParams } from '@/i18n/i18n';
 import { toUserMessage, type UserMessage } from '@/services/errors';
 import { api } from '@/services/functionsClient';
-import { forgetCachedCatalog, readCachedCatalog, writeCachedCatalog } from './storefrontCache';
-import { takePrefetchedCatalog } from './storefrontPrefetch';
+import { forgetCachedCatalog, readCachedCatalog, writeCachedCatalog, type CatalogSnapshot } from './storefrontCache';
+import { readSeedCatalog, takePrefetchedCatalog } from './storefrontPrefetch';
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from './pendingPayment';
 import { trackStoreEvent } from './storefrontTrack';
 import { storeImageUrl } from '@/domain/storeSeo';
@@ -325,7 +325,8 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
     return early ?? api.publicStoreCatalog({ slug });
   });
   // Returning visitors see the last catalogue at once; the fresh one replaces it when it lands.
-  const cached = useMemo(() => readCachedCatalog(slug), [slug]);
+  // A first visit uses the catalogue embedded in the page itself (no wait for a second request).
+  const cached = useMemo(() => readSeedCatalog<CatalogSnapshot>(slug) ?? readCachedCatalog(slug), [slug]);
   useEffect(() => {
     if (fresh.data) writeCachedCatalog(slug, fresh.data);
     else if (fresh.error) forgetCachedCatalog(slug);
