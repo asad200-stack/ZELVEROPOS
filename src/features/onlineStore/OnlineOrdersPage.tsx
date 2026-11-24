@@ -111,6 +111,7 @@ function OrdersPanel() {
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all');
   const data = useAsyncData(`online-orders:${filter}`, () =>
     api.onlineOrdersList(filter === 'all' ? {} : { status: filter }),
+    { keep: true },
   );
   const [fresh, setFresh] = useState<string[]>([]);
   useNewOrderAlert((refs) => {
@@ -321,7 +322,7 @@ const REVIEW_TONE: Record<ReviewStatus, BadgeTone> = { pending: 'warning', appro
 function ReviewsPanel() {
   const { t } = useI18n();
   const [filter, setFilter] = useState<ReviewStatus>('pending');
-  const data = useAsyncData(`online-reviews:${filter}`, () => api.onlineReviewsList({ status: filter }));
+  const data = useAsyncData(`online-reviews:${filter}`, () => api.onlineReviewsList({ status: filter }), { keep: true });
   const options = REVIEW_STATUSES.map((s) => ({ value: s, label: t(`onlineOrders.reviewStatus.${s}`) }));
 
   return (

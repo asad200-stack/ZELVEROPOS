@@ -5,6 +5,7 @@ import { PageLoader } from '@/components/ui/Spinner';
 import { useSession } from '@/contexts/session';
 import { adminPreviewDecision, isAdminPreviewBuild } from '@/domain/adminPreview';
 import { resetTenantStore } from '@/stores/tenantStore';
+import { clearQueryCache } from '@/hooks/queryCache';
 import { AppLayout } from '@/layouts/AppLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { PartnerLayout } from '@/layouts/PartnerLayout';
@@ -15,7 +16,35 @@ import { PreviewAccess } from './PreviewAccess';
 import { signOut } from '@/services/authService';
 import { useI18n } from '@/i18n/i18n';
 
-const page = (loader: () => Promise<{ default: ComponentType }>) => lazy(loader);
+type Loader = () => Promise<{ default: ComponentType }>;
+const screenLoaders: Loader[] = [];
+const page = (loader: Loader) => lazy(loader);
+/** A store screen: also fetched ahead in the background once the user is signed in. */
+const screen = (loader: Loader) => {
+  screenLoaders.push(loader);
+  return lazy(loader);
+};
+
+/** Fetches every store screen while the browser is idle, so opening one shows it at once. */
+function usePreloadScreens(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    let stopped = false;
+    const idle = (fn: () => void) =>
+      'requestIdleCallback' in window ? window.requestIdleCallback(fn, { timeout: 3000 }) : globalThis.setTimeout(fn, 1500);
+    const next = (i: number) => {
+      if (stopped || i >= screenLoaders.length) return;
+      idle(() => {
+        void screenLoaders[i]?.().catch(() => undefined);
+        next(i + 1);
+      });
+    };
+    next(0);
+    return () => {
+      stopped = true;
+    };
+  }, [active]);
+}
 
 const LoginPage = page(() => import('@/features/auth/LoginPage'));
 const SignupPage = page(() => import('@/features/auth/SignupPage'));
@@ -29,20 +58,20 @@ const NotFoundPage = page(() => import('@/pages/NotFoundPage'));
 const PublicStorePage = page(() => import('@/features/onlineStore/PublicStorePage'));
 
 const SCREENS: Record<string, LazyExoticComponent<ComponentType>> = {
-  '/dashboard': page(() => import('@/features/dashboard/DashboardPage')),
-  '/pos': page(() => import('@/features/pos/PosPage')),
-  '/cashbox': page(() => import('@/features/cashbox/CashboxPage')),
-  '/products': page(() => import('@/features/products/ProductsPage')),
-  '/expiry': page(() => import('@/features/products/ExpiryPage')),
-  '/sales': page(() => import('@/features/sales/SalesPage')),
-  '/customers': page(() => import('@/features/customers/CustomersPage')),
-  '/suppliers': page(() => import('@/features/suppliers/SuppliersPage')),
-  '/purchases': page(() => import('@/features/purchases/PurchasesPage')),
-  '/reports': page(() => import('@/features/reports/ReportsPage')),
-  '/users': page(() => import('@/features/users/UsersPage')),
-  '/online-store': page(() => import('@/features/onlineStore/OnlineStoreSettingsPage')),
-  '/online-orders': page(() => import('@/features/onlineStore/OnlineOrdersPage')),
-  '/settings': page(() => import('@/features/settings/SettingsPage')),
+  '/dashboard': screen(() => import('@/features/dashboard/DashboardPage')),
+  '/pos': screen(() => import('@/features/pos/PosPage')),
+  '/cashbox': screen(() => import('@/features/cashbox/CashboxPage')),
+  '/products': screen(() => import('@/features/products/ProductsPage')),
+  '/expiry': screen(() => import('@/features/products/ExpiryPage')),
+  '/sales': screen(() => import('@/features/sales/SalesPage')),
+  '/customers': screen(() => import('@/features/customers/CustomersPage')),
+  '/suppliers': screen(() => import('@/features/suppliers/SuppliersPage')),
+  '/purchases': screen(() => import('@/features/purchases/PurchasesPage')),
+  '/reports': screen(() => import('@/features/reports/ReportsPage')),
+  '/users': screen(() => import('@/features/users/UsersPage')),
+  '/online-store': screen(() => import('@/features/onlineStore/OnlineStoreSettingsPage')),
+  '/online-orders': screen(() => import('@/features/onlineStore/OnlineOrdersPage')),
+  '/settings': screen(() => import('@/features/settings/SettingsPage')),
 };
 
 /** Stops tenant listeners when the signed-in user or tenant changes. */
@@ -53,6 +82,7 @@ function useTenantReset() {
   useEffect(() => {
     if (previous.current !== key) {
       resetTenantStore();
+      clearQueryCache();
       previous.current = key;
     }
   }, [key]);
@@ -74,6 +104,7 @@ function AdminPreviewDenied() {
 export function AppRoutes() {
   useTenantReset();
   const session = useSession();
+  usePreloadScreens(Boolean(session.tenantId));
   const previewDecision = adminPreviewDecision({
     enabled: isAdminPreviewBuild(import.meta.env),
     status: session.status,

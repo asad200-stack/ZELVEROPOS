@@ -265,7 +265,7 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
           {!adminOnly && session.isInternalDemo && <Alert tone="warning">{t('demo.banner')}</Alert>}
           {!adminOnly ? <UpdateCenter updates={featureUpdates} onChanged={() => setUpdateToken((value) => value + 1)} /> : null}
           <ErrorBoundary
-            key={location.pathname}
+            resetKey={location.pathname}
             fallback={(_, reset) => (
               <Alert tone="error" onRetry={reset} retryLabel={t('common.retry')}>
                 {t('error.pageCrashed')}

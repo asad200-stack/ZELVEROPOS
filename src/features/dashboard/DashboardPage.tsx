@@ -30,8 +30,12 @@ export default function DashboardPage() {
 
   const today = localDate(new Date(now));
   const from = addDays(today, -6);
-  const stats = useAsyncData(canReports ? `${tenantId}|${from}|${today}` : null, () => loadDailyStats(tenantId, from, today));
-  const unknownCost = useAsyncData(canReports && canCosts ? `${tenantId}|unknown-cost` : null, () => catalogHasUnknownCost(tenantId));
+  const stats = useAsyncData(canReports ? `${tenantId}|${from}|${today}` : null, () => loadDailyStats(tenantId, from, today), {
+    keep: true,
+  });
+  const unknownCost = useAsyncData(canReports && canCosts ? `${tenantId}|unknown-cost` : null, () => catalogHasUnknownCost(tenantId), {
+    keep: true,
+  });
   const profitUnknown = unknownCost.data === true || !!unknownCost.error;
 
   const week = useMemo(() => {
@@ -128,7 +132,7 @@ function StockCard({ tenantId }: { tenantId: string }) {
       countWhere(tenantId, 'products', [where('status', '==', 'active'), where('stock', '==', 0)]),
     ]);
     return { low, out };
-  });
+  }, { keep: true });
   const lowItems = stock.data?.low.items ?? [];
   const lowCount = stock.data ? (stock.data.low.complete ? String(lowItems.length) : `${lowItems.length}+`) : '…';
   const shown = lowItems.slice(0, 8);

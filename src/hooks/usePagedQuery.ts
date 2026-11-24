@@ -2,11 +2,13 @@ import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { applyLoadedPage, type HeldPage } from '@/domain/catalogSession';
 import type { Page } from '@/services/salesService';
+import { readQueryCache, writeQueryCache } from './queryCache';
 
 type PagedState<T> = HeldPage<T, QueryDocumentSnapshot>;
 
 /**
  * Cursor-paginated one-shot query (no live listener → bounded reads). Re-runs when `key` changes.
+ * Going back to a page shows its last list at once (from memory) while the fresh one loads.
  */
 export function usePagedQuery<T>(
   key: string,
@@ -36,7 +38,13 @@ export function usePagedQuery<T>(
   }, [fullKey]);
 
   const current = state && state.key === fullKey ? state : null;
-  const visible = current ?? (keepPrevious ? state : null);
+  const cacheKey = `paged:${key}`;
+  // Remember the latest good list for this query (also after loadMore and patch).
+  useEffect(() => {
+    if (current && !current.error && !current.loadingMore) writeQueryCache(cacheKey, current);
+  }, [current, cacheKey]);
+  const remembered = current ? null : (readQueryCache<PagedState<T>>(cacheKey) ?? null);
+  const visible = current ?? remembered ?? (keepPrevious ? state : null);
 
   const loadMore = useCallback(async () => {
     if (!current || !current.hasMore || current.loadingMore) return;

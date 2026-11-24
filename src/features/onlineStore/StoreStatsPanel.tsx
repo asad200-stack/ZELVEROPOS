@@ -25,7 +25,7 @@ function pct(part: number, whole: number): number {
 export default function StoreStatsPanel() {
   const { t } = useI18n();
   const [days, setDays] = useState<StatsRange>(7);
-  const data = useAsyncData(`online-store-stats:${days}`, () => api.onlineStoreStats({ days }));
+  const data = useAsyncData(`online-store-stats:${days}`, () => api.onlineStoreStats({ days }), { keep: true });
   const s = data.data;
   const peak = s ? Math.max(1, ...s.days.map((d) => d.visits)) : 1;
 

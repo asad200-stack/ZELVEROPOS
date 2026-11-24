@@ -77,7 +77,7 @@ export default function ReportsPage() {
 function SalesReport({ range }: { range: DateRange }) {
   const { t, lang } = useI18n();
   const { tenantId } = useTenant();
-  const data = useAsyncData(`${tenantId}|sales|${range.from}|${range.to}`, () => loadDailyStats(tenantId, range.from, range.to));
+  const data = useAsyncData(`${tenantId}|sales|${range.from}|${range.to}`, () => loadDailyStats(tenantId, range.from, range.to), { keep: true });
 
   if (data.error) return <Alert tone="error" onRetry={data.reload} retryLabel={t('common.retry')}>{t('error.loadFailed')}</Alert>;
   if (data.loading || !data.data) return <PageLoader />;
@@ -156,8 +156,8 @@ function SalesReport({ range }: { range: DateRange }) {
 function ProfitReport({ range }: { range: DateRange }) {
   const { t } = useI18n();
   const { tenantId } = useTenant();
-  const data = useAsyncData(`${tenantId}|profit|${range.from}|${range.to}`, () => loadDailyStats(tenantId, range.from, range.to));
-  const unknownCost = useAsyncData(`${tenantId}|unknown-cost`, () => catalogHasUnknownCost(tenantId));
+  const data = useAsyncData(`${tenantId}|profit|${range.from}|${range.to}`, () => loadDailyStats(tenantId, range.from, range.to), { keep: true });
+  const unknownCost = useAsyncData(`${tenantId}|unknown-cost`, () => catalogHasUnknownCost(tenantId), { keep: true });
   if (data.error) return <Alert tone="error" onRetry={data.reload} retryLabel={t('common.retry')}>{t('error.loadFailed')}</Alert>;
   if (data.loading || !data.data || unknownCost.loading) return <PageLoader />;
   const total = sumStats(data.data);
@@ -271,9 +271,10 @@ function CapitalReport() {
 function ExpensesReport({ range }: { range: DateRange }) {
   const { t, lang } = useI18n();
   const { tenantId } = useTenant();
-  const stats = useAsyncData(`${tenantId}|expenses|${range.from}|${range.to}`, () => loadDailyStats(tenantId, range.from, range.to));
+  const stats = useAsyncData(`${tenantId}|expenses|${range.from}|${range.to}`, () => loadDailyStats(tenantId, range.from, range.to), { keep: true });
   const lines = useAsyncData(`${tenantId}|expense-lines|${range.from}|${range.to}`, () =>
     listCashTransactions(tenantId, { from: range.from, to: range.to, type: 'expense' }, null),
+    { keep: true },
   );
   if (stats.error || lines.error) {
     return (

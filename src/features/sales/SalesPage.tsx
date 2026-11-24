@@ -46,6 +46,7 @@ export default function SalesPage() {
   const sales = useSalesWindow(`${tenantId}|${range.from}|${range.to}|${kind}|${customerId}`, fetchPage);
   const period = useAsyncData(!customerId && kind === 'all' ? `${tenantId}|sales-period|${range.from}|${range.to}` : null, () =>
     loadDailyStats(tenantId, range.from, range.to),
+    { keep: true },
   );
   const periodTotal = period.data ? sumStats(period.data) : null;
 
