@@ -21,12 +21,17 @@ export function needsPlainOrtBuild(userAgent: string, hasWebGpu: boolean): boole
 
 interface OnnxEnvLike {
   backends?: { onnx?: { wasm?: { wasmPaths?: unknown } } };
+  useWasmCache?: boolean;
 }
 
 /** Points transformers.js at the self-hosted runtime. Call after importing it, before `pipeline()`. */
 export function useLocalOrt(env: OnnxEnvLike): void {
   const wasm = env.backends?.onnx?.wasm;
   if (!wasm || typeof navigator === 'undefined') return;
+  // With its WASM cache on, transformers.js re-serves the runtime script from a blob: URL, which
+  // the production CSP (script-src 'self') refuses: "no available backend found". Our runtime is
+  // a hashed same-origin asset the browser already caches, so the extra cache adds nothing.
+  env.useWasmCache = false;
   const plain = needsPlainOrtBuild(navigator.userAgent, 'gpu' in navigator);
   wasm.wasmPaths = plain ? { mjs: plainMjs, wasm: plainWasm } : { mjs: asyncifyMjs, wasm: asyncifyWasm };
 }
