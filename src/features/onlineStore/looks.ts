@@ -19,7 +19,9 @@ export async function makeLook(
     photo ??
     (await (async () => {
       if (!product.imageUrl) throw new Error('look: no photo');
-      const r = await fetch(product.imageUrl);
+      // Fresh copy: the page already showed this photo as a plain <img>, and the browser's cached
+      // copy of that has no CORS header, so a cached read is blocked.
+      const r = await fetch(product.imageUrl, { cache: 'no-store' });
       if (!r.ok) throw new Error(`look: photo ${r.status}`);
       return r.blob();
     })());

@@ -15,7 +15,8 @@ export async function makeCutout(
 ): Promise<OnlineStoreConfig> {
   if (!product.imageUrl) throw new Error('cutout: no photo');
   const { removeBackground } = await import('@/features/products/backgroundRemoval');
-  const source = await fetch(product.imageUrl).then((r) => {
+  // Fresh copy: a cached <img> copy of the photo has no CORS header and would be blocked.
+  const source = await fetch(product.imageUrl, { cache: 'no-store' }).then((r) => {
     if (!r.ok) throw new Error(`cutout: photo ${r.status}`);
     return r.blob();
   });
