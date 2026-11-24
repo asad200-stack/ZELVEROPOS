@@ -68,9 +68,13 @@ const config = {
       // Public store pages run on the new tree while it is piloted; the customer app itself stays on the root.
       // STORE_SHARE_PREVIEWS=1 (only after publicStorePage is deployed with STORE_SHELL_PATH set to
       // this tree): store and product links get their own WhatsApp/Facebook preview.
+      // STORE_IMAGES=1 (only after publicStoreImage is deployed): resized / JPEG product photos.
+      ...(process.env.STORE_IMAGES === '1' ? [{ source: '/s/*/img/**', function: { functionId: 'publicStoreImage', region: 'europe-west1' } }] : []),
       process.env.STORE_SHARE_PREVIEWS === '1'
         ? { source: '/s/**', function: { functionId: 'publicStorePage', region: 'europe-west1' } }
         : { source: '/s/**', destination: `${TREE}/index.html` },
+      // robots.txt lists every published shop's sitemap (served by publicStorePage).
+      ...(process.env.STORE_SHARE_PREVIEWS === '1' ? [{ source: '/robots.txt', function: { functionId: 'publicStorePage', region: 'europe-west1' } }] : []),
       { source: '**/!(*.*)', destination: '/index.html' },
     ],
     headers,

@@ -21,6 +21,7 @@ import { forgetCachedCatalog, readCachedCatalog, writeCachedCatalog } from './st
 import { takePrefetchedCatalog } from './storefrontPrefetch';
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from './pendingPayment';
 import { trackStoreEvent } from './storefrontTrack';
+import { storeImageUrl } from '@/domain/storeSeo';
 import { formatLbp, formatUsd } from '@/utils/format';
 import { fitKind, withSizes } from './sizeAdvisor';
 import { collapseVariants } from '@/domain/variants';
@@ -210,18 +211,35 @@ function initial(name: string): string {
 }
 
 /** `cutout` themes show the background-free photo when the owner made one. */
-function ProductVisual({ product, cutout = false }: { product: PublicProduct; cutout?: boolean }) {
-  const src = (cutout && product.cutoutUrl) || product.imageUrl;
+/**
+ * `cutout` themes show the background-free photo when the owner made one. Ordinary photos come
+ * as small copies from the shop's photo server (/s/{slug}/img/…): a phone downloads a 320-640px
+ * WebP instead of the full photo. If that copy isn't available the original is shown instead.
+ */
+function ProductVisual({ product, slug, cutout = false }: { product: PublicProduct; slug: string; cutout?: boolean }) {
+  const useCut = cutout && !!product.cutoutUrl;
+  const src = (useCut && product.cutoutUrl) || product.imageUrl;
   if (src) {
+    const small = !useCut && product.imageUrl && slug ? (w: 320 | 640) => storeImageUrl('', slug, product.id, src, w) : null;
     return (
       <img
-        className={cutout && product.cutoutUrl ? 'sf-img sf-img-cutout' : 'sf-img'}
-        src={src}
+        className={useCut ? 'sf-img sf-img-cutout' : 'sf-img'}
+        src={small ? small(640) : src}
+        srcSet={small ? `${small(320)} 320w, ${small(640)} 640w` : undefined}
+        sizes={small ? '(max-width: 760px) 48vw, 280px' : undefined}
         alt=""
         loading="lazy"
         decoding="async"
         onLoad={markImageLoaded}
-        onError={markImageLoaded}
+        onError={(e) => {
+          const img = e.currentTarget;
+          if (small && img.getAttribute('src') !== src) {
+            img.removeAttribute('srcset');
+            img.src = src;
+            return;
+          }
+          markImageLoaded(e);
+        }}
         ref={markIfComplete}
       />
     );
@@ -1190,7 +1208,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
               aria-label={t('storefront.openProduct', { name: p.name })}
               onClick={() => setQuick(p.id)}
             >
-              <ProductVisual product={p} cutout={store.theme !== 'classic'} />
+              <ProductVisual product={p} slug={slug} cutout={store.theme !== 'classic'} />
               <span className="sf-open-hint" aria-hidden="true">
                 {t('storefront.quickView')}
               </span>
@@ -1667,7 +1685,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
                     {cartItems.map(({ product: p, qty }) => (
                       <li key={p.id} className="sf-line">
                         <div className="sf-thumb">
-                          <ProductVisual product={p} />
+                          <ProductVisual product={p} slug={slug} />
                         </div>
                         <div>
                           <div className="sf-line-name" dir="auto">{p.name}</div>

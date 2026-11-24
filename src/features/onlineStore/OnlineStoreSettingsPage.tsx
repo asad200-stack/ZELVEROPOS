@@ -42,6 +42,7 @@ import { StoreDesignEditor } from './StoreDesignEditor';
 import { WhishSettingsCard } from './WhishSettingsCard';
 import { StoreLinkCard } from './StoreLinkCard';
 import { FittingRoomCard } from './FittingRoomCard';
+import { CatalogFeedCard } from './CatalogFeedCard';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { useI18n } from '@/i18n/i18n';
 import { api } from '@/services/functionsClient';
@@ -336,6 +337,7 @@ function OnlineStoreEditor({ initial }: { initial: LoadedStore }) {
       <PageHeader title={t('onlineStore.title')} subtitle={t('onlineStore.subtitle')} actions={statusBadge} />
 
       {isPublished && config.slug && <StoreLinkCard slug={config.slug} storeName={config.published?.storeName ?? config.draft.storeName} />}
+      {isPublished && config.slug && <CatalogFeedCard slug={config.slug} />}
 
       <Alert tone="info">{t('onlineStore.payments')}</Alert>
 

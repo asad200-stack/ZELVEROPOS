@@ -6,6 +6,11 @@
  *                                        link pasted in WhatsApp / Instagram / Facebook shows
  *                                        the shop instead of "ZELVERO POS".
  *   GET /s/{slug}/manifest.webmanifest   per-shop web app manifest ("Add to home screen").
+ *   GET /s/{slug}/sitemap.xml            the shop and every product link, for search engines.
+ *   GET /s/{slug}/feed.xml               product catalogue for Facebook / Instagram Shopping and
+ *                                        Google Merchant Center (photos as JPEG via storeImage).
+ *   GET /robots.txt                      lists every published shop's sitemap.
+ * The page HTML also carries schema.org product data and a <noscript> list of product links.
  *
  * Wiring (Hosting rewrite, added only when this function is deployed, see
  * .claude/storefront-progress.md): { "source": "/s/**", "function": { "functionId":
@@ -16,10 +21,22 @@
  * unpublished stores get the plain shell; the app then shows its own "not found" page.
  */
 import { onRequest } from 'firebase-functions/v2/https';
+import { db } from './admin.js';
 import { REGION, STORE_EXTRA_HOSTS, STORE_SHELL_PATH, STORE_SITE_ORIGIN } from './config.js';
 import { activeProducts, resolvePublishedStore } from './onlineStore.js';
 import { toProduct } from './pos/common.js';
-import { injectShareMeta, normalizeSlug, productShareMeta, projectPublicProduct, slugProblem, storeManifest, storeShareMeta } from './shared/onlineStore.js';
+import {
+  injectShareMeta,
+  normalizeSlug,
+  productShareMeta,
+  projectPublicProduct,
+  slugProblem,
+  storeManifest,
+  storeShareMeta,
+  type PublicProduct,
+  type StoreShareMeta,
+} from './shared/onlineStore.js';
+import { injectSeo, productFeedXml, robotsTxt, sitemapXml, storeImageUrl, type SeoStore } from './shared/storeSeo.js';
 
 const SHELL_TTL_MS = 5 * 60_000;
 const META_TTL_MS = 5 * 60_000;
@@ -36,7 +53,6 @@ const FALLBACK_SHELL = `<!doctype html>
 `;
 
 let shell: { html: string; atMs: number } | null = null;
-const metaCache = new Map<string, { meta: ReturnType<typeof storeShareMeta> | null; atMs: number }>();
 
 function siteOrigin(): string {
   const raw = (STORE_SITE_ORIGIN.value() || '').trim().replace(/\/+$/, '');
@@ -76,62 +92,121 @@ function linkOrigin(host: string | undefined): string {
 
 const PRODUCT_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 
-async function loadMeta(slug: string, origin: string, now: number, productId = '') {
-  const key = `${origin}|${slug}|${productId}`;
-  const hit = metaCache.get(key);
-  if (hit && now - hit.atMs < META_TTL_MS) return hit.meta;
-  let meta: ReturnType<typeof storeShareMeta> | null;
+interface LoadedStore {
+  meta: StoreShareMeta;
+  seo: SeoStore;
+  /** Products on the website, in the shop's order (same rules as publicStoreCatalog). */
+  products: PublicProduct[];
+}
+
+const storeCache = new Map<string, { data: LoadedStore | null; atMs: number }>();
+
+async function loadStore(slug: string, origin: string, now: number): Promise<LoadedStore | null> {
+  const key = `${origin}|${slug}`;
+  const hit = storeCache.get(key);
+  if (hit && now - hit.atMs < META_TTL_MS) return hit.data;
+  let data: LoadedStore | null;
   try {
     const { tenantId, config, published } = await resolvePublishedStore(slug);
-    const ids = config.visibleProductIds.slice(0, 12);
-    const products = await activeProducts(tenantId, ids);
-    const image = ids.map((id) => products.get(id)?.imageUrl).find((u): u is string => typeof u === 'string' && u.startsWith('https://'));
-    meta = storeShareMeta(slug, published, origin, image ?? '');
-    // A shared product link (?p=id) previews that product, when it is on the store.
-    if (productId && config.visibleProductIds.includes(productId)) {
-      const data = products.get(productId) ?? (await activeProducts(tenantId, [productId])).get(productId);
-      if (data) meta = productShareMeta(meta, projectPublicProduct(toProduct(productId, data)));
+    const found = await activeProducts(tenantId, config.visibleProductIds);
+    const products = config.visibleProductIds
+      .filter((id) => found.has(id))
+      .map((id) => toProduct(id, found.get(id) as Record<string, unknown>))
+      .filter((p) => !p.imeiTracking)
+      .map((p) => projectPublicProduct(p, config.listings[p.id], config.ratings[p.id], now))
+      .filter((p) => p.priceUsdCents > 0 || (p.priceLbp ?? 0) > 0);
+    const image = products.map((p) => p.imageUrl).find((u): u is string => typeof u === 'string' && u.startsWith('https://'));
+    const meta = storeShareMeta(slug, published, origin, image ?? '');
+    data = {
+      meta,
+      products,
+      seo: { name: meta.title, description: meta.description, url: meta.url, imageUrl: meta.imageUrl, locale: meta.locale },
+    };
+  } catch {
+    data = null; // not found / not published: plain shell
+  }
+  if (storeCache.size > 500) storeCache.clear();
+  storeCache.set(key, { data, atMs: now });
+  return data;
+}
+
+let robotsCache: { text: string; atMs: number } | null = null;
+const ROBOTS_TTL_MS = 60 * 60_000;
+
+/** robots.txt with the sitemap of every published shop (checked against its store document). */
+async function loadRobots(origin: string, now: number): Promise<string> {
+  if (robotsCache && now - robotsCache.atMs < ROBOTS_TTL_MS) return robotsCache.text;
+  const sitemaps: string[] = [];
+  try {
+    const slugs = await db.collection('onlineStoreSlugs').limit(1000).get();
+    const pairs = slugs.docs
+      .map((d) => ({ slug: d.id, tenantId: d.get('tenantId') }))
+      .filter((x): x is { slug: string; tenantId: string } => typeof x.tenantId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(x.tenantId));
+    for (let i = 0; i < pairs.length; i += 100) {
+      const part = pairs.slice(i, i + 100);
+      const stores = await db.getAll(...part.map((x) => db.doc(`onlineStores/${x.tenantId}`)));
+      stores.forEach((st, k) => {
+        const x = part[k];
+        if (x && st.get('enabled') === true && st.get('publication') === 'published' && st.get('slug') === x.slug) {
+          sitemaps.push(`${origin}/s/${encodeURIComponent(x.slug)}/sitemap.xml`);
+        }
+      });
     }
   } catch {
-    meta = null; // not found / not published: plain shell
+    // robots.txt still allows everything; sitemaps come back on the next refresh.
   }
-  if (metaCache.size > 1000) metaCache.clear();
-  metaCache.set(key, { meta, atMs: now });
-  return meta;
+  const text = robotsTxt(sitemaps);
+  robotsCache = { text, atMs: now };
+  return text;
 }
 
 export const publicStorePage = onRequest({ region: REGION, memory: '256MiB', concurrency: 80, maxInstances: 10 }, async (req, res) => {
   const now = Date.now();
-  const match = /^\/s\/([^/]+)(\/manifest\.webmanifest)?\/?$/.exec(req.path);
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.status(405).set('Allow', 'GET, HEAD').send('');
     return;
   }
+  const origin = linkOrigin(req.get('x-forwarded-host') ?? req.get('host'));
+  if (req.path === '/robots.txt') {
+    res.status(200).set('Content-Type', 'text/plain; charset=utf-8').set('Cache-Control', 'public, max-age=3600, s-maxage=3600').send(await loadRobots(origin, now));
+    return;
+  }
+  const match = /^\/s\/([^/]+)(?:\/(manifest\.webmanifest|sitemap\.xml|feed\.xml))?\/?$/.exec(req.path);
+  const file = match?.[2] ?? '';
   const slug = match ? normalizeSlug(decodeURIComponent(match[1] ?? '')) : '';
   const valid = !!slug && !slugProblem(slug);
-  const origin = linkOrigin(req.get('x-forwarded-host') ?? req.get('host'));
   const rawProduct = typeof req.query.p === 'string' ? req.query.p : '';
-  const productId = !match?.[2] && PRODUCT_ID_RE.test(rawProduct) ? rawProduct : '';
-  const meta = valid ? await loadMeta(slug, origin, now, productId) : null;
+  const productId = !file && PRODUCT_ID_RE.test(rawProduct) ? rawProduct : '';
+  const store = valid ? await loadStore(slug, origin, now) : null;
 
-  if (match?.[2]) {
-    if (!meta) {
-      res.status(404).set('Cache-Control', 'no-store').json({});
+  if (file) {
+    if (!store) {
+      res.status(404).set('Cache-Control', 'no-store').send('');
       return;
     }
-    res
-      .status(200)
-      .set('Content-Type', 'application/manifest+json; charset=utf-8')
-      .set('Cache-Control', 'public, max-age=300')
-      .send(JSON.stringify(storeManifest(meta)));
+    if (file === 'manifest.webmanifest') {
+      res.status(200).set('Content-Type', 'application/manifest+json; charset=utf-8').set('Cache-Control', 'public, max-age=300').send(JSON.stringify(storeManifest(store.meta)));
+    } else if (file === 'sitemap.xml') {
+      res.status(200).set('Content-Type', 'application/xml; charset=utf-8').set('Cache-Control', 'public, max-age=3600, s-maxage=3600').send(sitemapXml(store.seo, store.products));
+    } else {
+      const jpeg = (p: { id: string; imageUrl: string | null }) => storeImageUrl(origin, slug, p.id, p.imageUrl ?? '', 1200, 'jpg');
+      res.status(200).set('Content-Type', 'application/xml; charset=utf-8').set('Cache-Control', 'public, max-age=1800, s-maxage=1800').send(productFeedXml(store.seo, store.products, jpeg));
+    }
     return;
   }
 
   const html = await loadShell(now);
+  if (!store) {
+    res.status(200).set('Content-Type', 'text/html; charset=utf-8').set('Cache-Control', 'no-cache').send(html);
+    return;
+  }
+  // A shared product link (?p=id) previews that product, when it is on the store.
+  const product = productId ? (store.products.find((p) => p.id === productId) ?? null) : null;
+  const meta = product ? productShareMeta(store.meta, product) : store.meta;
   res
     .status(200)
     .set('Content-Type', 'text/html; charset=utf-8')
     // Short shared cache: store edits show up within minutes, the shell itself stays fresh.
-    .set('Cache-Control', meta ? 'public, max-age=60, s-maxage=300' : 'no-cache')
-    .send(meta ? injectShareMeta(html, meta) : html);
+    .set('Cache-Control', 'public, max-age=60, s-maxage=300')
+    .send(injectSeo(injectShareMeta(html, meta), store.seo, store.products, product));
 });

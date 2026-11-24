@@ -89,3 +89,4 @@ export { posCashMove, posAdjustDrawer } from './pos/cash.js';
 export { posCreatePurchase, posPaySupplier, posReturnToSupplier } from './pos/suppliers.js';
 export { testTelegram, onSaleCreated, onReturnCreated, onCashTransactionCreated, onProductStockChanged } from './telegram/index.js';
 export { keepStoresWarm } from './keepWarm.js';
+export { publicStoreImage } from './storeImage.js';
