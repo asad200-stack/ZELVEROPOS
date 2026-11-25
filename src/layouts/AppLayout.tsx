@@ -32,6 +32,7 @@ import { useResource } from '@/stores/tenantStore';
 import { formatNumber } from '@/utils/format';
 import { POS_PREVIEW_RELEASE, POS_UI_ID } from '@/features/pos/posUi';
 import { isSuperAdminPreviewChannel } from '@/firebase/superadminPreview';
+import zelveroMark from '@/assets/zelvero-mark.png';
 
 const askAiAccess = copilotAccess;
 
@@ -137,7 +138,9 @@ export function AppLayout({ adminOnly = false }: { adminOnly?: boolean }) {
           >
             <Icon name="menu" />
           </button>
-          <span className="sidebar__logo">Z</span>
+          <span className="sidebar__logo">
+            <img src={zelveroMark} alt="" width={32} height={32} />
+          </span>
           <span className="sidebar__title">{APP_NAME}</span>
         </div>
         <nav className="sidebar__nav">

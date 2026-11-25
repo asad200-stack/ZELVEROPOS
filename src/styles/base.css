@@ -55,9 +55,10 @@
   --c-border-strong: #cbd5e1;
   --c-text: #0f172a;
   --c-text-muted: #64748b;
-  --c-primary: #4f46e5;
-  --c-primary-hover: #4338ca;
-  --c-primary-soft: #eef2ff;
+  /* Zelvero brand: the logo's cyan on near-black. */
+  --c-primary: #0e7490;
+  --c-primary-hover: #155e75;
+  --c-primary-soft: #e6fbfd;
   --c-on-primary: #ffffff;
   --c-success: #059669;
   --c-success-soft: #ecfdf5;
@@ -89,17 +90,17 @@
 }
 
 [data-theme='dark'] {
-  --c-bg: #0b1120;
-  --c-surface: #111827;
-  --c-surface-2: #1a2234;
-  --c-border: #243045;
-  --c-border-strong: #334155;
+  --c-bg: #05090b;
+  --c-surface: #0b1417;
+  --c-surface-2: #111e22;
+  --c-border: #1b2c31;
+  --c-border-strong: #2a4047;
   --c-text: #e5e7eb;
   --c-text-muted: #94a3b8;
-  --c-primary: #818cf8;
-  --c-primary-hover: #a5b4fc;
-  --c-primary-soft: #1e1b4b;
-  --c-on-primary: #0b1120;
+  --c-primary: #22d3ee;
+  --c-primary-hover: #67e8f9;
+  --c-primary-soft: #06303a;
+  --c-on-primary: #031114;
   --c-success: #34d399;
   --c-success-soft: #052e22;
   --c-danger: #f87171;

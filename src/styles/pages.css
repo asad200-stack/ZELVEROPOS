@@ -1662,7 +1662,7 @@
 .payment__apply-btn {
   flex: none;
   white-space: nowrap;
-  box-shadow: 0 6px 14px rgb(79 70 229 / 0.3);
+  box-shadow: 0 6px 14px rgb(14 116 144 / 0.3);
 }
 
 .payment__custom-link {

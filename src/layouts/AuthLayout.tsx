@@ -6,6 +6,7 @@ import { APP_NAME } from '@/constants/app';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useI18n } from '@/i18n/i18n';
 import { captureReferralCode } from '@/services/referralCapture';
+import zelveroMark from '@/assets/zelvero-mark.png';
 
 export function AuthLayout() {
   const { t, lang, setLang } = useI18n();
@@ -23,7 +24,9 @@ export function AuthLayout() {
       </div>
       <div className="auth__card">
         <div className="auth__brand">
-          <span className="sidebar__logo">Z</span>
+          <span className="sidebar__logo sidebar__logo--lg">
+            <img src={zelveroMark} alt="" width={48} height={48} />
+          </span>
           <div>
             <div className="auth__name">{APP_NAME}</div>
             <div className="muted small">{t('auth.tagline')}</div>
