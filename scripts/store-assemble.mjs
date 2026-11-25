@@ -40,6 +40,51 @@ for (const f of live.files) {
 // release.json lists the trees it may follow.
 cpSync('scripts/release-root-boot.js', join(OUT, 'boot.js'));
 writeFileSync(join(OUT, 'release.json'), JSON.stringify({ trees: [VERSION] }) + '\n');
+
+// STORE_LEGACY_TREES="0.9.3": earlier trees kept online (copied from tmp/legacy-trees/app/{v}/, a
+// snapshot of what is live) so devices still running them keep loading their files.
+const LEGACY = (process.env.STORE_LEGACY_TREES || '').split(',').map((v) => v.trim()).filter((v) => v && v !== VERSION);
+for (const v of LEGACY) {
+  const src = join('tmp', 'legacy-trees', 'app', v);
+  if (!existsSync(join(src, 'index.html'))) fail(`legacy tree ${v} missing: snapshot it into ${src} first.`);
+  cpSync(src, join(OUT, 'app', v), { recursive: true });
+}
+// STORE_MOVE_ALL=1: every store moves to this tree. The root app's page and each legacy tree's page
+// become a small page that loads /move.js, which opens the same screen under /app/{VERSION}/.
+// index.html is always fetched from the network first (sw/policy.ts), so this reaches every
+// device the next time it opens the app online; the old files stay for anything still cached.
+if (process.env.STORE_MOVE_ALL === '1') {
+  writeFileSync(
+    join(OUT, 'move.js'),
+    `(function () {
+  var v = '${VERSION}';
+  var p = location.pathname || '/';
+  var m = /^\\/app\\/[^/]+(\\/.*)?$/.exec(p);
+  var rest = m ? m[1] || '/' : p;
+  try {
+    localStorage.setItem('zelvero.lastGoodVersion', v);
+  } catch (e) {}
+  location.replace('/app/' + v + rest + location.search + location.hash);
+})();
+`,
+  );
+  const page = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>ZELVERO POS</title>
+    <script src="/move.js"></script>
+  </head>
+  <body>
+    <noscript><a href="/app/${VERSION}/">ZELVERO POS</a></noscript>
+  </body>
+</html>
+`;
+  writeFileSync(join(OUT, 'index.html'), page);
+  for (const v of LEGACY) writeFileSync(join(OUT, 'app', v, 'index.html'), page);
+}
 // robots.txt is a static file: Google's front end answers /robots.txt itself (an empty 404) before
 // a function can, so it points at the shops' sitemap list that publicStorePage serves under /s/.
 if (process.env.STORE_SHARE_PREVIEWS === '1') {
@@ -59,6 +104,13 @@ headers.splice(at + 2, 0, {
   source: `${TREE}/@(index.html|sw.js|boot.js|manifest.webmanifest)`,
   headers: [{ key: 'Cache-Control', value: 'no-cache' }],
 });
+for (const v of LEGACY) {
+  headers.splice(at + 2, 0, { source: `/app/${v}/@(index.html|sw.js|boot.js|manifest.webmanifest)`, headers: [{ key: 'Cache-Control', value: 'no-cache' }] });
+  headers.splice(headers.findIndex((h) => h.source === '/assets/**') + 1, 0, {
+    source: `/app/${v}/assets/**`,
+    headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+  });
+}
 headers.splice(headers.findIndex((h) => h.source === '/assets/**') + 1, 0, {
   source: `${TREE}/assets/**`,
   headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
@@ -71,6 +123,10 @@ const config = {
     rewrites: [
       { source: TREE, destination: `${TREE}/index.html` },
       { source: `${TREE}/**`, destination: `${TREE}/index.html` },
+      ...LEGACY.flatMap((v) => [
+        { source: `/app/${v}`, destination: `/app/${v}/index.html` },
+        { source: `/app/${v}/**`, destination: `/app/${v}/index.html` },
+      ]),
       // Public store pages run on the new tree while it is piloted; the customer app itself stays on the root.
       // STORE_SHARE_PREVIEWS=1 (only after publicStorePage is deployed with STORE_SHELL_PATH set to
       // this tree): store and product links get their own WhatsApp/Facebook preview.

@@ -1,6 +1,6 @@
 import { logger } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { REGION, STORE_SITE_ORIGIN } from './config.js';
+import { REGION, RUNTIME_SERVICE_ACCOUNT, STORE_SITE_ORIGIN } from './config.js';
 
 /** Slug that never exists: the call only wakes the server, it reads no shop. */
 const WARM_SLUG = 'zv-keep-warm';
@@ -12,8 +12,16 @@ const WARM_SLUG = 'zv-keep-warm';
  * (scheduler jobs and calls), no minimum instances are paid for.
  */
 export const keepStoresWarm = onSchedule(
-  // Cloud Scheduler takes unix-cron only ("every 10 minutes" was refused with 400 invalid argument).
-  { schedule: '*/10 * * * *', timeZone: 'UTC', region: REGION, memory: '256MiB', timeoutSeconds: 60 },
+  {
+    schedule: '*/10 * * * *',
+    timeZone: 'UTC',
+    region: REGION,
+    memory: '256MiB',
+    timeoutSeconds: 60,
+    // The full address: the Firebase CLI copies the account into the Cloud Scheduler job as is, and
+    // Cloud Scheduler refuses the short form ("zelvero-functions-runtime@") with 400 invalid argument.
+    serviceAccount: `${RUNTIME_SERVICE_ACCOUNT}${process.env.GCLOUD_PROJECT || 'zelvoropos'}.iam.gserviceaccount.com`,
+  },
   async () => {
     const project = process.env.GCLOUD_PROJECT ?? '';
     const catalog = `https://${REGION}-${project}.cloudfunctions.net/publicStoreCatalog`;

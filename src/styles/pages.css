@@ -2843,6 +2843,9 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 4px;
+  /* Big totals: the LBP amount goes under the USD one instead of out of the card. */
+  flex-wrap: wrap;
+  row-gap: 1px;
   min-width: 0;
   line-height: 1.15;
 }

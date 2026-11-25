@@ -499,6 +499,50 @@ button.topbar__chip {
   .topbar__chip {
     padding: 0 7px;
   }
+
+  /* Phones: the chips and buttons (online, rate, trial, AI, language, theme) are wider than the
+     screen. They scroll sideways inside the bar instead of pushing the whole page off screen. */
+  .topbar__actions {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .topbar__actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .topbar__actions > * {
+    flex: none;
+  }
+
+  .topbar__start {
+    flex: 1 0 72px;
+  }
+
+  .main {
+    overflow-x: clip;
+  }
+
+  /* Point of sale (drawer chip in the bar): the title keeps a little room, the buttons get the rest. */
+  .topbar:has(.cash-chip) {
+    grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  }
+
+  .topbar:has(.cash-chip) .topbar__start {
+    max-width: 42vw;
+  }
+
+  .topbar:has(.cash-chip) .topbar__actions {
+    justify-self: stretch;
+  }
+
+  /* Pushes the buttons to the end of the bar and still lets the start of the row scroll into view. */
+  .topbar:has(.cash-chip) .topbar__actions > :first-child {
+    margin-inline-start: auto;
+  }
 }
 
 /* Auth & full-screen states */

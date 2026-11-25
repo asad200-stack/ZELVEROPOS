@@ -1,6 +1,6 @@
 {
   "name": "zelvero-pos",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "ZELVERO POS — React + TypeScript + Firebase point of sale",
   "type": "module",

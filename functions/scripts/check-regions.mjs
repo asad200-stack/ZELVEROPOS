@@ -26,7 +26,10 @@ for (const [name, fn] of Object.entries(mod)) {
   const regions = endpoint.region ?? [];
   if (regions.length !== 1 || regions[0] !== region) problems.push(`${name}: region ${JSON.stringify(regions)}, expected ["${region}"]`);
   if (!endpoint.maxInstances) problems.push(`${name}: no maxInstances limit`);
-  if (endpoint.serviceAccountEmail !== runtimeAccount) {
+  // Scheduled functions spell the account in full (Cloud Scheduler refuses the short form).
+  const fullAccount = endpoint.scheduleTrigger && new RegExp('^' + runtimeAccount + '[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$');
+  const accountOk = endpoint.serviceAccountEmail === runtimeAccount || (!!fullAccount && fullAccount.test(endpoint.serviceAccountEmail ?? ''));
+  if (!accountOk) {
     problems.push(`${name}: service account ${JSON.stringify(endpoint.serviceAccountEmail ?? null)}, expected "${runtimeAccount}"`);
   }
 }
