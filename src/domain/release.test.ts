@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   alreadyInAppTree,
+  FROZEN_PRODUCTION_VERSION,
   canAssignTenants,
   canCreateVersion,
   canReleaseToEveryone,
@@ -33,8 +34,9 @@ describe('semver', () => {
     expect(canCreateVersion('1.0.0', '1.0.1')).toBe(false);
   });
 
-  it('refuses to create 1.0.0 before freeze', () => {
-    expect(canCreateVersion('1.0.0', null)).toBe(false);
+  it('allows the first 1.0.0 once production is frozen, never twice', () => {
+    expect(canCreateVersion('1.0.0', null)).toBe(FROZEN_PRODUCTION_VERSION === '1.0.0');
+    expect(canCreateVersion('1.0.0', '1.0.0')).toBe(false);
     expect(canCreateVersion('0.9.0-dev', null)).toBe(true);
   });
 });

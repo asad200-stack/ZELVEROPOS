@@ -17,8 +17,8 @@ export type TargetType = (typeof TARGET_TYPES)[number];
 export const CURRENT_API_COMPAT = 1;
 export const CURRENT_OFFLINE_SCHEMA = 1;
 
-/** Blocked until the owner explicitly freezes production. */
-export const FROZEN_PRODUCTION_VERSION: string | null = null;
+/** Production frozen by the owner on 2026-11-25: every store runs 1.0.0. */
+export const FROZEN_PRODUCTION_VERSION: string | null = '1.0.0';
 
 export const PUBLIC_APP_PATHS = [
   '/login',
