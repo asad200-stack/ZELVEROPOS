@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { feedPrice, imageVersion, injectSeo, parseStoreImagePath, productFeedXml, robotsTxt, sitemapXml, storeImageUrl, type SeoStore } from './storeSeo';
+import { feedPrice, imageVersion, injectSeo, parseStoreImagePath, productFeedXml, robotsTxt, sitemapIndexXml, sitemapXml, storeImageUrl, type SeoStore } from './storeSeo';
 
 const store: SeoStore = { name: 'Today & Co', description: 'Clothes', url: 'https://zelvoropos.web.app/s/todayslook', imageUrl: '', locale: 'ar' };
 const product = (over: Record<string, unknown> = {}) => ({
@@ -56,6 +56,13 @@ describe('store SEO', () => {
     expect(parseStoreImagePath('/s/todayslook/img/p1-500.webp')).toBeNull();
     expect(parseStoreImagePath('/s/todayslook/img/../x-640.webp')).toBeNull();
     expect(imageVersion('https://a/b.webp')).not.toBe(imageVersion('https://a/c.webp'));
+  });
+
+  it('lists every shop sitemap in one index', () => {
+    expect(sitemapIndexXml(['https://h/s/a/sitemap.xml', 'https://h/s/b&c/sitemap.xml'])).toBe(
+      '<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <sitemap><loc>https://h/s/a/sitemap.xml</loc></sitemap>\n  <sitemap><loc>https://h/s/b&amp;c/sitemap.xml</loc></sitemap>\n</sitemapindex>\n',
+    );
+    expect(sitemapIndexXml([])).toContain('<sitemapindex');
   });
 
   it('writes robots.txt with the sitemaps', () => {

@@ -3,10 +3,17 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Layout';
 import { useTenant } from '@/contexts/session';
 import { useFeedback } from '@/contexts/feedback';
-import type { OnlineStoreConfig, PublicProduct } from '@/domain/onlineStore';
+import { guessLookSlot, LOOK_HEM_DEFAULT, LOOK_HEM_MAX, LOOK_HEM_MIN, LOOK_SLOTS, type LookSlot, type OnlineStoreConfig, type PublicProduct } from '@/domain/onlineStore';
 import { useI18n } from '@/i18n/i18n';
-import { clearLook, makeLook } from './looks';
+import { clearLook, makeLook, saveLookFit } from './looks';
+import OutfitModel from './OutfitModel';
 import { FITTING_ROOM_MIN } from './roomLooks';
+
+const SLOT_KEY = {
+  top: 'onlineStore.room.slot.top',
+  bottom: 'onlineStore.room.slot.bottom',
+  full: 'onlineStore.room.slot.full',
+} as const;
 
 /** Pieces shown at first, and added by each "Show more". */
 const PAGE = 12;
@@ -51,6 +58,32 @@ export function FittingRoomCard({ products, config, onConfig }: Props) {
   const visible = shown.slice(0, limit);
   const tools = withPhoto.length >= TOOLS_FROM;
   const reset = () => setLimit(PAGE);
+
+  // Outfits: where each piece is worn, and where a top ends on its photo.
+  const slotOf = (p: PublicProduct): LookSlot => config.listings[p.id]?.lookSlot || guessLookSlot(p.name, p.category);
+  const tops = ready.filter((p) => slotOf(p) === 'top');
+  const bottoms = ready.filter((p) => slotOf(p) === 'bottom');
+  const [pairTop, setPairTop] = useState('');
+  const [pairBottom, setPairBottom] = useState('');
+  const top = tops.find((p) => p.id === pairTop) ?? tops[0];
+  const bottom = bottoms.find((p) => p.id === pairBottom) ?? bottoms[0];
+  const [hemDraft, setHemDraft] = useState<Record<string, number>>({});
+  const savedHem = (id: string) => config.listings[id]?.lookHem || LOOK_HEM_DEFAULT;
+  const hem = top ? (hemDraft[top.id] ?? savedHem(top.id)) : LOOK_HEM_DEFAULT;
+  const [fitBusy, setFitBusy] = useState(false);
+  const saveFit = async (p: PublicProduct, fit: { lookSlot?: LookSlot | ''; lookHem?: number }) => {
+    setFitBusy(true);
+    try {
+      onConfig(await saveLookFit(p.id, config.listings[p.id], fit));
+      if (fit.lookHem !== undefined) setHemDraft((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== p.id)));
+      notify('success', t('onlineStore.room.fitSaved'));
+    } catch (err) {
+      console.warn('[fitting room] fit', p.id, err);
+      notify('error', t('onlineStore.room.fitFailed'));
+    } finally {
+      setFitBusy(false);
+    }
+  };
 
   const run = async (items: PublicProduct[], photo: Blob | null) => {
     let cfg = config;
@@ -179,6 +212,22 @@ export function FittingRoomCard({ products, config, onConfig }: Props) {
                     <img src={look || p.imageUrl || ''} alt="" loading="lazy" />
                   </span>
                   <span className="os-room-name">{p.name}</span>
+                  {look ? (
+                    <select
+                      className="input os-room-slot"
+                      value={config.listings[p.id]?.lookSlot ?? ''}
+                      disabled={!!job || fitBusy}
+                      aria-label={t('onlineStore.room.slot')}
+                      onChange={(e) => void saveFit(p, { lookSlot: e.currentTarget.value as LookSlot | '' })}
+                    >
+                      <option value="">{t('onlineStore.room.slotAuto', { slot: t(SLOT_KEY[guessLookSlot(p.name, p.category)]) })}</option>
+                      {LOOK_SLOTS.map((sl) => (
+                        <option key={sl} value={sl}>
+                          {t(SLOT_KEY[sl])}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                   <span className="os-room-actions">
                     {look ? (
                       <>
@@ -213,6 +262,56 @@ export function FittingRoomCard({ products, config, onConfig }: Props) {
             </div>
           )}
           </>
+        )}
+        {top && bottom && (
+          <section className="os-outfit" aria-label={t('onlineStore.room.outfitTitle')}>
+            <div className="os-outfit-text">
+              <b>{t('onlineStore.room.outfitTitle')}</b>
+              <span className="muted">{t('onlineStore.room.outfitHint')}</span>
+              <label className="os-outfit-field">
+                <span>{t('onlineStore.room.slot.top')}</span>
+                <select className="input" value={top.id} onChange={(e) => setPairTop(e.currentTarget.value)}>
+                  {tops.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="os-outfit-field">
+                <span>{t('onlineStore.room.slot.bottom')}</span>
+                <select className="input" value={bottom.id} onChange={(e) => setPairBottom(e.currentTarget.value)}>
+                  {bottoms.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="os-outfit-field">
+                <span>{t('onlineStore.room.hem', { name: top.name })}</span>
+                <input
+                  type="range"
+                  min={LOOK_HEM_MIN}
+                  max={LOOK_HEM_MAX}
+                  value={hem}
+                  onChange={(e) => {
+                    const v = Number(e.currentTarget.value);
+                    setHemDraft((d) => ({ ...d, [top.id]: v }));
+                  }}
+                />
+              </label>
+              <div>
+                <Button size="sm" variant="secondary" disabled={fitBusy || hem === savedHem(top.id)} onClick={() => void saveFit(top, { lookHem: hem })}>
+                  {t('onlineStore.room.hemSave')}
+                </Button>
+              </div>
+            </div>
+            <span className="os-outfit-stage">
+              <OutfitModel className="os-outfit-model" topUrl={lookOf(top.id)} bottomUrl={lookOf(bottom.id)} hem={hem} alt={`${top.name} + ${bottom.name}`} />
+              <span className="os-outfit-line" style={{ top: `${hem}%` }} aria-hidden="true" />
+            </span>
+          </section>
         )}
         {job ? (
           <p className="muted" role="status" style={{ margin: 0 }}>

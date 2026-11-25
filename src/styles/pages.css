@@ -3388,6 +3388,22 @@
 .os-room-list.is-compact { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
 .os-room-list.is-compact .os-room-item { padding: 6px; gap: 4px; }
 .os-room-list.is-compact .os-room-name { font-size: 12px; }
+.os-room-slot { min-height: 30px; padding-block: 2px; font-size: 12px; }
+/* Outfit preview: a top and a bottom together, with the top's hem line. */
+.os-outfit {
+  display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 16px; align-items: start;
+  padding: 14px; border: 1px solid var(--c-border); border-radius: var(--radius); background: var(--c-surface);
+}
+.os-outfit-text { display: grid; gap: 10px; align-content: start; }
+.os-outfit-field { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.os-outfit-field input[type='range'] { width: 100%; }
+.os-outfit-stage {
+  position: relative; display: block; aspect-ratio: 3 / 4; overflow: hidden; border-radius: var(--radius-sm);
+  background: radial-gradient(120% 85% at 50% 18%, #f6bd76 0%, #dc8d40 55%, #9b5421 100%);
+}
+.os-outfit-model { position: absolute; inset: 0; }
+.os-outfit-line { position: absolute; inset-inline: 0; height: 0; border-top: 2px dashed rgb(255 255 255 / 0.9); pointer-events: none; }
+@media (max-width: 560px) { .os-outfit { grid-template-columns: 1fr; } .os-outfit-stage { max-width: 240px; } }
 .os-room-item {
   display: grid;
   grid-template-rows: auto auto 1fr;

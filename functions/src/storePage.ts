@@ -34,7 +34,7 @@ import {
   type PublicProduct,
   type StoreShareMeta,
 } from './shared/onlineStore.js';
-import { injectSeo, productFeedXml, robotsTxt, sitemapXml, storeImageUrl, type SeoStore } from './shared/storeSeo.js';
+import { injectSeo, productFeedXml, robotsTxt, SITEMAP_INDEX_PATH, sitemapIndexXml, sitemapXml, storeImageUrl, type SeoStore } from './shared/storeSeo.js';
 
 const SHELL_TTL_MS = 5 * 60_000;
 const META_TTL_MS = 5 * 60_000;
@@ -140,12 +140,13 @@ async function loadStore(slug: string, origin: string, now: number): Promise<Loa
   return data;
 }
 
-let robotsCache: { text: string; atMs: number } | null = null;
-const ROBOTS_TTL_MS = 60 * 60_000;
+const sitemapsCache = new Map<string, { list: string[]; atMs: number }>();
+const SITEMAPS_TTL_MS = 60 * 60_000;
 
-/** robots.txt with the sitemap of every published shop (checked against its store document). */
-async function loadRobots(origin: string, now: number): Promise<string> {
-  if (robotsCache && now - robotsCache.atMs < ROBOTS_TTL_MS) return robotsCache.text;
+/** The sitemap of every published shop (each checked against its store document). */
+async function loadSitemaps(origin: string, now: number): Promise<string[]> {
+  const hit = sitemapsCache.get(origin);
+  if (hit && now - hit.atMs < SITEMAPS_TTL_MS) return hit.list;
   const sitemaps: string[] = [];
   try {
     const slugs = await db.collection('onlineStoreSlugs').limit(1000).get();
@@ -163,11 +164,11 @@ async function loadRobots(origin: string, now: number): Promise<string> {
       });
     }
   } catch {
-    // robots.txt still allows everything; sitemaps come back on the next refresh.
+    // Empty list this time; sitemaps come back on the next refresh.
   }
-  const text = robotsTxt(sitemaps);
-  robotsCache = { text, atMs: now };
-  return text;
+  if (sitemapsCache.size > 20) sitemapsCache.clear();
+  sitemapsCache.set(origin, { list: sitemaps, atMs: now });
+  return sitemaps;
 }
 
 export const publicStorePage = onRequest({ region: REGION, memory: '256MiB', concurrency: 80, maxInstances: 10 }, async (req, res) => {
@@ -178,7 +179,12 @@ export const publicStorePage = onRequest({ region: REGION, memory: '256MiB', con
   }
   const origin = linkOrigin(req.get('x-forwarded-host') ?? req.get('host'));
   if (req.path === '/robots.txt') {
-    res.status(200).set('Content-Type', 'text/plain; charset=utf-8').set('Cache-Control', 'public, max-age=3600, s-maxage=3600').send(await loadRobots(origin, now));
+    // Kept for direct calls; on Hosting /robots.txt is a static file (see SITEMAP_INDEX_PATH).
+    res.status(200).set('Content-Type', 'text/plain; charset=utf-8').set('Cache-Control', 'public, max-age=3600, s-maxage=3600').send(robotsTxt(await loadSitemaps(origin, now)));
+    return;
+  }
+  if (req.path === SITEMAP_INDEX_PATH) {
+    res.status(200).set('Content-Type', 'application/xml; charset=utf-8').set('Cache-Control', 'public, max-age=3600, s-maxage=3600').send(sitemapIndexXml(await loadSitemaps(origin, now)));
     return;
   }
   const match = /^\/s\/([^/]+)(?:\/(manifest\.webmanifest|sitemap\.xml|feed\.xml))?\/?$/.exec(req.path);

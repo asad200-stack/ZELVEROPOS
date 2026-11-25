@@ -4,7 +4,7 @@ import { isAdminPreviewBuild } from '@/domain/adminPreview';
 import { customerReleaseCutoverAllowed } from '@/domain/previewAccess';
 import { firebase } from '@/firebase/app';
 import type { PermissionMap } from '@/constants/permissions';
-import type { OnlineStoreConfig, PublicProduct, PublicStore, StatsRange, StoreBranding, StoreEvent, StoreStatsSummary } from '@/domain/onlineStore';
+import type { LookSlot, OnlineStoreConfig, PublicProduct, PublicStore, StatsRange, StoreBranding, StoreEvent, StoreStatsSummary } from '@/domain/onlineStore';
 import type { FulfillmentMethod, OnlineOrder, ManualPayment, OrderStatus, PaymentMethod, PaymentStatus, ProductReview, PublicOrderReceipt, PublicOrderTracking, PublicReview, ReviewStatus, ReviewSummary, SalesSplit } from '@/domain/onlineOrders';
 import { withoutUndefined } from './callableData';
 import { requirePreviewCredential } from './previewCredential';
@@ -283,7 +283,15 @@ export const api = {
   onlineStoreUnpublish: callable<Record<string, never>, { config: OnlineStoreConfig }>('onlineStoreUnpublish'),
   onlineStoreSetProductVisibility: callable<{ productIds: string[] }, { config: OnlineStoreConfig }>('onlineStoreSetProductVisibility'),
   onlineStoreSaveListing: callable<
-    { productId: string; description: string; compareAtUsdCents: number | null; cutoutUrl?: string; lookUrl?: string },
+    {
+      productId: string;
+      description: string;
+      compareAtUsdCents: number | null;
+      cutoutUrl?: string;
+      lookUrl?: string;
+      lookSlot?: LookSlot | '';
+      lookHem?: number;
+    },
     { config: OnlineStoreConfig }
   >('onlineStoreSaveListing'),
   onlineStoreSetDomain: callable<{ domain: string }, { config: OnlineStoreConfig }>('onlineStoreSetDomain'),

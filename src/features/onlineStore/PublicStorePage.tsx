@@ -39,6 +39,7 @@ import StorefrontTrackOrder from './StorefrontTrackOrder';
 import StorefrontAccount from './StorefrontAccount';
 import { shopperApi, useShopper } from './shopperAuth';
 import { mergeWishlists, orderAgainLines, type ShopperOrder } from '@/domain/shopperAccount';
+import { cleanSenderName, decodeBag, encodeBag, mergeSharedBag, type BagLine } from '@/domain/sharedBag';
 import { whatsAppLink, whatsAppOrderText, type WaWords } from './storefrontWhatsApp';
 import './storefront.css';
 
@@ -370,6 +371,13 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   // Deep link: /s/<slug>?p=<productId> opens that product (ignored if it is not in the catalog).
   const [quick, setQuick] = useState<string | null>(() => new URLSearchParams(window.location.search).get('p'));
   const [sizes, setSizes] = useState<Record<string, string>>({});
+  const [bagShared, setBagShared] = useState(false);
+  // A bag a friend sent in the link (?bag=…&from=…), offered once the catalogue is in.
+  const [sharedBag, setSharedBag] = useState<{ lines: BagLine[]; from: string } | null>(() => {
+    const q = new URLSearchParams(window.location.search);
+    const lines = decodeBag(q.get('bag'));
+    return lines.length > 0 ? { lines, from: cleanSenderName(q.get('from')) } : null;
+  });
   const [wish, setWish] = useState<string[]>(() => readWish(slug));
   const [wishOnly, setWishOnly] = useState(false);
   const [trackOpen, setTrackOpen] = useState(false);
@@ -544,7 +552,7 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const problem = orderProblem(lines, { name, phone, address }, fulfillment) ?? delivery?.problem ?? null;
 
   const quickOpen = quick !== null && allProducts.some((p) => p.id === quick);
-  const overlay = cartOpen || quickOpen || trackOpen || accountOpen;
+  const overlay = cartOpen || quickOpen || trackOpen || accountOpen || (sharedBag !== null && !!data.data);
   useEffect(() => {
     if (!overlay) return;
     const onKey = (e: KeyboardEvent) => {
@@ -632,6 +640,49 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
   const openCart = () => {
     setStep('cart');
     setCartOpen(true);
+  };
+  /** Removes ?bag and ?from from the address so a reload doesn't offer the bag again. */
+  const forgetSharedBag = () => {
+    setSharedBag(null);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('bag');
+      u.searchParams.delete('from');
+      window.history.replaceState(window.history.state, '', u);
+    } catch {
+      // Old browsers: the offer just shows again after a reload.
+    }
+  };
+  const acceptSharedBag = () => {
+    if (!sharedBag) return;
+    const forSale = new Set(allProducts.filter((p) => p.inStock).map((p) => p.id));
+    const merged = mergeSharedBag(cart, sizes, sharedBag.lines, (id) => forSale.has(id));
+    setCart(merged.cart);
+    setSizes(merged.sizes);
+    forgetSharedBag();
+    setReceipt(null);
+    openCart();
+  };
+  /** Sends this bag to a friend (WhatsApp, or the phone's share sheet) so they can add to it. */
+  const shareBag = async () => {
+    const bag = encodeBag(cartItems.map(({ product: p, qty }) => ({ productId: p.id, qty, size: sizes[p.id] ?? '' })));
+    const u = new URL(`${window.location.origin}/s/${slug}`);
+    u.searchParams.set('bag', bag);
+    const sender = cleanSenderName(shopper?.name || name);
+    if (sender) u.searchParams.set('from', sender);
+    const text = t('storefront.bag.shareText', { store: store.storeName });
+    const nav = navigator as Navigator & { share?: (d: { title?: string; text?: string; url?: string }) => Promise<void> };
+    if (typeof nav.share === 'function') {
+      try {
+        await nav.share({ title: store.storeName, text, url: u.toString() });
+        setBagShared(true);
+      } catch {
+        // Closed the share sheet: nothing to do.
+      }
+      return;
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${u.toString()}`)}`, '_blank', 'noopener,noreferrer');
+    setBagShared(true);
   };
   /** Puts a past order's products that are still for sale back in the bag. */
   const orderAgain = (o: ShopperOrder): number => {
@@ -1677,6 +1728,59 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
         />
       )}
 
+      {sharedBag && (() => {
+        const found = sharedBag.lines
+          .map((l) => ({ line: l, product: allProducts.find((p) => p.id === l.productId) }))
+          .filter((x): x is { line: BagLine; product: PublicProduct } => !!x.product);
+        const available = found.filter((x) => x.product.inStock);
+        return (
+          <>
+            <div className="sf-scrim" onClick={forgetSharedBag} />
+            <aside className="sf-drawer sf-bag-offer" role="dialog" aria-modal="true" aria-labelledby="sf-bag-title">
+              <div className="sf-drawer-head">
+                <h2 id="sf-bag-title">
+                  {sharedBag.from ? t('storefront.bag.fromName', { name: sharedBag.from }) : t('storefront.bag.fromSomeone')}
+                </h2>
+                <button type="button" className="sf-x" aria-label={t('storefront.close')} onClick={forgetSharedBag}>
+                  <IconClose />
+                </button>
+              </div>
+              <div className="sf-drawer-body">
+                <p className="sf-account-lead">{t('storefront.bag.offerHint')}</p>
+                {found.length === 0 ? (
+                  <p className="sf-msg sf-msg-warn">{t('storefront.bag.nothing')}</p>
+                ) : (
+                  <ul className="sf-lines">
+                    {found.map(({ line, product: p }) => (
+                      <li key={p.id} className={p.inStock ? 'sf-line' : 'sf-line is-out'}>
+                        <div className="sf-thumb">
+                          <ProductVisual product={p} slug={slug} />
+                        </div>
+                        <div>
+                          <div className="sf-line-name" dir="auto">
+                            {line.qty} × {p.name}
+                          </div>
+                          {line.size && <div className="sf-line-size">{t('storefront.sizeLabel', { size: line.size })}</div>}
+                          <div className="sf-line-price">{p.inStock ? priceLabel(p, lang) : t('storefront.bag.soldOut')}</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="sf-drawer-foot">
+                <button type="button" className="sf-primary" disabled={available.length === 0} onClick={acceptSharedBag}>
+                  {t('storefront.bag.add', { count: available.length })}
+                </button>
+                <button type="button" className="sf-link" onClick={forgetSharedBag}>
+                  {t('storefront.bag.noThanks')}
+                </button>
+              </div>
+            </aside>
+          </>
+        );
+      })()}
+
       {accountOpen && (
         <StorefrontAccount
           t={t}
@@ -1807,6 +1911,10 @@ export default function PublicStorePage({ slug: fixedSlug }: { slug?: string } =
                       trackStoreEvent(slug, 'checkout');
                     }}>
                     {t('storefront.continue')}
+                  </button>
+                  <button type="button" className="sf-bag-share" onClick={() => void shareBag()}>
+                    <IconWhatsApp />
+                    {bagShared ? t('storefront.bag.sent') : t('storefront.bag.share')}
                   </button>
                 </div>
               </>

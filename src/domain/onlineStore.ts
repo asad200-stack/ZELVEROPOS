@@ -377,6 +377,10 @@ export interface PublicProduct {
   cutoutUrl: string | null;
   /** Fitting room photo (the model wearing it, background removed), else null. */
   lookUrl: string | null;
+  /** Where the fitting-room piece is worn (null without a fitting-room photo). */
+  lookSlot: LookSlot | null;
+  /** For a top: where it ends on its photo, % from the top. */
+  lookHem: number;
   /** Size/colour set this product is one option of (see domain/variants), else null. */
   groupId: string | null;
   /** The set's own name ('' for a stand-alone product). */
@@ -441,6 +445,50 @@ export interface ProductListing {
   cutoutUrl: string;
   /** Fitting room: the model or mannequin wearing it, background removed, or '' when none. */
   lookUrl: string;
+  /** Fitting room outfits: where the piece is worn ('' = guessed from its name and category). */
+  lookSlot: LookSlot | '';
+  /** For a top: where it ends on the photo, % of its height from the top (0 = LOOK_HEM_DEFAULT). */
+  lookHem: number;
+}
+
+/* ------------------------------------------------------------------ fitting room outfits */
+
+/** Where a piece is worn: a top and a bottom can be put on the model together; 'full' stays alone. */
+export const LOOK_SLOTS = ['top', 'bottom', 'full'] as const;
+export type LookSlot = (typeof LOOK_SLOTS)[number];
+export const LOOK_HEM_MIN = 30;
+export const LOOK_HEM_MAX = 80;
+export const LOOK_HEM_DEFAULT = 54;
+
+const TOP_WORDS = [
+  'shirt', 't-shirt', 'tshirt', 'tee', 'top', 'blouse', 'jacket', 'coat', 'cardigan', 'sweater', 'pullover', 'hoodie',
+  'sweatshirt', 'vest', 'blazer', 'polo', 'tank', 'crop', 'knit', 'bomber', 'parka', 'gilet',
+  'كنزة', 'قميص', 'جاكيت', 'جاكت', 'بلوزة', 'تيشيرت', 'تي شيرت', 'معطف', 'سترة', 'هودي', 'كارديغان', 'بلوفر', 'صدرية',
+];
+const BOTTOM_WORDS = [
+  'jean', 'jeans', 'pant', 'pants', 'trouser', 'trousers', 'skirt', 'short', 'shorts', 'legging', 'leggings', 'jogger', 'chino', 'cargo',
+  'بنطلون', 'بنطال', 'جينز', 'تنورة', 'شورت', 'ليغنز', 'جوغر',
+];
+const FULL_WORDS = ['dress', 'jumpsuit', 'romper', 'abaya', 'gown', 'overall', 'فستان', 'جمبسوت', 'عباية', 'أفرول'];
+
+const hasWord = (text: string, words: readonly string[]) => {
+  const t = ` ${text.toLowerCase().replace(/[^\p{L}\p{N}-]+/gu, ' ')} `;
+  return words.some((w) => t.includes(` ${w} `) || t.includes(` ${w}s `) || (/[\u0600-\u06ff]/.test(w) && t.includes(w)));
+};
+
+/** Guesses where a piece is worn from its name, then its category ('full' when unsure). */
+export function guessLookSlot(name: string, category: string): LookSlot {
+  for (const text of [name, category]) {
+    if (hasWord(text, FULL_WORDS)) return 'full';
+    if (hasWord(text, BOTTOM_WORDS)) return 'bottom';
+    if (hasWord(text, TOP_WORDS)) return 'top';
+  }
+  return 'full';
+}
+
+/** A stored hem, or 0 ("use the default") when missing or out of range. */
+export function toLookHem(v: unknown): number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= LOOK_HEM_MIN && v <= LOOK_HEM_MAX ? v : 0;
 }
 
 const LISTING_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -457,7 +505,8 @@ export function toListings(v: unknown): Record<string, ProductListing> {
     const cutoutUrl = heroImageOk(o.cutoutUrl) ? o.cutoutUrl : '';
     const lookUrl = heroImageOk(o.lookUrl) ? o.lookUrl : '';
     if (!description && compareAtUsdCents === null && !cutoutUrl && !lookUrl) continue;
-    out[id] = { description, compareAtUsdCents, cutoutUrl, lookUrl };
+    const lookSlot = (LOOK_SLOTS as readonly unknown[]).includes(o.lookSlot) ? (o.lookSlot as LookSlot) : '';
+    out[id] = { description, compareAtUsdCents, cutoutUrl, lookUrl, lookSlot, lookHem: toLookHem(o.lookHem) };
   }
   return out;
 }
@@ -485,6 +534,8 @@ export function projectPublicProduct(
     isNew: nowMs !== undefined && created > 0 && nowMs - created < NEW_PRODUCT_DAYS * DAY_MS,
     cutoutUrl: listing?.cutoutUrl || null,
     lookUrl: listing?.lookUrl || null,
+    lookSlot: listing?.lookUrl ? listing.lookSlot || guessLookSlot(p.name, p.category) : null,
+    lookHem: listing?.lookHem || LOOK_HEM_DEFAULT,
     groupId: p.groupId || null,
     groupName: p.groupId ? (p.groupName ?? '') : '',
     options: p.groupId ? (p.options ?? []).map((o) => ({ name: o.name, value: o.value })) : [],

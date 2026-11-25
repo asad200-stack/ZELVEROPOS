@@ -51,6 +51,9 @@ import {
   HERO_PRODUCTS_MAX,
   toHeroProductIds,
   HERO_IMAGE_URL_MAX,
+  LOOK_HEM_MAX,
+  LOOK_SLOTS,
+  toLookHem,
   HERO_SUBTITLE_MAX,
   HERO_TITLE_MAX,
   STORE_SECTIONS,
@@ -228,6 +231,9 @@ const listingSchema = z.strictObject({
     .max(HERO_IMAGE_URL_MAX)
     .refine((u) => u === '' || heroImageOk(u))
     .optional(),
+  // Fitting room outfits; optional like the photos (left out = kept as stored).
+  lookSlot: z.union([z.literal(''), z.enum(LOOK_SLOTS)]).optional(),
+  lookHem: z.number().int().min(0).max(LOOK_HEM_MAX).optional(),
 });
 
 /* ------------------------------------------------------------------ helpers */
@@ -404,9 +410,11 @@ export const onlineStoreSaveListing = onCall({ region: REGION }, (request) =>
     // Photos the request leaves out are kept as they are (older clients don't send them).
     const cutoutUrl = input.cutoutUrl ?? stored?.cutoutUrl ?? '';
     const lookUrl = input.lookUrl ?? stored?.lookUrl ?? '';
+    const lookSlot = input.lookSlot ?? stored?.lookSlot ?? '';
+    const lookHem = toLookHem(input.lookHem ?? stored?.lookHem ?? 0);
     const empty = !description && input.compareAtUsdCents === null && !cutoutUrl && !lookUrl;
     await ref.update({
-      [`listings.${input.productId}`]: empty ? FieldValue.delete() : { description, compareAtUsdCents: input.compareAtUsdCents, cutoutUrl, lookUrl },
+      [`listings.${input.productId}`]: empty ? FieldValue.delete() : { description, compareAtUsdCents: input.compareAtUsdCents, cutoutUrl, lookUrl, lookSlot, lookHem },
       updatedAt: Date.now(),
     });
     return { config: await loadConfig(tenantId) };

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, typ
 import type { PublicProduct } from '@/domain/onlineStore';
 import type { TranslationKey, TParams } from '@/i18n/i18n';
 import { lookCategories, swatchOf, wrap, type Look } from './roomLooks';
+import OutfitRoom from './OutfitRoom';
 import { APPAREL_SIZES, SHOE_SIZES, fitKind } from './sizeAdvisor';
 
 type T = (key: TranslationKey, params?: TParams) => string;
@@ -38,6 +39,11 @@ export default function FittingRoom({ storeName, looks, t, priceOf, sizeOf, onSi
   const [n, setN] = useState(0);
   const [nudge, setNudge] = useState(false);
   const [browsing, setBrowsing] = useState(false);
+  // Outfit mode: a top and a bottom on the model together (needs at least one of each).
+  const [outfit, setOutfit] = useState(false);
+  const tops = looks.filter((l) => l.variants[0]?.lookSlot === 'top');
+  const bottoms = looks.filter((l) => l.variants[0]?.lookSlot === 'bottom');
+  const canOutfit = tops.length > 0 && bottoms.length > 0;
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
 
@@ -64,6 +70,23 @@ export default function FittingRoom({ storeName, looks, t, priceOf, sizeOf, onSi
     return () => window.clearTimeout(timer);
   }, [leaving]);
 
+  if (outfit && canOutfit) {
+    return (
+      <OutfitRoom
+        storeName={storeName}
+        tops={tops}
+        bottoms={bottoms}
+        t={t}
+        priceOf={priceOf}
+        sizeOf={sizeOf}
+        onSize={onSize}
+        onAdd={onAdd}
+        onOpen={onOpen}
+        bagIcon={bagIcon}
+        onExit={() => setOutfit(false)}
+      />
+    );
+  }
   if (!look || !p || !p.lookUrl) return null;
 
   /** Starts the outfit change; the current photo stays under the new one until the light passes. */
@@ -165,6 +188,11 @@ export default function FittingRoom({ storeName, looks, t, priceOf, sizeOf, onSi
           decoding="async"
         />
         {leaving && <span key={`scan-${n}`} className="fr-scan" aria-hidden="true" />}
+        {canOutfit && (
+          <button type="button" className="fr-mode" onClick={() => setOutfit(true)}>
+            {t('storefront.room.outfit')}
+          </button>
+        )}
         {side(prev, -1, 'fr-card-prev')}
         {side(next, 1, 'fr-card-next')}
         {list.length > 1 && (

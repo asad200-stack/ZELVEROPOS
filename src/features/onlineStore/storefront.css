@@ -2513,6 +2513,29 @@ html:has(.sf), .sf { overflow-x: clip; }
   .fr-grid-head { padding-inline: 24px; }
 }
 
+/* Outfit mode: top + bottom together (OutfitRoom.tsx). */
+.fr-mode {
+  position: absolute; z-index: 3; top: 62px; inset-inline-start: 12px; display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 14px; border-radius: 999px; cursor: pointer; font-size: 12.5px; font-weight: 700; color: #2b1a0c;
+  border: 1px solid rgb(255 255 255 / 0.55); background: rgb(255 255 255 / 0.3); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.fr-mode:hover { background: rgb(255 255 255 / 0.5); }
+.fr-mode.is-on { top: 14px; background: #1c140d; color: #fff; border-color: transparent; }
+.fr-outfit-in { animation: fr-outfit-in 0.35s ease-out; }
+@keyframes fr-outfit-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fr-pick { width: 100%; max-width: 760px; margin-inline: auto; display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 8px; }
+.fr-pick-label { font-size: 12.5px; font-weight: 700; color: #7a6450; }
+.fr-strip { display: flex; gap: 8px; overflow-x: auto; padding: 3px; scrollbar-width: none; }
+.fr-strip::-webkit-scrollbar { display: none; }
+.fr-strip button {
+  flex: none; width: 52px; height: 66px; padding: 0; border-radius: 10px; overflow: hidden; cursor: pointer;
+  border: 2px solid transparent; background: radial-gradient(120% 85% at 50% 18%, #f6bd76 0%, #dc8d40 55%, #9b5421 100%);
+}
+.fr-strip button[aria-checked='true'] { border-color: #1c140d; box-shadow: 0 0 0 2px #f6ecdf inset; }
+.fr-strip img { width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; }
+.fr-piece { display: grid; gap: 8px; width: 100%; max-width: 760px; margin-inline: auto; padding-top: 10px; border-top: 1px solid rgb(60 30 10 / 0.08); }
+@media (prefers-reduced-motion: reduce) { .fr-outfit-in { animation: none; } }
+
 .fr-bar { display: grid; gap: 10px; padding: 12px 16px 16px; background: #f6ecdf; border-top: 1px solid rgb(60 30 10 / 0.08); }
 .fr-item, .fr-opts { width: 100%; max-width: 760px; margin-inline: auto; }
 .fr-item { display: flex; align-items: center; gap: 10px; }
@@ -2610,3 +2633,15 @@ html:has(.sf), .sf { overflow-x: clip; }
 .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-account-orders li { background: var(--dk-raise); }
 .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-again { background: var(--dk-hi); color: var(--dk-on-hi); }
 .sf .sf-google, .sf:is(.sf-theme-tech, .sf-theme-jewel) .sf-google { background: #fff; color: #1f1f1f; }
+
+/* ---------- Send the bag to a friend ---------- */
+.sf-bag-share {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; border-radius: 14px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, #25d366 45%, var(--sf-line)); background: color-mix(in srgb, #25d366 8%, transparent);
+  color: var(--sf-ink); font: inherit; font-weight: 700; font-size: 14px;
+}
+.sf-bag-share svg { width: 20px; height: 20px; color: #1fa855; }
+.sf-bag-share:hover { background: color-mix(in srgb, #25d366 14%, transparent); }
+.sf-bag-offer .sf-drawer-foot .sf-link { justify-self: center; }
+.sf-line.is-out { opacity: 0.5; }
+

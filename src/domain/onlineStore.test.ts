@@ -120,6 +120,8 @@ describe('public projections', () => {
       isNew: false,
       cutoutUrl: null,
       lookUrl: null,
+      lookSlot: null,
+      lookHem: 54,
       groupId: null,
       groupName: '',
       options: [],
@@ -228,7 +230,7 @@ describe('delivery zones', () => {
 describe('product listings', () => {
   const product = { id: 'p1', name: 'Tea', category: 'Drinks', prices: { retail: { usdCents: 800, lbp: 0 } }, imageUrl: null, stock: 3 };
   const project = (listing?: { description: string; compareAtUsdCents: number | null; cutoutUrl?: string }) =>
-    projectPublicProduct(product as unknown as Parameters<typeof projectPublicProduct>[0], listing && { cutoutUrl: '', lookUrl: '', ...listing });
+    projectPublicProduct(product as unknown as Parameters<typeof projectPublicProduct>[0], listing && { cutoutUrl: '', lookUrl: '', lookSlot: '', lookHem: 0, ...listing });
 
   it('adds the description and a real price-before-discount', () => {
     const out = project({ description: 'Ceylon tea', compareAtUsdCents: 1000 });
@@ -252,13 +254,13 @@ describe('product listings', () => {
         p3: { description: 'y'.repeat(700), compareAtUsdCents: -1 },
         p4: { description: '', compareAtUsdCents: null, cutoutUrl: 'https://img.example/p4.webp' },
         p5: { description: '', compareAtUsdCents: null, cutoutUrl: 'http://evil.example/x.png' },
-        p6: { description: '', compareAtUsdCents: null, lookUrl: 'https://img.example/p6-look.webp' },
+        p6: { description: '', compareAtUsdCents: null, lookUrl: 'https://img.example/p6-look.webp', lookSlot: '', lookHem: 0 },
       }),
     ).toEqual({
-      p1: { description: 'Nice', compareAtUsdCents: 1200, cutoutUrl: '', lookUrl: '' },
-      p3: { description: 'y'.repeat(600), compareAtUsdCents: null, cutoutUrl: '', lookUrl: '' },
-      p4: { description: '', compareAtUsdCents: null, cutoutUrl: 'https://img.example/p4.webp', lookUrl: '' },
-      p6: { description: '', compareAtUsdCents: null, cutoutUrl: '', lookUrl: 'https://img.example/p6-look.webp' },
+      p1: { description: 'Nice', compareAtUsdCents: 1200, cutoutUrl: '', lookUrl: '', lookSlot: '', lookHem: 0 },
+      p3: { description: 'y'.repeat(600), compareAtUsdCents: null, cutoutUrl: '', lookUrl: '', lookSlot: '', lookHem: 0 },
+      p4: { description: '', compareAtUsdCents: null, cutoutUrl: 'https://img.example/p4.webp', lookUrl: '', lookSlot: '', lookHem: 0 },
+      p6: { description: '', compareAtUsdCents: null, cutoutUrl: '', lookUrl: 'https://img.example/p6-look.webp', lookSlot: '', lookHem: 0 },
     });
     expect(toListings(null)).toEqual({});
   });

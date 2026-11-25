@@ -1,4 +1,4 @@
-import type { OnlineStoreConfig, ProductListing } from '@/domain/onlineStore';
+import type { LookSlot, OnlineStoreConfig, ProductListing } from '@/domain/onlineStore';
 import { api } from '@/services/functionsClient';
 import { deleteStorageFile, storagePathFromUrl, uploadTenantImage } from '@/services/storageService';
 import type { BgProgress } from '@/features/products/backgroundRemoval';
@@ -54,4 +54,19 @@ export async function clearLook(tenantId: string, productId: string, listing: Pr
 async function removeOldLook(tenantId: string, productId: string, url: string | undefined): Promise<void> {
   const path = url ? storagePathFromUrl(url) : null;
   if (path && path.startsWith(`tenants/${tenantId}/products/${productId}-look-`)) await deleteStorageFile(path).catch(() => undefined);
+}
+
+/** Outfits: where the piece is worn ('' = guess) and, for a top, where it ends on its photo. */
+export async function saveLookFit(
+  productId: string,
+  listing: ProductListing | undefined,
+  fit: { lookSlot?: LookSlot | ''; lookHem?: number },
+): Promise<OnlineStoreConfig> {
+  const res = await api.onlineStoreSaveListing({
+    productId,
+    description: listing?.description ?? '',
+    compareAtUsdCents: listing?.compareAtUsdCents ?? null,
+    ...fit,
+  });
+  return res.config;
 }

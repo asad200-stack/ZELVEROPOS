@@ -40,6 +40,12 @@ for (const f of live.files) {
 // release.json lists the trees it may follow.
 cpSync('scripts/release-root-boot.js', join(OUT, 'boot.js'));
 writeFileSync(join(OUT, 'release.json'), JSON.stringify({ trees: [VERSION] }) + '\n');
+// robots.txt is a static file: Google's front end answers /robots.txt itself (an empty 404) before
+// a function can, so it points at the shops' sitemap list that publicStorePage serves under /s/.
+if (process.env.STORE_SHARE_PREVIEWS === '1') {
+  const site = (process.env.STORE_SITE_ORIGIN || 'https://zelvoropos.web.app').replace(/\/+$/, '');
+  writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${site}/s/sitemaps.xml\n`);
+}
 
 const fb = JSON.parse(readFileSync('firebase.json', 'utf8'));
 const prod = (Array.isArray(fb.hosting) ? fb.hosting : [fb.hosting]).find((h) => h.target === 'production');
@@ -73,8 +79,6 @@ const config = {
       process.env.STORE_SHARE_PREVIEWS === '1'
         ? { source: '/s/**', function: { functionId: 'publicStorePage', region: 'europe-west1' } }
         : { source: '/s/**', destination: `${TREE}/index.html` },
-      // robots.txt lists every published shop's sitemap (served by publicStorePage).
-      ...(process.env.STORE_SHARE_PREVIEWS === '1' ? [{ source: '/robots.txt', function: { functionId: 'publicStorePage', region: 'europe-west1' } }] : []),
       { source: '**/!(*.*)', destination: '/index.html' },
     ],
     headers,

@@ -146,6 +146,20 @@ export function sitemapXml(store: SeoStore, products: readonly SeoProduct[]): st
 }
 
 /**
+ * Path of the list of every published shop's sitemap. robots.txt is a static file pointing here:
+ * Google's front end answers /robots.txt itself (an empty 404) before a function can, so the
+ * function serves this list on a path under /s/ instead.
+ */
+export const SITEMAP_INDEX_PATH = '/s/sitemaps.xml';
+
+/** sitemap index: one entry per shop sitemap. */
+export function sitemapIndexXml(sitemaps: readonly string[]): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${sitemaps
+    .map((u) => `  <sitemap><loc>${escapeXml(u)}</loc></sitemap>`)
+    .join('\n')}${sitemaps.length ? '\n' : ''}</sitemapindex>\n`;
+}
+
+/**
  * Product catalogue feed (RSS 2.0 + g: fields). Meta Commerce Manager (Facebook / Instagram
  * Shopping) and Google Merchant Center both read it from a scheduled URL. Products without a
  * photo or a price are left out: both catalogues reject them.

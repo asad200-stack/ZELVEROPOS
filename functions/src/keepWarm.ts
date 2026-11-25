@@ -12,7 +12,8 @@ const WARM_SLUG = 'zv-keep-warm';
  * (scheduler jobs and calls), no minimum instances are paid for.
  */
 export const keepStoresWarm = onSchedule(
-  { schedule: 'every 10 minutes', timeZone: 'Etc/UTC', region: REGION, memory: '256MiB', timeoutSeconds: 60 },
+  // Cloud Scheduler takes unix-cron only ("every 10 minutes" was refused with 400 invalid argument).
+  { schedule: '*/10 * * * *', timeZone: 'UTC', region: REGION, memory: '256MiB', timeoutSeconds: 60 },
   async () => {
     const project = process.env.GCLOUD_PROJECT ?? '';
     const catalog = `https://${REGION}-${project}.cloudfunctions.net/publicStoreCatalog`;
