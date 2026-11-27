@@ -82,6 +82,8 @@ export {
   recordFeaturePreview,
   listMyFeatureUpdates,
   activateMyFeature,
+  adminFeatureBoard,
+  adminSetTenantFeatures,
 } from './featureCenter.js';
 export { posCheckout, posReturn } from './pos/sales.js';
 export { posCreateProduct, posCreateProductGroup, posAddProductOptions, posImportProducts, posAdjustStock, posSetProductStatus, posDeleteProduct, posSetStockLinks } from './pos/inventory.js';

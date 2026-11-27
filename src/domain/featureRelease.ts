@@ -475,6 +475,44 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
   },
 ];
 
+/**
+ * Features every new account gets switched on at signup, without anyone pressing a button.
+ * The point of sale itself is not a feature: every account always has it.
+ */
+export const BASE_FEATURE_IDS: readonly string[] = ['online_store', 'zelvero_ai'];
+
+export type AdminGrantBlock = 'killed' | 'customerPath' | 'notPublished' | 'version' | 'testTenant';
+
+/**
+ * Super Admin board: switches a feature straight on for one customer (no customer click).
+ * Allowed only for a feature that is published and has a tested customer path, so the customer
+ * really sees it working. Paid features count as granted by this deliberate action.
+ */
+export function planAdminGrant(input: {
+  definition: FeatureDefinition;
+  record: FeatureRecord;
+  tenantId: string;
+  killed: boolean;
+}): { ok: true; entitlement: EntitlementRecord } | { ok: false; reason: AdminGrantBlock } {
+  if (input.tenantId === RESERVED_TEST_TENANT) return { ok: false, reason: 'testTenant' };
+  if (input.killed) return { ok: false, reason: 'killed' };
+  if (input.definition.customerExecution !== 'ready') return { ok: false, reason: 'customerPath' };
+  if (input.record.publication !== 'published') return { ok: false, reason: 'notPublished' };
+  if (input.record.version !== input.definition.version) return { ok: false, reason: 'version' };
+  return {
+    ok: true,
+    entitlement: {
+      tenantId: input.tenantId,
+      featureId: input.definition.id,
+      version: input.definition.version,
+      pricing: input.definition.pricing,
+      priceUsdCents: input.definition.priceUsdCents,
+      status: 'active',
+      paidGrant: input.definition.pricing === 'paid',
+    },
+  };
+}
+
 export function featureById(id: string): FeatureDefinition | null {
   return FEATURE_REGISTRY.find((feature) => feature.id === id) ?? null;
 }

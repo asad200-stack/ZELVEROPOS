@@ -5,7 +5,9 @@ import { db } from './admin.js';
 import { REGION } from './config.js';
 import { fail } from './errors.js';
 import {
+  BASE_FEATURE_IDS,
   FEATURE_REGISTRY,
+  planAdminGrant,
   PUBLICATION_STATES,
   RESERVED_TEST_TENANT,
   customerUpdate,
@@ -54,11 +56,28 @@ export async function grantEveryoneEntitlementsForNewTenant(tenantId: string): P
     if (published.empty) return;
     const batch = db.batch();
     let any = false;
+    const isKilled = await killed();
+    // Base features (online store, Zelvero AI) are switched straight on for every new account.
+    for (const doc of published.docs) {
+      const feature = findFeature(doc.id);
+      if (!feature || !BASE_FEATURE_IDS.includes(feature.id)) continue;
+      const plan = planAdminGrant({ definition: feature, record: recordFrom(doc.data(), feature), tenantId, killed: isKilled });
+      if (!plan.ok) {
+        console.warn('base feature not granted', { tenantId, featureId: feature.id, reason: plan.reason });
+        continue;
+      }
+      any = true;
+      batch.set(
+        entitlementRef(tenantId, feature.id),
+        { ...plan.entitlement, installation: 'base_at_signup', activatedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    }
     for (const doc of published.docs) {
       const feature = findFeature(doc.id);
       if (!feature) continue;
       const record = recordFrom(doc.data(), feature);
-      if (!record.audience.allEligible) continue;
+      if (!record.audience.allEligible || BASE_FEATURE_IDS.includes(feature.id)) continue;
       any = true;
       batch.set(
         entitlementRef(tenantId, feature.id),
@@ -451,3 +470,112 @@ function publicFeature(feature: FeatureDefinition) {
 function stored(record: FeatureRecord) {
   return { ...record, updatedAt: FieldValue.serverTimestamp() };
 }
+
+/* ------------------------------------------------------------------ Super Admin feature board */
+
+/**
+ * Board data: every registered feature (with whether it can be switched on for a customer now) and
+ * every customer account with the status of each of its features.
+ */
+export const adminFeatureBoard = onCall({ region: REGION }, async (request) => {
+  const actor = caller(request);
+  requireSuperAdmin(actor);
+  const [owners, entitlements, featureSnaps, isKilled] = await Promise.all([
+    db.collection('users').where('role', '==', 'owner').get(),
+    db.collection('platformFeatureEntitlements').limit(5000).get(),
+    db.getAll(...registry().map((feature) => featureRef(feature.id))),
+    killed(),
+  ]);
+  const features = registry().map((feature, i) => {
+    const record = recordFrom(featureSnaps[i]?.data(), feature);
+    const plan = planAdminGrant({ definition: feature, record, tenantId: '_board_', killed: isKilled });
+    return {
+      id: feature.id,
+      title: feature.title,
+      description: feature.description,
+      version: feature.version,
+      base: BASE_FEATURE_IDS.includes(feature.id),
+      available: plan.ok,
+      blockedReason: plan.ok ? null : plan.reason,
+    };
+  });
+  const byTenant = new Map<string, Record<string, string>>();
+  for (const doc of entitlements.docs) {
+    const tenantId = String(doc.get('tenantId') ?? '');
+    const id = String(doc.get('featureId') ?? '');
+    if (!tenantId || !id) continue;
+    const map = byTenant.get(tenantId) ?? {};
+    map[id] = String(doc.get('status') ?? '');
+    byTenant.set(tenantId, map);
+  }
+  const tenants = owners.docs
+    .map((doc) => ({
+      tenantId: String(doc.get('tenantId') ?? doc.id),
+      storeName: String(doc.get('storeName') ?? ''),
+      email: String(doc.get('email') ?? ''),
+      internalDemo: doc.get('internalDemo') === true,
+    }))
+    .filter((t) => t.tenantId !== RESERVED_TEST_TENANT)
+    .map((t) => ({ ...t, features: byTenant.get(t.tenantId) ?? {} }))
+    .sort((a, b) => a.storeName.localeCompare(b.storeName));
+  return { features, tenants, killed: isKilled };
+});
+
+/**
+ * Deploy from the board: switches the chosen features on (status active, no customer click) and the
+ * removed ones off (revoked) for one customer, in one batch, with an audit entry per change.
+ */
+export const adminSetTenantFeatures = onCall({ region: REGION }, async (request) => {
+  const actor = caller(request);
+  requireSuperAdmin(actor);
+  const input = parse(
+    z
+      .object({
+        tenantId: trimmed(128),
+        grant: z.array(featureId).max(30),
+        revoke: z.array(featureId).max(30),
+        confirm: z.literal(true),
+      })
+      .strict(),
+    body(request.data),
+  );
+  if (input.tenantId === RESERVED_TEST_TENANT) fail('permission-denied', 'feature.blocked.testTenant');
+  if (input.grant.some((id) => input.revoke.includes(id))) fail('invalid-argument', 'feature.board.conflict');
+  const owner = await db.doc(`users/${input.tenantId}`).get();
+  if (!owner.exists || owner.get('role') !== 'owner') fail('not-found', 'feature.board.noCustomer');
+  const isKilled = await killed();
+  const batch = db.batch();
+  const done: { featureId: string; action: 'grant' | 'revoke' }[] = [];
+  for (const id of input.grant) {
+    const feature = findFeature(id);
+    if (!feature) fail('not-found', 'feature.missing');
+    const record = recordFrom((await featureRef(feature.id).get()).data(), feature);
+    const plan = planAdminGrant({ definition: feature, record, tenantId: input.tenantId, killed: isKilled });
+    if (!plan.ok) fail('failed-precondition', `feature.board.${plan.reason}`, { feature: feature.title });
+    batch.set(
+      entitlementRef(input.tenantId, feature.id),
+      {
+        ...plan.entitlement,
+        installation: 'admin_board',
+        activatedAt: FieldValue.serverTimestamp(),
+        activatedBy: actor.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    done.push({ featureId: feature.id, action: 'grant' });
+  }
+  for (const id of input.revoke) {
+    const feature = findFeature(id);
+    if (!feature) fail('not-found', 'feature.missing');
+    batch.set(
+      entitlementRef(input.tenantId, feature.id),
+      { tenantId: input.tenantId, featureId: feature.id, status: 'revoked', revokedBy: actor.uid, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    done.push({ featureId: feature.id, action: 'revoke' });
+  }
+  await batch.commit();
+  for (const d of done) await audit(`board_${d.action}`, actor.uid, d.featureId, { tenantId: input.tenantId });
+  return { ok: true as const, changed: done.length };
+});

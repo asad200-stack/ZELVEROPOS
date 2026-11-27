@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ClientAssignmentPanel } from '@/features/admin/ClientAssignmentPanel';
+import { FeatureBoardPanel } from '@/features/admin/FeatureBoardPanel';
 import { LeadsPanel } from '@/features/admin/LeadsPanel';
 import { StorageCleanupPanel } from '@/features/admin/StorageCleanupPanel';
 import { cleanupOutcomeKey } from '@/features/admin/storageCleanupLabels';
@@ -42,7 +43,7 @@ export default function SuperAdminPage() {
   const [params, setParams] = useSearchParams();
   const rawTab = params.get('tab');
   const tab =
-    rawTab === 'releases' || rawTab === 'preview' || rawTab === 'features' || rawTab === 'leads' || rawTab === 'trials' || rawTab === 'cleanup' || rawTab === 'clients'
+    rawTab === 'board' || rawTab === 'releases' || rawTab === 'preview' || rawTab === 'features' || rawTab === 'leads' || rawTab === 'trials' || rawTab === 'cleanup' || rawTab === 'clients'
       ? rawTab
       : 'accounts';
   const [token, setToken] = useState(0);
@@ -90,6 +91,9 @@ export default function SuperAdminPage() {
             <Button variant={tab === 'preview' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'preview' })}>
               {t('previewCenter.title')}
             </Button>
+            <Button variant={tab === 'board' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'board' })}>
+              {t('board.tab')}
+            </Button>
             <Button variant={tab === 'features' ? 'primary' : 'secondary'} onClick={() => setParams({ tab: 'features' })}>
               {t('feature.center')}
             </Button>
@@ -102,7 +106,9 @@ export default function SuperAdminPage() {
           </div>
         }
       />
-      {tab === 'preview' ? (
+      {tab === 'board' ? (
+        <FeatureBoardPanel />
+      ) : tab === 'preview' ? (
         <PreviewTestingPanel />
       ) : tab === 'features' ? (
         <FeatureCenterPanel />

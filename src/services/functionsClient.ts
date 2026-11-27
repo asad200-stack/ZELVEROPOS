@@ -450,6 +450,10 @@ export const api = {
   grantFeaturePurchase: callable<{ featureId: string; tenantId: string; confirm: true }, { ok: true }>('grantFeaturePurchase'),
   setFeatureKillSwitch: callable<{ killed: boolean; confirm: true }, { ok: true; killed: boolean }>('setFeatureKillSwitch'),
   recordFeaturePreview: callable<{ featureId: string }, { ok: true; path: string }>('recordFeaturePreview'),
+  adminFeatureBoard: callable<Record<string, never>, FeatureBoard>('adminFeatureBoard'),
+  adminSetTenantFeatures: callable<{ tenantId: string; grant: string[]; revoke: string[]; confirm: true }, { ok: true; changed: number }>(
+    'adminSetTenantFeatures',
+  ),
   listMyFeatureUpdates: callable<Record<string, never>, { updates: CustomerFeatureUpdate[] }>('listMyFeatureUpdates'),
   activateMyFeature: callable<{ featureId: string }, { ok: true; duplicate: boolean; reloadRequired: boolean; stages: Array<'checked' | 'entitled' | 'active'> }>(
     'activateMyFeature',
@@ -561,6 +565,12 @@ export interface FeatureCatalogResult {
   killed: boolean;
   features: FeatureCatalogItem[];
   delivery: FeatureDelivery[];
+}
+
+export interface FeatureBoard {
+  features: { id: string; title: string; description: string; version: string; base: boolean; available: boolean; blockedReason: string | null }[];
+  tenants: { tenantId: string; storeName: string; email: string; internalDemo: boolean; features: Record<string, string> }[];
+  killed: boolean;
 }
 
 export interface CustomerFeatureUpdate {
