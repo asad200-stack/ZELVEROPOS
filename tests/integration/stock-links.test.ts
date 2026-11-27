@@ -53,7 +53,8 @@ beforeEach(async () => {
     await setDoc(doc(fs, tp(T, 'products', 'part')), plain('Part', 300, 6, 100));
   });
   await entitle('active');
-  await callOk(tokens.owner!, 'posSetStockLinks', { productId: 'carton', links: [{ productId: 'p1', quantity: 5 }] });
+  // Sent the way the app sends it (with its version fields), which the input check must accept.
+  await callOk(tokens.owner!, 'posSetStockLinks', { productId: 'carton', links: [{ productId: 'p1', quantity: 5 }], clientApiVersion: 1, clientReleaseVersion: '1.0.0' });
   await callOk(tokens.owner!, 'posSetStockLinks', { productId: 'set', links: [{ productId: 'p1', quantity: 1 }, { productId: 'part', quantity: 2 }] });
 });
 

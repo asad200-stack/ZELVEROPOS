@@ -315,7 +315,7 @@ export default function ProductsPage() {
         />
       )}
       {dialog?.type === 'adjust' && <StockAdjustModal product={dialog.product} onClose={() => setDialog(null)} />}
-      {dialog?.type === 'links' && <StockLinksModal product={dialog.product} onClose={() => setDialog(null)} />}
+      {dialog?.type === 'links' && <StockLinksModal key={dialog.product.id} product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'options' && <VariantGroupModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'movements' && <MovementsModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'labels' && <LabelsModal products={dialog.products} onClose={() => setDialog(null)} />}

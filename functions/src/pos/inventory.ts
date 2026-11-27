@@ -443,10 +443,10 @@ async function stockLinksEntitled(tenantId: string): Promise<boolean> {
   return control.get('killed') !== true && entitlement.get('status') === 'active';
 }
 
-const stockLinksSchema = z.strictObject({
+const stockLinksSchema = z.object({
   productId: idField,
   /** Empty list turns the product back into an ordinary one (allowed only while its stock is 0). */
-  links: z.array(z.strictObject({ productId: idField, quantity: z.number().int().min(1).max(STOCK_LINK_QTY_MAX) })).max(STOCK_LINKS_MAX),
+  links: z.array(z.object({ productId: idField, quantity: z.number().int().min(1).max(STOCK_LINK_QTY_MAX) })).max(STOCK_LINKS_MAX),
 });
 
 /**
