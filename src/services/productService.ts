@@ -211,6 +211,27 @@ export async function setStockLinks(productId: string, links: StockLink[]): Prom
   await posApi.setStockLinks({ productId, links: links.map((l) => ({ productId: l.productId, quantity: l.quantity })) });
 }
 
+/** "This carton holds N of that piece"; null makes it an ordinary product again. */
+export async function setPackOf(productId: string, packOf: StockLink | null): Promise<void> {
+  requireOnline();
+  await posApi.setPackOf({ productId, packOf: packOf ? { productId: packOf.productId, quantity: packOf.quantity } : null });
+}
+
+/** Opens cartons into pieces (carton stock − count, piece stock + count × size). */
+export async function openPack(productId: string, count: number): Promise<{ pieces: number; pieceStock: number }> {
+  requireOnline();
+  const clientOperationId = newClientOperationId();
+  const res = await retryOnTransport(() => posApi.openPack({ clientOperationId, productId, count }));
+  return { pieces: res.pieces, pieceStock: res.pieceStock };
+}
+
+/** Cartons with stock that open into this piece (for "open a carton?" at the counter). */
+export async function cartonsFor(tenantId: string, pieceId: string): Promise<Product[]> {
+  // Single-field equality only (no composite index needed); stock is checked here.
+  const snap = await getDocs(query(paths.col(tenantId, 'products'), where('packOfId', '==', pieceId), limit(5)));
+  return snap.docs.map((d) => toProduct(d.id, d.data())).filter((p) => p.status === 'active' && p.stock > 0);
+}
+
 /** Offline-friendly write: resolves immediately when offline (the SDK syncs later). */
 async function commit(batch: ReturnType<typeof writeBatch>): Promise<void> {
   if (!navigator.onLine) {

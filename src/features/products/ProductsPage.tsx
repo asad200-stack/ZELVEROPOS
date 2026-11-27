@@ -24,6 +24,7 @@ import { ProductFormModal } from './ProductFormModal';
 import { CategoriesModal, ImportProductsModal, LabelsModal, MovementsModal } from './ProductTools';
 import { StockAdjustModal } from './StockAdjustModal';
 import { StockLinksModal } from './StockLinksModal';
+import { OpenPackModal, PackModal } from './PackModals';
 import { useFeatureUpdates } from '@/features/features/useFeatureUpdates';
 import { useSession } from '@/contexts/session';
 import { isLinked } from '@/domain/stockUnits';
@@ -34,6 +35,8 @@ type Dialog =
   | { type: 'form'; product: Product | null; seed?: ProductDraftFields | null }
   | { type: 'adjust'; product: Product }
   | { type: 'links'; product: Product }
+  | { type: 'pack'; product: Product }
+  | { type: 'openPack'; product: Product }
   | { type: 'options'; product: Product }
   | { type: 'movements'; product: Product }
   | { type: 'labels'; products: Product[] }
@@ -271,7 +274,13 @@ export default function ProductsPage() {
                             {!isLinked(p) && (
                               <Button variant="ghost" size="sm" icon="package" onClick={() => setDialog({ type: 'adjust', product: p })} aria-label={t('products.adjustStock')} title={t('products.adjustStock')} />
                             )}
-                            {(stockLinksOn || isLinked(p)) && !p.groupId && !p.imeiTracking && (
+                            {(stockLinksOn || p.packOf) && !p.groupId && !p.imeiTracking && !isLinked(p) && (
+                              <Button variant="ghost" size="sm" icon="tag" onClick={() => setDialog({ type: 'pack', product: p })} aria-label={t('pack.action')} title={t('pack.action')} />
+                            )}
+                            {p.packOf && (
+                              <Button variant="ghost" size="sm" icon="download" onClick={() => setDialog({ type: 'openPack', product: p })} aria-label={t('pack.open')} title={t('pack.open')} />
+                            )}
+                            {(stockLinksOn || isLinked(p)) && !p.groupId && !p.imeiTracking && !p.packOf && (
                               <Button variant="ghost" size="sm" icon="box" onClick={() => setDialog({ type: 'links', product: p })} aria-label={t('stockLinks.action')} title={t('stockLinks.action')} />
                             )}
                             {p.groupId && (
@@ -315,6 +324,8 @@ export default function ProductsPage() {
         />
       )}
       {dialog?.type === 'adjust' && <StockAdjustModal product={dialog.product} onClose={() => setDialog(null)} />}
+      {dialog?.type === 'pack' && <PackModal key={dialog.product.id} product={dialog.product} onClose={() => setDialog(null)} />}
+      {dialog?.type === 'openPack' && <OpenPackModal key={dialog.product.id} product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'links' && <StockLinksModal key={dialog.product.id} product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'options' && <VariantGroupModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'movements' && <MovementsModal product={dialog.product} onClose={() => setDialog(null)} />}

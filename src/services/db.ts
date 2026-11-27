@@ -116,6 +116,12 @@ function stockLinksField(d: DocumentData): Pick<Product, 'stockLinks'> {
   return links.length ? { stockLinks: links } : {};
 }
 
+function packOfField(d: DocumentData): Pick<Product, 'packOf'> {
+  const x = d.packOf as { productId?: unknown; quantity?: unknown } | null | undefined;
+  if (!x || typeof x.productId !== 'string' || !Number.isInteger(x.quantity)) return {};
+  return { packOf: { productId: x.productId, quantity: x.quantity as number } };
+}
+
 export function toProduct(id: string, d: DocumentData): Product {
   const prices = (d.prices ?? {}) as DocumentData;
   return {
@@ -139,6 +145,7 @@ export function toProduct(id: string, d: DocumentData): Product {
     ...variantFields(d),
     ...galleryField(d),
     ...stockLinksField(d),
+    ...packOfField(d),
     status: d.status === 'archived' ? 'archived' : 'active',
     archivedAt: millis(d.archivedAt),
     createdAt: millis(d.createdAt, d.createdAtMs),

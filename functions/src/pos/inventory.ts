@@ -9,7 +9,7 @@ import { inheritedPhoto } from '../shared/variants.js';
 import { nameNormalized } from '../shared/searchKey.js';
 import { parse } from '../validate.js';
 import type { Product } from '../shared/models.js';
-import { STOCK_LINKS_MAX, STOCK_LINK_QTY_MAX, stockLinkIssues } from '../shared/stockUnits.js';
+import { PACK_SIZE_MAX, PACK_SIZE_MIN, STOCK_LINKS_MAX, STOCK_LINK_QTY_MAX, packIssues, planOpenPack, stockLinkIssues } from '../shared/stockUnits.js';
 import { assertOwnStock, auditFields, bumpDailyStats, cents, idField, lbpField, posActor, runClientOp, tenantPaths, toCashbox, toProduct } from './common.js';
 
 const tierPrice = z.object({ usdCents: cents, lbp: lbpField.nullable() });
@@ -471,6 +471,8 @@ export const posSetStockLinks = onCall(async (request) => {
     for (const t of targetSnaps) if (t.exists) catalog.set(t.id, toProduct(t.id, t.data()!));
     const issues = stockLinkIssues(self, input.links, catalog);
     if (linkedBy && !linkedBy.empty) issues.push('nested');
+    // A carton that opens into pieces keeps its own stock: it cannot also be a set.
+    if (input.links.length && self.packOf) issues.push('nested');
     if (issues.length) fail('failed-precondition', 'error.linkedInvalid', { name: self.name, issues: issues.join(',') });
     tx.update(ref, {
       stockLinks: input.links.length ? input.links : null,
@@ -479,6 +481,88 @@ export const posSetStockLinks = onCall(async (request) => {
     });
   });
   return { ok: true };
+});
+
+const packOfSchema = z.object({
+  productId: idField,
+  /** null turns the carton back into an ordinary product. */
+  packOf: z.object({ productId: idField, quantity: z.number().int().min(PACK_SIZE_MIN).max(PACK_SIZE_MAX) }).nullable(),
+});
+
+/** "This carton holds N of that piece." The carton keeps its own stock; see posOpenPack. */
+export const posSetPackOf = onCall(async (request) => {
+  const input = parse(packOfSchema, request.data);
+  const actor = await posActor(request, ['canEditProducts']);
+  if (input.packOf && !(await stockLinksEntitled(actor.tenantId))) fail('permission-denied', 'error.featureNotActive');
+  const p = tenantPaths(actor.tenantId);
+  const ref = p.doc('products', input.productId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) fail('not-found', 'error.notFound');
+    const self = toProduct(snap.id, snap.data()!);
+    if (input.packOf) {
+      const targetSnap = await tx.get(p.doc('products', input.packOf.productId));
+      const target = targetSnap.exists ? toProduct(targetSnap.id, targetSnap.data()!) : undefined;
+      // A piece that is itself opened from another carton would make "open" ambiguous.
+      const isPieceOfOther = await tx.get(p.col('products').where('packOfId', '==', self.id).limit(1));
+      const issues = packIssues(self, input.packOf, target);
+      if (!isPieceOfOther.empty) issues.push('selfKind');
+      if (issues.length) fail('failed-precondition', 'error.packInvalid', { name: self.name, issues: issues.join(',') });
+    }
+    tx.update(ref, {
+      packOf: input.packOf,
+      packOfId: input.packOf?.productId ?? null,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+  return { ok: true };
+});
+
+const openPackSchema = z.object({
+  clientOperationId: idField,
+  productId: idField,
+  count: z.number().int().min(1).max(10_000),
+});
+
+/**
+ * Opens cartons at the shop: carton stock − count, piece stock + count × size, in one transaction,
+ * with a "packOpen" movement on both products. A cashier can do it at the counter.
+ */
+export const posOpenPack = onCall(async (request) => {
+  const input = parse(openPackSchema, request.data);
+  return runClientOp(request, input.clientOperationId, 'posOpenPack', ['canEditProducts', 'canSell'], async (tx, actor) => {
+    const p = tenantPaths(actor.tenantId);
+    const atMs = Date.now();
+    const cartonRef = p.doc('products', input.productId);
+    const cartonSnap = await tx.get(cartonRef);
+    if (!cartonSnap.exists) fail('not-found', 'error.notFound');
+    const carton = toProduct(cartonSnap.id, cartonSnap.data()!);
+    if (!carton.packOf) fail('failed-precondition', 'error.packInvalid', { name: carton.name, issues: 'notPack' });
+    if (carton.status === 'archived') fail('failed-precondition', 'error.productArchived', { name: carton.name });
+    const pieceRef = p.doc('products', carton.packOf.productId);
+    const pieceSnap = await tx.get(pieceRef);
+    if (!pieceSnap.exists) fail('not-found', 'error.productMissing', { name: carton.packOf.productId });
+    const piece = toProduct(pieceSnap.id, pieceSnap.data()!);
+    const plan = planOpenPack(carton, piece, input.count);
+    if (!plan.ok) {
+      if (plan.reason === 'insufficient') fail('failed-precondition', 'error.insufficientStock', { name: carton.name, available: carton.stock });
+      fail('failed-precondition', 'error.packInvalid', { name: carton.name, issues: plan.reason });
+    }
+    const audit = auditFields(actor, atMs);
+    const note = `${input.count} × ${carton.packOf.quantity}`;
+    const cartonMove = p.newRef('stockMovements');
+    const pieceMove = p.newRef('stockMovements');
+    tx.update(cartonRef, { stock: plan.cartonStockAfter, lastMovementId: cartonMove.id, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(pieceRef, {
+      stock: plan.pieceStockAfter,
+      costUsdCents: plan.pieceCostAfter,
+      lastMovementId: pieceMove.id,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(cartonMove, { productId: carton.id, productName: carton.name, type: 'packOpen', quantity: -input.count, stockAfter: plan.cartonStockAfter, refId: piece.id, refNumber: null, note, ...audit });
+    tx.set(pieceMove, { productId: piece.id, productName: piece.name, type: 'packOpen', quantity: plan.pieces, stockAfter: plan.pieceStockAfter, refId: carton.id, refNumber: null, note, ...audit });
+    return { ok: true, pieces: plan.pieces, cartonStock: plan.cartonStockAfter, pieceStock: plan.pieceStockAfter };
+  });
 });
 
 /** Collections whose documents keep a `productIds` array of every product they reference. */

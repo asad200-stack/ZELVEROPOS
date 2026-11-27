@@ -115,6 +115,7 @@ const MOVEMENT_LABEL: Record<MovementType, TranslationKey> = {
   purchaseReturn: 'movement.purchaseReturn',
   adjustment: 'movement.adjustment',
   initial: 'movement.initial',
+  packOpen: 'movement.packOpen',
 };
 
 export function MovementsModal({ product, onClose }: { product: Product; onClose: () => void }) {

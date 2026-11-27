@@ -143,3 +143,55 @@ describe('selling cartons and sets', () => {
     expect(await stockOf('carton')).toBe(0);
   });
 });
+
+describe('opening a carton (carton with its own stock)', () => {
+  beforeEach(async () => {
+    await asAdmin(env, (fs) => setDoc(doc(fs, tp(T, 'products', 'box')), plain('Coal box', 100, 5, 300)));
+    await asAdmin(env, (fs) => setDoc(doc(fs, tp(T, 'products', 'crt')), plain('Coal carton', 900, 3, 2500)));
+    await callOk(tokens.owner!, 'posSetPackOf', { productId: 'crt', packOf: { productId: 'box', quantity: 10 }, clientApiVersion: 1, clientReleaseVersion: '1.0.0' });
+  });
+
+  it('opening moves cartons into pieces, prices the pieces from the carton, and records both moves', async () => {
+    const res = await callOk<{ pieces: number; pieceStock: number }>(tokens.cashier!, 'posOpenPack', { clientOperationId: `open${Date.now()}`, productId: 'crt', count: 2 });
+    expect(res).toMatchObject({ pieces: 20, pieceStock: 25 });
+    expect(await stockOf('crt')).toBe(1);
+    expect(await stockOf('box')).toBe(25);
+    expect(Number((await readDoc(env, tp(T, 'products', 'box')))?.costUsdCents)).toBe(Math.round((5 * 300 + 20 * 250) / 25));
+    const moves = await readWhere(env, tp(T, 'stockMovements'), 'type', 'packOpen');
+    expect(moves.map((m) => [m.productId, m.quantity]).sort()).toEqual([['box', 20], ['crt', -2]]);
+  });
+
+  it('a retry with the same operation id opens only once', async () => {
+    const op = { clientOperationId: `once${Date.now()}`, productId: 'crt', count: 1 };
+    await callOk(tokens.cashier!, 'posOpenPack', op);
+    await callOk(tokens.cashier!, 'posOpenPack', op);
+    expect(await stockOf('crt')).toBe(2);
+    expect(await stockOf('box')).toBe(15);
+  });
+
+  it('refuses more cartons than in stock, and a product that is not a carton', async () => {
+    const many = await call(tokens.cashier!, 'posOpenPack', { clientOperationId: `many${Date.now()}`, productId: 'crt', count: 4 });
+    expect(many.error?.key).toBe('error.insufficientStock');
+    const notPack = await call(tokens.cashier!, 'posOpenPack', { clientOperationId: `np${Date.now()}`, productId: 'box', count: 1 });
+    expect(notPack.error?.key).toBe('error.packInvalid');
+    expect(await stockOf('box')).toBe(5);
+  });
+
+  it('cartons are bought, counted and sold like any product', async () => {
+    await callOk(tokens.cashier!, 'posCheckout', sale([{ productId: 'crt', quantity: 1, unit: 900 }]));
+    expect(await stockOf('crt')).toBe(2);
+    expect(await stockOf('box')).toBe(5);
+  });
+
+  it('a carton cannot hold a set, another carton or itself, and needs the feature', async () => {
+    const bad = await call(tokens.owner!, 'posSetPackOf', { productId: 'crt', packOf: { productId: 'set', quantity: 10 } });
+    expect(bad.error?.key).toBe('error.packInvalid');
+    const cartonOfCarton = await call(tokens.owner!, 'posSetPackOf', { productId: 'part', packOf: { productId: 'crt', quantity: 2 } });
+    expect(cartonOfCarton.error?.key).toBe('error.packInvalid');
+    await entitle('revoked');
+    const off = await call(tokens.owner!, 'posSetPackOf', { productId: 'part', packOf: { productId: 'box', quantity: 2 } });
+    expect(off.error?.key).toBe('error.featureNotActive');
+    await callOk(tokens.owner!, 'posSetPackOf', { productId: 'crt', packOf: null });
+    expect((await readDoc(env, tp(T, 'products', 'crt')))?.packOf).toBeNull();
+  });
+});

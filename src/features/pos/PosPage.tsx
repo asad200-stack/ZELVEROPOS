@@ -18,6 +18,7 @@ import { useCashbox, useCategories, useSettings } from '@/hooks/useTenantData';
 import { useI18n } from '@/i18n/i18n';
 import { takeReopenRequest, useOfflineQueue } from '@/offline/queue';
 import { getCustomer, getProductsByIds } from '@/services/catalogQuery';
+import { cartonsFor, openPack } from '@/services/productService';
 import { checkout, warmCheckout, type CheckoutResult } from '@/services/salesService';
 import type { Currency, Customer, PriceTier, Product } from '@/types/models';
 import { formatLbp, formatUsd } from '@/utils/format';
@@ -183,6 +184,34 @@ export default function PosPage() {
    * Never puts more in the cart than is in stock: the server rejects an oversold checkout anyway,
    * this stops it at the counter.
    */
+  /** Piece sold out but a carton of it is in stock: offer to open one, then add the piece. */
+  const offerOpenCarton = useCallback(
+    async (piece: Product) => {
+      if (!online) return;
+      const [carton] = await cartonsFor(tenantId, piece.id).catch(() => [] as Product[]);
+      if (!carton?.packOf) return;
+      const yes = await confirm({
+        title: t('pack.offerTitle', { carton: carton.name }),
+        message: t('pack.offerMessage', { pieces: carton.packOf.quantity, piece: piece.name, left: carton.stock }),
+        confirmLabel: t('pack.open'),
+      });
+      if (!yes) return;
+      try {
+        await openPack(carton.id, 1);
+        const [fresh] = await getProductsByIds(tenantId, [piece.id]);
+        if (fresh) {
+          setKnownProducts((known) => mergeKnown(known, [fresh]));
+          update((c) => addProductToCart(c, fresh, 1));
+          setCatalogRevision((n) => n + 1);
+        }
+      } catch (error: unknown) {
+        console.error('[pos] open carton', error);
+        notify('error', t('pack.openFailed'));
+      }
+    },
+    [online, tenantId, confirm, t, update, notify],
+  );
+
   const addProduct = useCallback(
     (product: Product, qty = 1) => {
       setKnownProducts((known) => mergeKnown(known, [product]));
@@ -196,13 +225,14 @@ export default function PosPage() {
       const room = roomInStock(product.stock, inCart);
       if (room <= 0) {
         notify('warning', `${product.name}: ${t('pos.overStock', { stock: Math.max(0, product.stock) })}`);
+        void offerOpenCarton(product);
         return;
       }
       const count = Math.min(Math.max(1, Math.floor(qty)), room);
       if (count < qty) notify('warning', `${product.name}: ${t('pos.overStock', { stock: Math.max(0, product.stock) })}`);
       update((c) => addProductToCart(c, product, count));
     },
-    [update, notify, t],
+    [update, notify, t, offerOpenCarton],
   );
   const pick = useCallback((product: Product) => addProduct(product, 1), [addProduct]);
 

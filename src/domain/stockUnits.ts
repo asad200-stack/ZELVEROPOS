@@ -14,6 +14,7 @@
  */
 import type { Product, StockLink } from '@/types/models';
 import type { Cents } from './money';
+import { weightedAverageCost } from './inventory';
 
 export const STOCK_LINKS_MAX = 20;
 export const STOCK_LINK_QTY_MAX = 10_000;
@@ -122,4 +123,58 @@ export function unitCost(p: Pick<Product, 'costUsdCents' | 'stockLinks'>, produc
   let cost = 0;
   for (const l of linksOf(p)) cost += (products.get(l.productId)?.costUsdCents ?? 0) * l.quantity;
   return cost;
+}
+
+/* ------------------------------------------------------------------ open a carton */
+
+export const PACK_SIZE_MIN = 2;
+export const PACK_SIZE_MAX = 10_000;
+
+export type PackIssue = 'self' | 'quantity' | 'unknown' | 'target' | 'selfKind';
+
+/**
+ * Checks "this carton holds N of that piece". The carton keeps its own stock (bought and counted
+ * as cartons); opening it moves pieces into the piece's stock. Neither side may be a set, a
+ * serial-number product or another carton, so one open is always one simple move.
+ */
+export function packIssues(
+  self: Pick<Product, 'id' | 'imeiTracking' | 'stockLinks'>,
+  pack: StockLink,
+  target: Pick<Product, 'id' | 'status' | 'imeiTracking' | 'stockLinks' | 'packOf'> | undefined,
+): PackIssue[] {
+  const issues: PackIssue[] = [];
+  if (pack.productId === self.id) issues.push('self');
+  if (!Number.isInteger(pack.quantity) || pack.quantity < PACK_SIZE_MIN || pack.quantity > PACK_SIZE_MAX) issues.push('quantity');
+  if (self.imeiTracking || isLinked(self)) issues.push('selfKind');
+  if (!target) issues.push('unknown');
+  else if (target.status === 'archived' || target.imeiTracking || isLinked(target) || target.packOf) issues.push('target');
+  return issues;
+}
+
+export type OpenPackPlan =
+  | { ok: true; pieces: number; cartonStockAfter: number; pieceStockAfter: number; pieceCostAfter: Cents }
+  | { ok: false; reason: 'notPack' | 'count' | 'insufficient' };
+
+/**
+ * Opens `count` cartons: carton stock − count, piece stock + count × size. When the carton has a
+ * known cost, the pieces come in at carton cost ÷ size (weighted with the pieces already there),
+ * so profit stays right; otherwise the piece cost is left as it is.
+ */
+export function planOpenPack(
+  carton: Pick<Product, 'stock' | 'costUsdCents' | 'packOf'>,
+  piece: Pick<Product, 'stock' | 'costUsdCents'>,
+  count: number,
+): OpenPackPlan {
+  if (!carton.packOf) return { ok: false, reason: 'notPack' };
+  if (!Number.isInteger(count) || count < 1 || count > 10_000) return { ok: false, reason: 'count' };
+  if (carton.stock < count) return { ok: false, reason: 'insufficient' };
+  const pieces = count * carton.packOf.quantity;
+  const unit = Math.round(carton.costUsdCents / carton.packOf.quantity);
+  return {
+    ok: true,
+    pieces,
+    cartonStockAfter: carton.stock - count,
+    pieceStockAfter: piece.stock + pieces,
+    pieceCostAfter: carton.costUsdCents > 0 ? weightedAverageCost(piece.stock, piece.costUsdCents, pieces, unit) : piece.costUsdCents,
+  };
 }

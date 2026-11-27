@@ -58,6 +58,11 @@ export interface Product {
    * linked products. Missing, null or empty means an ordinary product with its own stock.
    */
   stockLinks?: StockLink[] | null;
+  /**
+   * A carton with its own stock that can be opened into pieces (domain/stockUnits planOpenPack):
+   * e.g. "Coal carton" holds 10 × "Coal box". Missing or null for ordinary products.
+   */
+  packOf?: StockLink | null;
   /** Archived products keep their stock and history but cannot be sold or purchased. */
   status: ProductStatus;
   archivedAt: Millis;
@@ -287,7 +292,7 @@ export interface SaleReturn {
   createdByName: string;
 }
 
-export type MovementType = 'sale' | 'return' | 'purchase' | 'purchaseReturn' | 'adjustment' | 'initial';
+export type MovementType = 'sale' | 'return' | 'purchase' | 'purchaseReturn' | 'adjustment' | 'initial' | 'packOpen';
 
 export interface StockMovement {
   id: string;

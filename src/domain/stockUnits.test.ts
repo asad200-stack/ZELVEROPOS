@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Product } from '@/types/models';
 import { emptyCartDraft, findStockShortages, priceCart, type Cart } from './cart';
 import { product } from './fixtures.test-utils';
-import { availableStock, linkedFrom, stockDemand, stockLinkIssues, stockProductIds, unitCost } from './stockUnits';
+import { availableStock, linkedFrom, packIssues, planOpenPack, stockDemand, stockLinkIssues, stockProductIds, unitCost } from './stockUnits';
 
 const coal = product({ id: 'coal', name: 'Coal box', stock: 35, costUsdCents: 300 });
 const carton = product({ id: 'carton', name: 'Coal carton', stock: 0, costUsdCents: 0, stockLinks: [{ productId: 'coal', quantity: 10 }] });
@@ -130,5 +130,33 @@ describe('stock links: validation', () => {
     expect(linkedFrom('head', all().values())).toEqual(['set']);
     expect(linkedFrom('coal', all().values())).toEqual(['carton']);
     expect(linkedFrom('hose', [coal])).toEqual([]);
+  });
+});
+
+describe('open a carton', () => {
+  const box = product({ id: 'box', name: 'Coal box', stock: 5, costUsdCents: 300 });
+  const crt = product({ id: 'crt', name: 'Coal carton', stock: 3, costUsdCents: 2500, packOf: { productId: 'box', quantity: 10 } });
+
+  it('moves cartons into pieces and prices the pieces from the carton', () => {
+    expect(planOpenPack(crt, box, 2)).toEqual({ ok: true, pieces: 20, cartonStockAfter: 1, pieceStockAfter: 25, pieceCostAfter: Math.round((5 * 300 + 20 * 250) / 25) });
+  });
+
+  it('keeps the piece cost when the carton cost is unknown', () => {
+    const plan = planOpenPack({ ...crt, costUsdCents: 0 }, box, 1);
+    expect(plan.ok && plan.pieceCostAfter).toBe(300);
+  });
+
+  it('refuses more cartons than in stock, a bad count, and a product that is not a carton', () => {
+    expect(planOpenPack(crt, box, 4)).toEqual({ ok: false, reason: 'insufficient' });
+    expect(planOpenPack(crt, box, 0)).toEqual({ ok: false, reason: 'count' });
+    expect(planOpenPack(box, box, 1)).toEqual({ ok: false, reason: 'notPack' });
+  });
+
+  it('checks what a carton may hold', () => {
+    expect(packIssues(crt, { productId: 'box', quantity: 10 }, box)).toEqual([]);
+    expect(packIssues(crt, { productId: 'crt', quantity: 1 }, crt).sort()).toEqual(['quantity', 'self', 'target']);
+    expect(packIssues(crt, { productId: 'x', quantity: 10 }, undefined)).toEqual(['unknown']);
+    expect(packIssues(crt, { productId: 'set', quantity: 10 }, hookah)).toEqual(['target']);
+    expect(packIssues(hookah, { productId: 'box', quantity: 10 }, box)).toEqual(['selfKind']);
   });
 });

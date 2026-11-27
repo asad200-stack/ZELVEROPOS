@@ -275,6 +275,12 @@ function stockLinksField(d: DocumentData): Pick<Product, 'stockLinks'> {
   return links.length ? { stockLinks: links } : {};
 }
 
+function packOfField(d: DocumentData): Pick<Product, 'packOf'> {
+  const x = d.packOf as { productId?: unknown; quantity?: unknown } | null | undefined;
+  if (!x || typeof x.productId !== 'string' || !Number.isInteger(x.quantity)) return {};
+  return { packOf: { productId: x.productId, quantity: x.quantity as number } };
+}
+
 /** Refuses a direct stock change (purchase, count, return to supplier, web order) on a carton or set. */
 export function assertOwnStock(product: Pick<Product, 'name' | 'stockLinks'>): void {
   if (isLinked(product)) fail('failed-precondition', 'error.linkedNoStock', { name: product.name });
@@ -303,6 +309,7 @@ export function toProduct(id: string, d: DocumentData): Product {
     ...variantFields(d),
     ...galleryField(d),
     ...stockLinksField(d),
+    ...packOfField(d),
     status: d.status === 'archived' ? 'archived' : 'active',
     archivedAt: null,
     createdAt: null,

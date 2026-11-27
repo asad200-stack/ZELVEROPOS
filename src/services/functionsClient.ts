@@ -184,6 +184,11 @@ export const posApi = {
   importProducts: posOperation<{ rows: ImportRowCall[] }, { imported: number }>('posImportProducts'),
   setProductStatus: posOperation<{ productId: string; status: 'active' | 'archived' }, Ok>('posSetProductStatus'),
   deleteProduct: posOperation<{ productId: string }, Ok>('posDeleteProduct'),
+  setPackOf: posOperation<{ productId: string; packOf: { productId: string; quantity: number } | null }, Ok>('posSetPackOf'),
+  openPack: posOperation<
+    { clientOperationId: string; productId: string; count: number },
+    { ok: true; pieces: number; cartonStock: number; pieceStock: number; duplicate: boolean }
+  >('posOpenPack'),
   setStockLinks: posOperation<{ productId: string; links: { productId: string; quantity: number }[] }, Ok>('posSetStockLinks'),
   adjustStock: posOperation<
     {
