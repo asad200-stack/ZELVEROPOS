@@ -86,9 +86,9 @@ describe('feature board', () => {
     expect((await entitlement(T, 'online_store'))?.status).toBe('revoked');
   });
 
-  it('refuses a feature that is still in testing, and an unknown customer', async () => {
+  it('refuses a feature that is not published yet, and an unknown customer', async () => {
     const testing = await call(admin, 'adminSetTenantFeatures', { tenantId: T, grant: ['stock_links'], revoke: [], confirm: true });
-    expect(testing.error?.key).toBe('feature.board.customerPath');
+    expect(testing.error?.key).toBe('feature.board.notPublished');
     expect(await entitlement(T, 'stock_links')).toBeUndefined();
     const ghost = await call(admin, 'adminSetTenantFeatures', { tenantId: 'nobodyHere', grant: ['online_store'], revoke: [], confirm: true });
     expect(ghost.error?.key).toBe('feature.board.noCustomer');

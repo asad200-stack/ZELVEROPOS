@@ -26,7 +26,7 @@ describe('Super Admin feature board', () => {
 
   it('refuses the emergency stop, untested, unpublished, old version and the test account', () => {
     expect(planAdminGrant({ definition: store, record: published(store.version), tenantId: 'x', killed: true })).toEqual({ ok: false, reason: 'killed' });
-    expect(planAdminGrant({ definition: links, record: published(links.version), tenantId: 'x', killed: false })).toEqual({ ok: false, reason: 'customerPath' });
+    expect(planAdminGrant({ definition: { ...links, customerExecution: 'unavailable' }, record: published(links.version), tenantId: 'x', killed: false })).toEqual({ ok: false, reason: 'customerPath' });
     const draft = { ...published(store.version), publication: 'ready' as const };
     expect(planAdminGrant({ definition: store, record: draft, tenantId: 'x', killed: false })).toEqual({ ok: false, reason: 'notPublished' });
     expect(planAdminGrant({ definition: store, record: { ...published(store.version), version: '0.1.0' }, tenantId: 'x', killed: false }).ok).toBe(false);
