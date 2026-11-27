@@ -449,6 +449,30 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     activation: 'server',
     reloadRequired: false,
   },
+  {
+    // Cartons and sets (2026-11): sell a carton of 10 from the piece stock, or a full hookah
+    // (base + hose + heads) as one item. Built for hookah/tobacco shops; useful for any shop that
+    // sells packs or kits. Released per store by the Super Admin from the Feature Center.
+    id: 'stock_links',
+    title: 'Cartons and sets',
+    description: 'Sell a carton and a single piece from the same stock, and sell sets (like a full hookah) that take each part out of stock.',
+    version: '1.0.0',
+    icon: 'box',
+    screenshots: [],
+    category: 'inventory',
+    classification: 'new',
+    pricing: 'free',
+    priceUsdCents: null,
+    capabilities: ['Carton with its own barcode and price, deducted from the pieces', 'Sets that deduct every part', 'Returns put the same pieces back'],
+    requirements: ['Store owner or a user who can edit products'],
+    compatibility: 'Zelvero POS 1.0+',
+    customerExecution: 'unavailable',
+    navPath: null,
+    navLabel: 'Cartons and sets',
+    testingStatus: 'in_testing',
+    activation: 'server',
+    reloadRequired: false,
+  },
 ];
 
 export function featureById(id: string): FeatureDefinition | null {

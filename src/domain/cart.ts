@@ -2,6 +2,7 @@ import type { ChangeManual } from './checkout';
 import type { Currency, PriceTier, Product, SaleKind } from '@/types/models';
 import { usdCentsToLbp, type Cents } from './money';
 import { lineUnitLbp, tierUsdCents, unitDiscount } from './pricing';
+import { stockDemand, unitCost } from './stockUnits';
 
 export interface CartLine {
   key: string;
@@ -172,7 +173,9 @@ export function priceCart(cart: Cart, products: Map<string, Product>, rate: numb
     productsUsdCents += lineUsd;
     productsLbp += lineLbp;
     discountUsdCents += discount * line.quantity;
-    costUsdCents += product.costUsdCents * line.quantity;
+    // A carton or set costs what its linked pieces cost (see domain/stockUnits).
+    const cost = unitCost(product, products);
+    costUsdCents += cost * line.quantity;
     itemCount += line.quantity;
     return {
       ...line,
@@ -182,7 +185,7 @@ export function priceCart(cart: Cart, products: Map<string, Product>, rate: numb
       unitLbp,
       originalUnitUsdCents: original,
       discountUsdCents: discount,
-      costUsdCents: product.costUsdCents,
+      costUsdCents: cost,
       lineUsdCents: lineUsd,
       lineLbp,
     };
@@ -225,10 +228,12 @@ export interface StockShortage {
   available: number;
 }
 
-/** Validates stock against the aggregated demand of all lines of the same product. */
+/**
+ * Validates stock against the aggregated demand of all lines. A carton or set line counts against the
+ * products it is linked to, so `products` must also hold those (see stockProductIds).
+ */
 export function findStockShortages(lines: Pick<CartLine, 'productId' | 'name' | 'quantity'>[], products: Map<string, Product>): StockShortage[] {
-  const demand = new Map<string, number>();
-  for (const line of lines) demand.set(line.productId, (demand.get(line.productId) ?? 0) + line.quantity);
+  const demand = stockDemand(lines, products);
   const shortages: StockShortage[] = [];
   for (const [productId, requested] of demand) {
     const product = products.get(productId);

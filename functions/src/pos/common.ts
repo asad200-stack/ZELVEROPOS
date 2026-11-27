@@ -17,6 +17,7 @@ import type {
   TierPrice,
 } from '../shared/models.js';
 import { CURRENT_API_COMPAT, clientApiAllowed } from '../shared/release.js';
+import { STOCK_LINKS_MAX, isLinked } from '../shared/stockUnits.js';
 import { previewBinding } from '../previewContext.js';
 import { caller } from '../validate.js';
 
@@ -262,6 +263,23 @@ function galleryField(d: DocumentData): Pick<Product, 'gallery'> {
   return gallery.length ? { gallery } : {};
 }
 
+function stockLinksField(d: DocumentData): Pick<Product, 'stockLinks'> {
+  if (!Array.isArray(d.stockLinks)) return {};
+  const links = (d.stockLinks as unknown[])
+    .filter(
+      (x): x is { productId: string; quantity: number } =>
+        !!x && typeof (x as { productId?: unknown }).productId === 'string' && Number.isInteger((x as { quantity?: unknown }).quantity),
+    )
+    .slice(0, STOCK_LINKS_MAX)
+    .map((x) => ({ productId: x.productId, quantity: x.quantity }));
+  return links.length ? { stockLinks: links } : {};
+}
+
+/** Refuses a direct stock change (purchase, count, return to supplier, web order) on a carton or set. */
+export function assertOwnStock(product: Pick<Product, 'name' | 'stockLinks'>): void {
+  if (isLinked(product)) fail('failed-precondition', 'error.linkedNoStock', { name: product.name });
+}
+
 export function toProduct(id: string, d: DocumentData): Product {
   const prices = (d.prices ?? {}) as DocumentData;
   return {
@@ -284,6 +302,7 @@ export function toProduct(id: string, d: DocumentData): Product {
     lastMovementId: strOrNull(d.lastMovementId),
     ...variantFields(d),
     ...galleryField(d),
+    ...stockLinksField(d),
     status: d.status === 'archived' ? 'archived' : 'active',
     archivedAt: null,
     createdAt: null,

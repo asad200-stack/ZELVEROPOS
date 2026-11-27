@@ -9,6 +9,7 @@ import type { Product, PurchaseReturn } from '../shared/models.js';
 import { allocateSupplierPayment, billStatus } from '../shared/suppliers.js';
 import { parse } from '../validate.js';
 import {
+  assertOwnStock,
   auditFields,
   cents,
   exchangeRateOf,
@@ -79,6 +80,7 @@ export const posCreatePurchase = onCall(async (request) => {
     tx.set(p.counter('purchases'), { nextId: counterNext + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
     const running = new Map<string, { stock: number; cost: number }>();
+    for (const prod of products.values()) assertOwnStock(prod);
     for (const prod of products.values()) running.set(prod.id, { stock: prod.stock, cost: prod.costUsdCents });
     const items = input.items.map((i) => {
       const r = running.get(i.productId)!;

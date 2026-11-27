@@ -1947,6 +1947,21 @@ export const en = {
   'error.onlineOrders.notFound': 'This order was not found.',
   'error.onlineOrders.badTransition': 'This order cannot move to that status.',
   'error.onlineOrders.unpaid': 'This Whish order is not paid yet. Confirm the payment or switch it to cash first.',
+  'error.linkedNoStock': '"{name}" is a carton or set: it has no stock of its own. Change the stock of the pieces it uses.',
+  'error.linkedInvalid': '"{name}" cannot be a carton or set like this. Pieces must be ordinary, active products without serial numbers, each listed once, and the product itself must have no stock.',
+  'error.featureNotActive': 'This feature is not active for your store yet.',
+  'stockLinks.action': 'Carton or set',
+  'stockLinks.titleFor': 'Carton or set: {name}',
+  'stockLinks.explain': 'Sell this product from other products\' stock. One piece row makes a carton (for example coal box × 10). Several rows make a set (for example base × 1, hose × 1, head × 2). Its own stock stays at 0.',
+  'stockLinks.hasOwnStock': 'This product has {count} in stock. Set its stock to 0 first, then make it a carton or set.',
+  'stockLinks.piecesPerUnit': 'Pieces in one',
+  'stockLinks.qtyInvalid': 'Whole number from 1',
+  'stockLinks.addPart': 'Add a piece',
+  'stockLinks.searchHint': 'Search by name or barcode',
+  'stockLinks.addThis': '+ {name} (stock {count})',
+  'stockLinks.turnOff': 'Make it a normal product',
+  'stockLinks.saved': 'Saved. Selling this product now takes the pieces out of stock.',
+  'stockLinks.cleared': 'It is a normal product again.',
 };
 
 export type TranslationKey = keyof typeof en;

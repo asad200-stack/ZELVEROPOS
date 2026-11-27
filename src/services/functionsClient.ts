@@ -184,6 +184,7 @@ export const posApi = {
   importProducts: posOperation<{ rows: ImportRowCall[] }, { imported: number }>('posImportProducts'),
   setProductStatus: posOperation<{ productId: string; status: 'active' | 'archived' }, Ok>('posSetProductStatus'),
   deleteProduct: posOperation<{ productId: string }, Ok>('posDeleteProduct'),
+  setStockLinks: posOperation<{ productId: string; links: { productId: string; quantity: number }[] }, Ok>('posSetStockLinks'),
   adjustStock: posOperation<
     {
       clientOperationId: string;

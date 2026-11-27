@@ -105,6 +105,17 @@ function galleryField(d: DocumentData): Pick<Product, 'gallery'> {
   return gallery.length ? { gallery } : {};
 }
 
+function stockLinksField(d: DocumentData): Pick<Product, 'stockLinks'> {
+  if (!Array.isArray(d.stockLinks)) return {};
+  const links = (d.stockLinks as unknown[])
+    .filter(
+      (x): x is { productId: string; quantity: number } =>
+        !!x && typeof (x as { productId?: unknown }).productId === 'string' && Number.isInteger((x as { quantity?: unknown }).quantity),
+    )
+    .map((x) => ({ productId: x.productId, quantity: x.quantity }));
+  return links.length ? { stockLinks: links } : {};
+}
+
 export function toProduct(id: string, d: DocumentData): Product {
   const prices = (d.prices ?? {}) as DocumentData;
   return {
@@ -127,6 +138,7 @@ export function toProduct(id: string, d: DocumentData): Product {
     lastMovementId: strOrNull(d.lastMovementId),
     ...variantFields(d),
     ...galleryField(d),
+    ...stockLinksField(d),
     status: d.status === 'archived' ? 'archived' : 'active',
     archivedAt: millis(d.archivedAt),
     createdAt: millis(d.createdAt, d.createdAtMs),

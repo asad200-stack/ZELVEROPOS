@@ -84,7 +84,7 @@ export {
   activateMyFeature,
 } from './featureCenter.js';
 export { posCheckout, posReturn } from './pos/sales.js';
-export { posCreateProduct, posCreateProductGroup, posAddProductOptions, posImportProducts, posAdjustStock, posSetProductStatus, posDeleteProduct } from './pos/inventory.js';
+export { posCreateProduct, posCreateProductGroup, posAddProductOptions, posImportProducts, posAdjustStock, posSetProductStatus, posDeleteProduct, posSetStockLinks } from './pos/inventory.js';
 export { posCreateCustomer, posPayDebt, posAdjustDebt } from './pos/customers.js';
 export { posCashMove, posAdjustDrawer } from './pos/cash.js';
 export { posCreatePurchase, posPaySupplier, posReturnToSupplier } from './pos/suppliers.js';

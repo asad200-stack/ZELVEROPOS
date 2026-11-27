@@ -8,7 +8,9 @@ import { MAX_VISIBLE_PRODUCTS } from '../shared/onlineStore.js';
 import { inheritedPhoto } from '../shared/variants.js';
 import { nameNormalized } from '../shared/searchKey.js';
 import { parse } from '../validate.js';
-import { auditFields, bumpDailyStats, cents, idField, lbpField, posActor, runClientOp, tenantPaths, toCashbox, toProduct } from './common.js';
+import type { Product } from '../shared/models.js';
+import { STOCK_LINKS_MAX, STOCK_LINK_QTY_MAX, stockLinkIssues } from '../shared/stockUnits.js';
+import { assertOwnStock, auditFields, bumpDailyStats, cents, idField, lbpField, posActor, runClientOp, tenantPaths, toCashbox, toProduct } from './common.js';
 
 const tierPrice = z.object({ usdCents: cents, lbp: lbpField.nullable() });
 const prices = z.object({ retail: tierPrice, wholesale: tierPrice, vip: tierPrice });
@@ -430,6 +432,55 @@ export const posSetProductStatus = onCall(async (request) => {
   return { ok: true };
 });
 
+/** Cartons and sets are released per store from the Feature Center; turning links off is always allowed. */
+async function stockLinksEntitled(tenantId: string): Promise<boolean> {
+  const [subscription, control, entitlement] = await Promise.all([
+    db.doc(`subscriptions/${tenantId}`).get(),
+    db.doc('platformFeatureControl/global').get(),
+    db.doc(`platformFeatureEntitlements/${tenantId}__stock_links`).get(),
+  ]);
+  if (subscription.get('internalDemo') === true) return true;
+  return control.get('killed') !== true && entitlement.get('status') === 'active';
+}
+
+const stockLinksSchema = z.strictObject({
+  productId: idField,
+  /** Empty list turns the product back into an ordinary one (allowed only while its stock is 0). */
+  links: z.array(z.strictObject({ productId: idField, quantity: z.number().int().min(1).max(STOCK_LINK_QTY_MAX) })).max(STOCK_LINKS_MAX),
+});
+
+/**
+ * Makes a product sell from other products' stock: a carton (one link: piece × 10) or a set
+ * (several links). Validated here because Firestore rules cannot check the linked products;
+ * clients cannot write `stockLinks` directly.
+ */
+export const posSetStockLinks = onCall(async (request) => {
+  const input = parse(stockLinksSchema, request.data);
+  const actor = await posActor(request, ['canEditProducts']);
+  if (input.links.length > 0 && !(await stockLinksEntitled(actor.tenantId))) fail('permission-denied', 'error.featureNotActive');
+  const p = tenantPaths(actor.tenantId);
+  const ref = p.doc('products', input.productId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) fail('not-found', 'error.notFound');
+    const self = toProduct(snap.id, snap.data()!);
+    const targetSnaps = await Promise.all(input.links.map((l) => tx.get(p.doc('products', l.productId))));
+    // A product that others already sell from cannot itself become a carton or set (one level only).
+    const linkedBy = input.links.length ? await tx.get(p.col('products').where('stockLinkIds', 'array-contains', self.id).limit(1)) : null;
+    const catalog = new Map<string, Product>();
+    for (const t of targetSnaps) if (t.exists) catalog.set(t.id, toProduct(t.id, t.data()!));
+    const issues = stockLinkIssues(self, input.links, catalog);
+    if (linkedBy && !linkedBy.empty) issues.push('nested');
+    if (issues.length) fail('failed-precondition', 'error.linkedInvalid', { name: self.name, issues: issues.join(',') });
+    tx.update(ref, {
+      stockLinks: input.links.length ? input.links : null,
+      stockLinkIds: input.links.map((l) => l.productId),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+  return { ok: true };
+});
+
 /** Collections whose documents keep a `productIds` array of every product they reference. */
 const REFERENCING = ['sales', 'returns', 'purchases', 'purchaseReturns'] as const;
 
@@ -499,6 +550,7 @@ export const posAdjustStock = onCall(async (request) => {
     const [snap, cashSnap] = await Promise.all([tx.get(ref), input.payFromCashbox ? tx.get(p.cashbox) : Promise.resolve(null)]);
     if (!snap.exists) fail('not-found', 'error.notFound');
     const product = toProduct(snap.id, snap.data()!);
+    assertOwnStock(product);
 
     let delta: number;
     let imeis = product.imeis;

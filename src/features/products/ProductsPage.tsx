@@ -23,12 +23,17 @@ import { registerPageUiHost, unregisterPageUiHost } from '@/features/ai/actions/
 import { ProductFormModal } from './ProductFormModal';
 import { CategoriesModal, ImportProductsModal, LabelsModal, MovementsModal } from './ProductTools';
 import { StockAdjustModal } from './StockAdjustModal';
+import { StockLinksModal } from './StockLinksModal';
+import { useFeatureUpdates } from '@/features/features/useFeatureUpdates';
+import { useSession } from '@/contexts/session';
+import { isLinked } from '@/domain/stockUnits';
 import { VariantGroupModal } from './VariantGroupModal';
 
 type Filter = 'all' | 'low' | 'out' | 'archived';
 type Dialog =
   | { type: 'form'; product: Product | null; seed?: ProductDraftFields | null }
   | { type: 'adjust'; product: Product }
+  | { type: 'links'; product: Product }
   | { type: 'options'; product: Product }
   | { type: 'movements'; product: Product }
   | { type: 'labels'; products: Product[] }
@@ -52,6 +57,10 @@ export default function ProductsPage() {
   const [counts, setCounts] = useState<{ active: number; archived: number } | null>(null);
   const deferred = useDeferredValue(search);
   const del = useAsyncAction('product-delete');
+  // Cartons and sets: shown only to stores the Super Admin released the feature to (the server re-checks).
+  const session = useSession();
+  const featureUpdates = useFeatureUpdates();
+  const stockLinksOn = session.isInternalDemo || featureUpdates.some((u) => u.featureId === 'stock_links' && u.status === 'active');
   const canSeeCost = can('canViewCosts');
   const canAdd = can('canAddProducts');
 
@@ -259,7 +268,12 @@ export default function ProductsPage() {
                         {can('canEditProducts') && (
                           <>
                             <Button variant="ghost" size="sm" icon="edit" onClick={() => setDialog({ type: 'form', product: p })} aria-label={t('common.edit')} />
-                            <Button variant="ghost" size="sm" icon="package" onClick={() => setDialog({ type: 'adjust', product: p })} aria-label={t('products.adjustStock')} title={t('products.adjustStock')} />
+                            {!isLinked(p) && (
+                              <Button variant="ghost" size="sm" icon="package" onClick={() => setDialog({ type: 'adjust', product: p })} aria-label={t('products.adjustStock')} title={t('products.adjustStock')} />
+                            )}
+                            {(stockLinksOn || isLinked(p)) && !p.groupId && !p.imeiTracking && (
+                              <Button variant="ghost" size="sm" icon="box" onClick={() => setDialog({ type: 'links', product: p })} aria-label={t('stockLinks.action')} title={t('stockLinks.action')} />
+                            )}
                             {p.groupId && (
                               <Button variant="ghost" size="sm" icon="grid" onClick={() => setDialog({ type: 'options', product: p })} aria-label={t('products.variants.manage')} title={t('products.variants.manage')} />
                             )}
@@ -301,6 +315,7 @@ export default function ProductsPage() {
         />
       )}
       {dialog?.type === 'adjust' && <StockAdjustModal product={dialog.product} onClose={() => setDialog(null)} />}
+      {dialog?.type === 'links' && <StockLinksModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'options' && <VariantGroupModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'movements' && <MovementsModal product={dialog.product} onClose={() => setDialog(null)} />}
       {dialog?.type === 'labels' && <LabelsModal products={dialog.products} onClose={() => setDialog(null)} />}

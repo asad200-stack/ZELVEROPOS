@@ -6,8 +6,9 @@ import { fail } from '../errors.js';
 import { emptyCartDraft, findStockShortages, findUnavailableImeis, priceCart, type Cart } from '../shared/cart.js';
 import { cashNetCoversDue, computeCredit, debtLineSettlement, formatDocNumber } from '../shared/checkout.js';
 import { planReturn, returnStatusAfter } from '../shared/returns.js';
-import type { Product } from '../shared/models.js';
+import type { Product, StockLink } from '../shared/models.js';
 import { tierUsdCents } from '../shared/pricing.js';
+import { isLinked, linksOf, stockDemand, stockProductIds } from '../shared/stockUnits.js';
 import { caller, parse } from '../validate.js';
 import {
   auditFields,
@@ -138,6 +139,10 @@ export const posCheckout = onCall(async (request) => {
 
     const products = new Map<string, Product>();
     for (const s of productSnaps) if (s.exists) products.set(s.id, toProduct(s.id, s.data()!));
+    // Cartons and sets hold no stock: also read the products they deduct from.
+    const linkedIds = stockProductIds(productIds, products).filter((id) => !products.has(id));
+    const linkedSnaps = await Promise.all(linkedIds.map((id) => tx.get(p.doc('products', id))));
+    for (const s of linkedSnaps) if (s.exists) products.set(s.id, toProduct(s.id, s.data()!));
     const customer = customerSnap?.exists ? toCustomer(customerSnap.id, customerSnap.data()!) : null;
     if (input.customerId && !customer) fail('not-found', 'error.customerMissing');
 
@@ -150,6 +155,12 @@ export const posCheckout = onCall(async (request) => {
       }
       if (line.customUsdCents !== null && line.customUsdCents !== tierUsdCents(product, line.tier, rate)) {
         requirePerm(actor, 'canEditPrice');
+      }
+      for (const link of linksOf(product)) {
+        const part = products.get(link.productId);
+        if (!part) fail('not-found', 'error.productMissing', { name: link.productId });
+        if (part.status === 'archived') fail('failed-precondition', 'error.productArchived', { name: part.name });
+        if (isLinked(part) || part.imeiTracking) fail('failed-precondition', 'error.linkedInvalid', { name: product.name });
       }
     }
 
@@ -262,6 +273,9 @@ export const posCheckout = onCall(async (request) => {
         costUsdCents: l.costUsdCents,
         imei: l.imei,
         returnedQty: 0,
+        // What a carton/set deducted, kept so a later return restocks the same pieces even if the
+        // product's links are edited meanwhile.
+        ...(isLinked(products.get(l.productId)) ? { stockLinks: linksOf(products.get(l.productId)!) } : {}),
       })),
       productIds,
       totalUsdCents: totals.productsUsdCents,
@@ -303,13 +317,10 @@ export const posCheckout = onCall(async (request) => {
     tx.set(saleRef, saleDoc);
     tx.set(p.counter('sales'), { nextId: counterNext + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
+    // Pieces per stock-holding product: a carton or set line deducts the products it links to.
     const demand = new Map<string, { qty: number; imeis: string[] }>();
-    for (const line of cart.lines) {
-      const d = demand.get(line.productId) ?? { qty: 0, imeis: [] };
-      d.qty += line.quantity;
-      if (line.imei) d.imeis.push(line.imei);
-      demand.set(line.productId, d);
-    }
+    for (const [productId, qty] of stockDemand(cart.lines, products)) demand.set(productId, { qty, imeis: [] });
+    for (const line of cart.lines) if (line.imei) demand.get(line.productId)?.imeis.push(line.imei);
     for (const [productId, d] of demand) {
       const product = products.get(productId)!;
       const movementRef = p.newRef('stockMovements');
@@ -454,6 +465,15 @@ export const posReturn = onCall(async (request) => {
 
     const products = new Map<string, Product>();
     for (const s of productSnaps) if (s.exists) products.set(s.id, toProduct(s.id, s.data()!));
+    // A returned carton/set restocks the pieces it deducted at sale time (snapshot on the sale item).
+    const soldLinks = new Map<string, StockLink[]>();
+    for (const raw of (saleSnap.data()!.items ?? []) as DocumentData[]) {
+      const links = toProduct(String(raw.productId), { stockLinks: raw.stockLinks }).stockLinks;
+      if (links && links.length) soldLinks.set(String(raw.productId), links);
+    }
+    const partIds = [...new Set([...soldLinks.values()].flat().map((l) => l.productId))].filter((id) => !products.has(id));
+    const partSnaps = await Promise.all(partIds.map((id) => tx.get(p.doc('products', id))));
+    for (const s of partSnaps) if (s.exists) products.set(s.id, toProduct(s.id, s.data()!));
 
     const counterNext = Number(counterSnap.data()?.nextId) || 1;
     const number = formatDocNumber('RF', counterNext);
@@ -492,6 +512,15 @@ export const posReturn = onCall(async (request) => {
 
     const perProduct = new Map<string, { qty: number; imeis: string[]; name: string }>();
     for (const item of plan.items) {
+      const links = soldLinks.get(item.productId);
+      if (links) {
+        for (const link of links) {
+          const e = perProduct.get(link.productId) ?? { qty: 0, imeis: [], name: products.get(link.productId)?.name ?? item.name };
+          e.qty += item.quantity * link.quantity;
+          perProduct.set(link.productId, e);
+        }
+        continue;
+      }
       const e = perProduct.get(item.productId) ?? { qty: 0, imeis: [], name: item.name };
       e.qty += item.quantity;
       if (item.imei) e.imeis.push(item.imei);

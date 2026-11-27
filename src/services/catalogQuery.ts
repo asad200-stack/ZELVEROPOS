@@ -27,6 +27,7 @@ import { lowStockScanBound, perItemLowStock } from '@/domain/inventory';
 import { emailKey, nameNormalized, phoneKey } from '@/domain/searchKey';
 import type { Customer, Product, Supplier } from '@/types/models';
 import { paths, toCustomer, toProduct, toSupplier } from './db';
+import { availableStock, isLinked, stockProductIds } from '@/domain/stockUnits';
 import type { Page } from './salesService';
 
 /**
@@ -71,13 +72,39 @@ const pageOf = <T>(docs: QueryDocumentSnapshot[], map: (id: string, data: Record
   hasMore: docs.length === size,
 });
 
+/** Raw fetch by id (no linked-stock pass). Chunks of 10, which is Firestore's `in` limit. */
+async function fetchProductsByIds(tenantId: string, ids: string[]): Promise<Product[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  const out: Product[] = [];
+  for (let i = 0; i < unique.length; i += 10) {
+    const part = unique.slice(i, i + 10);
+    const snap = await getDocs(query(paths.col(tenantId, 'products'), where(documentId(), 'in', part)));
+    out.push(...snap.docs.map((d) => toProduct(d.id, d.data())));
+  }
+  return out;
+}
+
+/**
+ * Cartons and sets hold no stock: show how many can be sold now, from the pieces they use
+ * (domain/stockUnits). Only reads anything when the list actually holds such a product.
+ */
+async function withLinkedStock(tenantId: string, products: Product[]): Promise<Product[]> {
+  const linked = products.filter((p) => isLinked(p));
+  if (linked.length === 0) return products;
+  const known = new Map(products.map((p) => [p.id, p]));
+  const missing = stockProductIds(linked.map((p) => p.id), known).filter((id) => !known.has(id));
+  for (const p of await fetchProductsByIds(tenantId, missing)) known.set(p.id, p);
+  return products.map((p) => (isLinked(p) ? { ...p, stock: availableStock(p, known) } : p));
+}
+
 export async function pageProducts(tenantId: string, spec: ProductQuery, cursor: QueryDocumentSnapshot | null): Promise<Page<Product>> {
   if (!cursor && looksLikeCode(spec.search) && spec.mode !== 'expiry') {
     const exact = await findProductByBarcode(tenantId, spec.search.trim(), spec.mode !== 'archived');
     if (exact && (!spec.category || exact.category === spec.category)) return { items: [exact], cursor: null, hasMore: false };
   }
   const snap = await getDocs(query(paths.col(tenantId, 'products'), ...constraintsOf(planProducts(spec, cursor !== null), cursor)));
-  return pageOf(snap.docs, (id, data) => toProduct(id, data), CATALOG_PAGE_SIZE);
+  const page = pageOf(snap.docs, (id, data) => toProduct(id, data), CATALOG_PAGE_SIZE);
+  return { ...page, items: await withLinkedStock(tenantId, page.items) };
 }
 
 export async function findProductByBarcode(tenantId: string, barcode: string, activeOnly = false): Promise<Product | null> {
@@ -85,7 +112,9 @@ export async function findProductByBarcode(tenantId: string, barcode: string, ac
   if (!code) return null;
   const snap = await getDocs(query(paths.col(tenantId, 'products'), ...constraintsOf(planBarcode(code, activeOnly), null)));
   const docSnap = snap.docs[0];
-  return docSnap ? toProduct(docSnap.id, docSnap.data()) : null;
+  if (!docSnap) return null;
+  const [product] = await withLinkedStock(tenantId, [toProduct(docSnap.id, docSnap.data())]);
+  return product ?? null;
 }
 
 export async function findByNormalizedName(
@@ -111,16 +140,9 @@ export async function barcodesInUse(tenantId: string, codes: string[]): Promise<
   return used;
 }
 
-/** Cart lines that are not on the current page. Chunks of 10, which is Firestore's `in` limit. */
+/** Cart lines that are not on the current page. */
 export async function getProductsByIds(tenantId: string, ids: string[]): Promise<Product[]> {
-  const unique = [...new Set(ids.filter(Boolean))];
-  const out: Product[] = [];
-  for (let i = 0; i < unique.length; i += 10) {
-    const part = unique.slice(i, i + 10);
-    const snap = await getDocs(query(paths.col(tenantId, 'products'), where(documentId(), 'in', part)));
-    out.push(...snap.docs.map((d) => toProduct(d.id, d.data())));
-  }
-  return out;
+  return withLinkedStock(tenantId, await fetchProductsByIds(tenantId, ids));
 }
 
 export async function countWhere(
@@ -163,7 +185,8 @@ export async function loadLowStock(tenantId: string, storeDefault: number): Prom
   let cursor: QueryDocumentSnapshot | null = null;
   for (let pageNo = 0; pageNo < LOW_STOCK_MAX_PAGES; pageNo++) {
     const page: Page<Product> = await pageProducts(tenantId, spec, cursor);
-    items.push(...perItemLowStock(page.items, storeDefault));
+    // Cartons and sets follow their pieces, which are listed themselves.
+    items.push(...perItemLowStock(page.items.filter((p) => !isLinked(p)), storeDefault));
     if (!page.hasMore || !page.cursor) return { items, complete: true };
     cursor = page.cursor;
   }

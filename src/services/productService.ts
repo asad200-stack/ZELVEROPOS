@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { nameNormalized } from '@/domain/searchKey';
 import { firebase } from '@/firebase/app';
-import type { Product, ProductPhoto, ProductStatus, StockMovement, TierPrices } from '@/types/models';
+import type { Product, ProductPhoto, ProductStatus, StockLink, StockMovement, TierPrices } from '@/types/models';
 import { paths, toProduct, toStockMovement, type Actor } from './db';
 import { newClientOperationId, retryOnTransport } from './clientOperation';
 import { AppError } from './errors';
@@ -203,6 +203,12 @@ export async function setProductStatus(productId: string, status: ProductStatus)
 export async function deleteProductPermanently(productId: string): Promise<void> {
   requireOnline();
   await posApi.deleteProduct({ productId });
+}
+
+/** Makes a product a carton/set sold from other products' stock; an empty list makes it ordinary again. */
+export async function setStockLinks(productId: string, links: StockLink[]): Promise<void> {
+  requireOnline();
+  await posApi.setStockLinks({ productId, links: links.map((l) => ({ productId: l.productId, quantity: l.quantity })) });
 }
 
 /** Offline-friendly write: resolves immediately when offline (the SDK syncs later). */

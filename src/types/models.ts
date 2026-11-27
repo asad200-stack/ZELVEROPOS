@@ -52,6 +52,12 @@ export interface Product {
   options?: { name: string; value: string }[];
   /** Extra photos shown after the main one on the website (at most MAX_GALLERY_PHOTOS). */
   gallery?: ProductPhoto[];
+  /**
+   * Sold from other products' stock (see domain/stockUnits): a carton is one link (the piece × 10),
+   * a set is several (base + hose + 2 heads). A linked product keeps stock 0; selling it deducts the
+   * linked products. Missing, null or empty means an ordinary product with its own stock.
+   */
+  stockLinks?: StockLink[] | null;
   /** Archived products keep their stock and history but cannot be sold or purchased. */
   status: ProductStatus;
   archivedAt: Millis;
@@ -60,6 +66,12 @@ export interface Product {
 }
 
 export type ProductStatus = 'active' | 'archived';
+
+export interface StockLink {
+  productId: string;
+  /** Pieces of that product in one unit of this product. Integer ≥ 1. */
+  quantity: number;
+}
 
 export interface ProductPhoto {
   url: string;
